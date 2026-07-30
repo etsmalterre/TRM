@@ -11,6 +11,19 @@ which stays on `master`). Up to 6 TRM worktrees can run at once.
 - branch `feat/<feature-name>`, worktree dir `../TRM-<feature-name>`
 - lowest free slot N (1–6) → web on `517N` (no API of its own)
 
+**A TRM worktree can never take an ETM worktree's port.** The two projects own disjoint
+ranges (`PROJECTS` in `ETM/scripts/worktree/lib.mjs`): ETM = web `3000–3006` + API
+`8080–8086`, TRM = web `5171–5176` only. TRM slot 1 and ETM slot 1 coexist. On top of
+that, `allocateSlot()` skips any slot whose port is *actually* listening, even if the
+registry has no entry for it — so an orphan or a manual `pnpm dev` can't be clobbered
+either. No need to check ETM's slots before running this.
+
+One real overlap to know about: **slot 5 is web `5175`, which is also the TRM main
+checkout's own `pnpm dev` default** (see the repo's Quick Start). The port probe means a
+running `pnpm dev` just makes the script skip slot 5; the reverse is not protected — if
+slot 5 is allocated, `pnpm dev` in the main checkout finds `5175` busy and Vite picks
+another port. Serve the main checkout from a worktree, or free slot 5 first.
+
 **TRM is web-only.** Its web server talks to an **ETM API over HTTP**. By default
 it targets the slot-0 master ETM API on `:8080`. To point it at a different ETM API
 (e.g. a running NG worktree's `808N`), pass `--api <port>`.
