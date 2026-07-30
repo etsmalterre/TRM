@@ -57,7 +57,10 @@ const FilsStockPage = createPlaceholder('Stock fil', 'Lots de fil en stock', Pac
 // via the @etm alias (see vite.config.ts). Edit it there; both apps update.
 import { TombeMetierReferences } from '@etm/pages/TombeMetierReferences'
 const TmEchantillonsPage = createPlaceholder('Échantillons', 'Échantillons tombé métier', Layers)
-const TmStockPage = createPlaceholder('Stock tombé métier', 'Stock des pièces tombées métier', Package)
+// Stock is NOT shared with ETM: `stock_ecru` is partitioned by IDsociete and the
+// two halves are different objects (TRM pieces come off an OF on a métier; ETM
+// pieces sit in a magasin waiting for teinture). Own screen, own endpoints.
+import { TombeMetierStock } from '@/pages/TombeMetierStock'
 
 // Production
 const ProductionOfPage = createPlaceholder('Gestion des OF', 'Ordres de fabrication : métiers, fils à tricoter et incorporer', ClipboardList)
@@ -112,7 +115,7 @@ export const router = createBrowserRouter([
       { path: 'tombe-metier', element: <Navigate to="/tombe-metier/references" replace /> },
       { path: 'tombe-metier/references', element: <TombeMetierReferences /> },
       { path: 'tombe-metier/echantillons', element: <TmEchantillonsPage /> },
-      { path: 'tombe-metier/stock', element: <TmStockPage /> },
+      { path: 'tombe-metier/stock', element: <TombeMetierStock /> },
 
       // Production
       { path: 'production', element: <Navigate to="/production/of" replace /> },

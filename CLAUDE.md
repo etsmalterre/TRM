@@ -68,7 +68,7 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 1. **Tableau de bord** (`/`) — placeholder
 2. **Clients** — Commandes, Expéditions, Facturation, Gestion, Planning
 3. **Fils** — Références, Stock, Fournisseurs
-4. **Tombé Métier** — **Références** (`/tombe-metier/references`, implemented — shared verbatim with ETM, see "Shared screens" below), Échantillons, Stock (custom `TmRollIcon`)
+4. **Tombé Métier** — **Références** (`/tombe-metier/references`, implemented — shared verbatim with ETM, see "Shared screens" below), Échantillons, **Stock** (`/tombe-metier/stock`, implemented — TRM-specific, NOT shared, see below). Menu icon is the custom `TmRollIcon`.
 5. **Production** — Gestion des OF, Visitage, Prime, TRS
 6. **Atelier** — Maintenance, Productivité, Bonnetier, **Planning** (`/atelier/planning`, implemented — weekly bonnetier grid over `planning_bonnetier` + desiderata dialog; API route `ETM/apps/api/src/routes/planning-atelier.ts`)
 7. **Qualité** — Défauts récents, Retour client, Analyse
@@ -76,6 +76,30 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 9. **Paramètres** — Utilisateurs (admin-only)
 
 All other screens are `PagePlaceholder`s for now. Legacy references for each domain: `FEN_Gestion_des_OF.wdw`, `FEN_Machines.wdw`, `FEN_Rapport_de_production.wdw`, etc. in `C:\Mes Projets\TRMPROD\` and the main MPS WinDev project (`FI_Planning_Atelier.wdw`, `FEN_Desiderata.wdw` in TRM mode).
+
+### Tombé Métier › Stock data model — why it is NOT a shared screen
+
+`stock_ecru` is partitioned by `IDsociete`, and the two halves are **different objects**,
+so the ETM screen could not simply take a `societe` param. TRM has its own screen
+(`apps/web/src/pages/TombeMetierStock.tsx`) over its own endpoints
+(`ETM/apps/api/src/routes/stock-ecru-trm.ts`, mounted at `/api/stock/ecru-trm`):
+
+| | ETM écru (IDsociete 1) | TRM écru (IDsociete 2) |
+|---|---|---|
+| Origin | bought from a tricoteur | knitted in-house: `IDordre_fabrication` → `ordre_fabrication.IDmachine` → `machine.nom` (the métier), `IDpiece_production` for the visitage timings |
+| Storage | `IDmagasin` → `sous_traitant` | always 0 — TRM has no magasin dimension |
+| Next step | affected to an ennoblisseur (`IDref_commande_affectation`), then becomes a `stock_fini` | shipped to the customer, usually ETM |
+| "Still in stock" | `IDligne_expedition_ETM = 0` + no `stock_fini` child | `IDligne_expedition_TRM = 0` (~1k of ~6.7k rows) |
+| Client reservation | `IDligne_commande_client` | **`IDLigne_Commande_TRM`** — `IDligne_commande_client` is 0 on every TRM row |
+| Status filter | Disponible / En teinture / Tous | Disponible / Affecté / Tous — there is no teinture step in TRM's ledger |
+
+`lot` and `metrage` are empty on TRM rows, so neither gets a column. The chain
+`ligne_commande_client → commande_client → client` is identical, so
+`resolveClientReservations` is **exported** from `stock-ecru.ts` and reused rather than
+duplicated — same for `fetchDefectsByEcru` / `defautSummary`.
+
+The screen is read-only: pieces are created and closed by the production/visitage flow,
+never edited from here.
 
 ### Atelier planning data model (legacy, shared HFSQL)
 
