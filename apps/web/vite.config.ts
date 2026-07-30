@@ -20,8 +20,8 @@ export default defineConfig({
       // future large png doesn't blow the precache size cap.
       includeAssets: ['favicon.svg', 'icons/*.png', 'logo-full.png', 'logo-small.png'],
       manifest: {
-        name: 'MPS TRM - Tricotage Malterre',
-        short_name: 'MPS TRM',
+        name: 'TRM - Tricotage Malterre',
+        short_name: 'TRM',
         lang: 'fr',
         description: 'Système ERP pour Tricotage Malterre - Production tricotage',
         theme_color: '#143D6B',
