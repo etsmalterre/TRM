@@ -66,7 +66,7 @@ The `public/logo-*.png` files are currently the ETM logos as placeholders — re
 Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 
 1. **Tableau de bord** (`/`) — placeholder
-2. **Clients** — Commandes, Expéditions, Facturation, **Gestion** (`/clients/gestion`, implemented — see "Clients › Gestion" below), Planning
+2. **Clients** — Commandes, **Expéditions** (`/clients/expeditions`, implemented — TRM-specific, NOT shared, see below), Facturation, **Gestion** (`/clients/gestion`, implemented — see "Clients › Gestion" below), Planning
 3. **Fils** — Références, Stock, Fournisseurs
 4. **Tombé Métier** — **Références** (`/tombe-metier/references`, implemented — shared verbatim with ETM, see "Shared screens" below), Échantillons, **Stock** (`/tombe-metier/stock`, implemented — TRM-specific, NOT shared, see below). Menu icon is the custom `TmRollIcon`.
 5. **Production** — Gestion des OF, Visitage, Prime, TRS
@@ -76,6 +76,48 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 9. **Paramètres** — Utilisateurs (admin-only)
 
 All other screens are `PagePlaceholder`s for now. Legacy references for each domain: `FEN_Gestion_des_OF.wdw`, `FEN_Machines.wdw`, `FEN_Rapport_de_production.wdw`, etc. in `C:\Mes Projets\TRMPROD\` and the main MPS WinDev project (`FI_Planning_Atelier.wdw`, `FEN_Desiderata.wdw` in TRM mode).
+
+### Clients › Expéditions data model — why it is NOT a shared screen
+
+`expedition` / `ligne_expedition` are shared tables partitioned by
+`expedition.IDsociete` (**TRM = 2**), but the two companies ship different
+merchandise, so the ETM screen could not take a `societe` param. TRM has its own
+screen (`apps/web/src/pages/ClientsExpeditions.tsx`) over its own endpoints
+(`ETM/apps/api/src/routes/expeditions-trm.ts`, mounted at `/api/expeditions-trm`):
+
+| | ETM expédition (IDsociete 1) | TRM expédition (IDsociete 2) |
+|---|---|---|
+| Merchandise | finished rolls (`stock_fini.IDligne_expedition`) or bought écru (`stock_ecru.IDligne_expedition_ETM`); the line's `TYPE` decides | always tombé de métier it knitted: **`stock_ecru.IDligne_expedition_TRM`** |
+| Piece identity | lot + numéro + métrage + magasin | numéro + poids + **métier** (`ordre_fabrication.IDmachine` → `machine.nom`) + visitage défauts. `lot`, `metrage` are empty, `IDmagasin` is 0 |
+| Free-stock pool | `stock_*.IDligne_commande_client` | **`IDLigne_Commande_TRM`** — `IDligne_commande_client` is 0 on every TRM row |
+| Buckets | Textile / Diverses | Textile only — `expedition_divers` has **no** `IDsociete` column, so misc shipments are ETM-only |
+| Documents | avis d'expédition + rapport de contrôle + info matières (3-item print menu) | avis d'expédition only — the visitage findings ride in its Défauts column |
+
+**The handover rule (the one real footgun).** When TRM ships to ETS Malterre —
+which is most shipments — ETM's reception takes **ownership** of the piece: the
+legacy flow flips `stock_ecru.IDsociete` from 2 to 1 and stamps
+`lot = 'trm<IDexpedition>'`. So a delivered avis's pieces are no longer TRM rows.
+Reads therefore **never filter on IDsociete** (filtering would make every
+delivered avis read "0 pièces"); writes **require `IDsociete = 2`** and the API
+409s on any attempt to pull a received piece back off an avis, or to delete an
+avis holding one. Shipments to a third-party client (e.g. Bonneterie Gautier)
+keep their pieces at `IDsociete = 2`.
+
+Like ETM, the legacy **validé / dévalider** concept stays retired: an expedition
+is "non facturée" (editable) or "facturée" (`est_facture = 1`, or a definitive
+facture references one of its `ligne_expedition` rows) and then every write 409s.
+`est_valide` is written once at INSERT (0) and ignored. The accented
+`envoyé_client` / `envoyé_sst` columns (the legacy list's two checkboxes) are
+never named in SQL — that storms the Linux bridge — so they are not surfaced.
+
+The avis d'expédition PDF is the shared `BonLivraisonPdf` with `variant: 'trm'`
+(ports `ETAT_Expédition_TRM`): Tricotage Malterre's own footer (`companyTrm` in
+`lib/pdf/theme.ts` — its own SIRET/TVA/capital, a legal requirement), a Défauts
+column, no Métrage, and lots identified by *métier + lots Malterre + lots
+fournisseur* rather than a lot code. Grouping is per `ordre_fabrication`: every
+piece of an OF shares the machine and the yarn lots (`asso_fil_of` → `stock_fil`
+`lot` / `lot_frs`), which is exactly that header line. The legacy **CSV TAD**
+export is deliberately not ported.
 
 ### Tombé Métier › Stock data model — why it is NOT a shared screen
 
@@ -127,7 +169,7 @@ never edited from here.
 Some screens are pixel-identical in both apps and hit the same non-partitioned data (e.g. Tombé Métier → Références over `/references-ecru`). Those are **not copied** — TRM imports the ETM source file directly, so editing the one file updates both apps:
 
 - **Import**: `import { TombeMetierReferences } from '@etm/pages/TombeMetierReferences'` in `router.tsx`. The `@etm` alias points at `../../../ETM/apps/web/src` (vite.config.ts + tsconfig paths) — the two repos **must stay sibling directories** under `C:\dev\etsmalterre\` (worktrees like `TRM-ref-tm` are siblings too, so they work).
-- **`@/` imports inside a shared screen resolve to THIS app's src** — the screen uses TRM's local copies of components/lib/hooks. Keep those copies in sync with ETM (they currently differ only in line endings, plus the `API_URL` dev fallback in `lib/api.ts`).
+- **`@/` imports inside a shared screen resolve to THIS app's src** — the screen uses TRM's local copies of components/lib/hooks. Keep those copies in sync with ETM (they currently differ only in line endings, plus the `API_URL` dev fallback in `lib/api.ts`). Verbatim mirrors of ETM files, copied when a screen needed them — improve them **in ETM** and re-copy, never fork: `components/email/SendEmailDialog.tsx`, `components/ui/signature-preview.tsx`, `lib/email.ts`, plus the `components/ui/*`, `lib/*` and `hooks/*` that predate them.
 - **The source of truth lives in ETM** — improve the screen there (or from here via the alias path, it's the same file). Never fork a TRM copy of a shared screen.
 - **Adding a new shared screen**: (1) import it via `@etm/pages/...` in `router.tsx`; (2) add its file path to the `content` array in `tailwind.config.js` (explicitly — no globs — or its Tailwind classes won't be generated); (3) check the data it touches is either non-partitioned or already TRM-scoped; (4) if it needs modules TRM doesn't have yet, copy those from ETM first.
 - **Guardrails already in vite.config.ts** — `server.fs.allow` (serves out-of-root files in dev) and `resolve.dedupe` (prevents a second React copy from ETM's node_modules, which would crash hooks). Don't remove either.

@@ -4,7 +4,6 @@ import { PagePlaceholder } from '@/components/shared/PagePlaceholder'
 import { Dashboard } from '@/pages/Dashboard'
 import {
   ShoppingCart,
-  Truck,
   Receipt,
   Users,
   CalendarDays,
@@ -39,13 +38,17 @@ function createPlaceholder(title: string, description: string, Icon: LucideIcon)
 
 // Clients
 const ClientsCommandesPage = createPlaceholder('Commandes clients', 'Commandes clients et affectation du stock', ShoppingCart)
-const ClientsExpeditionsPage = createPlaceholder('Expéditions', 'Expéditions et bons de livraison', Truck)
 const ClientsFacturationPage = createPlaceholder('Facturation', 'Factures et factures proforma', Receipt)
 // Gestion — real screen (port of the legacy FI_Gestion_Client_TRM window).
 // Not shared with ETM: the two ledgers show different fields and read
 // IDsociete = 2 vs 1 (API: ETM `routes/clients-trm.ts`).
 import { ClientsGestion } from '@/pages/ClientsGestion'
 const ClientsPlanningPage = createPlaceholder('Planning', 'Planning des commandes clients', CalendarDays)
+// Expéditions is NOT shared with ETM: `expedition` is partitioned by IDsociete
+// and the two halves ship different merchandise (TRM sends tombé de métier off
+// its own OFs; ETM sends finished rolls out of a magasin). Own screen, own
+// endpoints (`/expeditions-trm`) — same reasoning as Tombé Métier › Stock.
+import { ClientsExpeditions } from '@/pages/ClientsExpeditions'
 
 // Fils
 // Références and Fournisseurs are shared verbatim with ETM — imported from
@@ -103,7 +106,7 @@ export const router = createBrowserRouter([
       // Clients
       { path: 'clients', element: <Navigate to="/clients/commandes" replace /> },
       { path: 'clients/commandes', element: <ClientsCommandesPage /> },
-      { path: 'clients/expeditions', element: <ClientsExpeditionsPage /> },
+      { path: 'clients/expeditions', element: <ClientsExpeditions /> },
       { path: 'clients/facturation', element: <ClientsFacturationPage /> },
       { path: 'clients/gestion', element: <ClientsGestion /> },
       { path: 'clients/planning', element: <ClientsPlanningPage /> },
