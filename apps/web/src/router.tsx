@@ -41,7 +41,10 @@ function createPlaceholder(title: string, description: string, Icon: LucideIcon)
 const ClientsCommandesPage = createPlaceholder('Commandes clients', 'Commandes clients et affectation du stock', ShoppingCart)
 const ClientsExpeditionsPage = createPlaceholder('Expéditions', 'Expéditions et bons de livraison', Truck)
 const ClientsFacturationPage = createPlaceholder('Facturation', 'Factures et factures proforma', Receipt)
-const ClientsGestionPage = createPlaceholder('Gestion clients', 'Fiches clients, contacts et adresses', Users)
+// Gestion — real screen (port of the legacy FI_Gestion_Client_TRM window).
+// Not shared with ETM: the two ledgers show different fields and read
+// IDsociete = 2 vs 1 (API: ETM `routes/clients-trm.ts`).
+import { ClientsGestion } from '@/pages/ClientsGestion'
 const ClientsPlanningPage = createPlaceholder('Planning', 'Planning des commandes clients', CalendarDays)
 
 // Fils
@@ -102,7 +105,7 @@ export const router = createBrowserRouter([
       { path: 'clients/commandes', element: <ClientsCommandesPage /> },
       { path: 'clients/expeditions', element: <ClientsExpeditionsPage /> },
       { path: 'clients/facturation', element: <ClientsFacturationPage /> },
-      { path: 'clients/gestion', element: <ClientsGestionPage /> },
+      { path: 'clients/gestion', element: <ClientsGestion /> },
       { path: 'clients/planning', element: <ClientsPlanningPage /> },
 
       // Fils
