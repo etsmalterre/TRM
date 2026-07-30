@@ -161,4 +161,4 @@ if (missing.length) {
   process.exit(1)
 }
 
-console.log(`\n✓ All ${roots.size} mount root(s) answer on prod — safe to deploy the web bundle.`)
+console.log(`\n✓ All ${targets.length} mount root(s) answer on prod — safe to deploy the web bundle.`)
