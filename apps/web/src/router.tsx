@@ -45,17 +45,17 @@ const ClientsGestionPage = createPlaceholder('Gestion clients', 'Fiches clients,
 const ClientsPlanningPage = createPlaceholder('Planning', 'Planning des commandes clients', CalendarDays)
 
 // Fils
-// Références and Fournisseurs are shared verbatim with MPS_NG — imported from
-// the sister repo via the @mpsng alias (see vite.config.ts). Edit them there;
-// both apps update. (MPS_NG mounts FilsGestion at /fils/gestion — same screen.)
-import { FilsReferences } from '@mpsng/pages/FilsReferences'
-import { FilsGestion } from '@mpsng/pages/FilsGestion'
+// Références and Fournisseurs are shared verbatim with ETM — imported from
+// the sister repo via the @etm alias (see vite.config.ts). Edit them there;
+// both apps update. (ETM mounts FilsGestion at /fils/gestion — same screen.)
+import { FilsReferences } from '@etm/pages/FilsReferences'
+import { FilsGestion } from '@etm/pages/FilsGestion'
 const FilsStockPage = createPlaceholder('Stock fil', 'Lots de fil en stock', Package)
 
 // Tombé Métier
-// Références is shared verbatim with MPS_NG — imported from the sister repo
-// via the @mpsng alias (see vite.config.ts). Edit it there; both apps update.
-import { TombeMetierReferences } from '@mpsng/pages/TombeMetierReferences'
+// Références is shared verbatim with ETM — imported from the sister repo
+// via the @etm alias (see vite.config.ts). Edit it there; both apps update.
+import { TombeMetierReferences } from '@etm/pages/TombeMetierReferences'
 const TmEchantillonsPage = createPlaceholder('Échantillons', 'Échantillons tombé métier', Layers)
 const TmStockPage = createPlaceholder('Stock tombé métier', 'Stock des pièces tombées métier', Package)
 

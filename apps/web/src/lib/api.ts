@@ -2,7 +2,7 @@
 // `credentials: 'include'` (required for cross-origin cookie auth) and so we
 // have one place to add global auth-error handling in the future.
 
-// Points at the shared MPS_NG API (this app has no API of its own — see CLAUDE.md).
+// Points at the shared ETM API (this app has no API of its own — see CLAUDE.md).
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
 
 // Default return type is `any` so existing call sites that rely on implicit

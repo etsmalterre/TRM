@@ -3,12 +3,12 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
-// Screens shared verbatim with MPS_NG are imported straight from the sister
+// Screens shared verbatim with ETM are imported straight from the sister
 // repo (single source of truth — editing the file updates both apps). The
-// MPS_NG checkout must live next to this repo: C:\dev\etsmalterre\MPS_NG.
+// ETM checkout must live next to this repo: C:\dev\etsmalterre\ETM.
 // Their `@/` imports resolve to THIS app's src (same alias), so shared
 // screens use TRM's local copies of components/lib.
-const mpsngSrc = path.resolve(__dirname, '../../../MPS_NG/apps/web/src')
+const etmSrc = path.resolve(__dirname, '../../../ETM/apps/web/src')
 
 export default defineConfig({
   plugins: [
@@ -73,17 +73,17 @@ export default defineConfig({
     port: 5175,
     fs: {
       // Specifying `allow` replaces Vite's default (workspace root), so the
-      // repo root must be listed alongside the shared MPS_NG sources.
-      allow: [path.resolve(__dirname, '../..'), mpsngSrc]
+      // repo root must be listed alongside the shared ETM sources.
+      allow: [path.resolve(__dirname, '../..'), etmSrc]
     }
   },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@mpsng': mpsngSrc
+      '@etm': etmSrc
     },
-    // Bare imports inside shared MPS_NG screens would otherwise resolve to
-    // MPS_NG's node_modules — a second React copy crashes hooks at runtime.
+    // Bare imports inside shared ETM screens would otherwise resolve to
+    // ETM's node_modules — a second React copy crashes hooks at runtime.
     dedupe: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query', 'lucide-react']
   }
 })

@@ -8,7 +8,7 @@
     "declarationMap": false,
     "paths": {
       "@/*": ["./src/*"],
-      "@mpsng/*": ["../../../MPS_NG/apps/web/src/*"]
+      "@etm/*": ["../../../ETM/apps/web/src/*"]
     },
     "types": ["vite/client"]
   },

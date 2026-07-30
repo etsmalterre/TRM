@@ -1,24 +1,24 @@
-# MPS Deploy Skill (MPS-TRM)
+# MPS Deploy Skill (TRM)
 
 ## When to use
 
-Invoke with `/mps_deploy` **from the MPS-TRM main checkout** to deploy the MPS-TRM webapp
+Invoke with `/mps_deploy` **from the TRM main checkout** to deploy the TRM webapp
 to production (`http://mpstrm.malterre`).
 
 ## Scope — web only. NEVER deploy the API from here.
 
-**MPS-TRM is a frontend-only repo.** Production `mpstrm.malterre` proxies `/api/` to the
-**shared MPS_NG API** (`10.10.2.163:8081`), which is owned and deployed by the **MPS_NG**
-deploy workflow (`/mps_deploy` in `C:\dev\etsmalterre\MPS_NG`). This skill only builds and
+**TRM is a frontend-only repo.** Production `mpstrm.malterre` proxies `/api/` to the
+**shared ETM API** (`10.10.2.163:8081`), which is owned and deployed by the **ETM**
+deploy workflow (`/mps_deploy` in `C:\dev\etsmalterre\ETM`). This skill only builds and
 uploads the TRM web bundle.
 
 **Coordination rule:** if the TRM feature you're shipping needed shared-API changes, those
-changes were landed on MPS_NG `master` via a **paired NG worktree** (see
-`MPS_NG/claude_doc/worktrees.md` §"Shared-API changes"). Before deploying the TRM web:
+changes were landed on ETM `master` via a **paired NG worktree** (see
+`ETM/claude_doc/worktrees.md` §"Shared-API changes"). Before deploying the TRM web:
 
 1. Verify the API side is already deployed: the endpoint the screen needs must respond on
-   `https://mpsng.malterre/api/...` (or ask the user / the MPS_NG deploy session).
-2. If it isn't, deploy the API first **from the MPS_NG checkout** with its `/mps_deploy` —
+   `https://mpsng.malterre/api/...` (or ask the user / the ETM deploy session).
+2. If it isn't, deploy the API first **from the ETM checkout** with its `/mps_deploy` —
    not from here.
 
 Deploying TRM web against a stale API fails soft (404s on the new endpoints), but don't
@@ -29,13 +29,13 @@ ship it knowingly.
 | Component | Server | IP | User | Notes |
 |-----------|--------|-----|------|-------|
 | **Web** | mfprod-erp | `10.10.2.165` | `debian` | nginx site `mpstrm.malterre` |
-| **API (shared, not deployed from here)** | mfprod-api | `10.10.2.163` | `debian` | `mps-api.service`, owned by MPS_NG |
+| **API (shared, not deployed from here)** | mfprod-api | `10.10.2.163` | `debian` | `mps-api.service`, owned by ETM |
 
 - **Dist directory**: `/home/debian/mps_trm/dist/`
 - **Nginx config**: `/etc/nginx/sites-enabled/mpstrm.malterre` — serves the dist, proxies
   `/api/` → `http://10.10.2.163:8081`, SPA fallback to `/index.html`, `index.html`/`sw.js`
   never cached, hashed assets cached 1y, `client_max_body_size 25m`.
-- Same physical servers as MPS_NG (`mpsng.malterre` lives in `/home/debian/mps_erp/dist/`
+- Same physical servers as ETM (`mpsng.malterre` lives in `/home/debian/mps_erp/dist/`
   on the same box — **don't mix up the two dist dirs**).
 
 ## SSH Access
@@ -59,20 +59,20 @@ Test with `hostname` first; if the identity file is missing at one path, try the
 
 1. **Build locally — use PowerShell, NOT the Bash tool.** `VITE_API_URL=/api` MUST be set:
    ```powershell
-   cd C:\dev\etsmalterre\MPS-TRM; $env:VITE_API_URL='/api'; pnpm --filter web build
+   cd C:\dev\etsmalterre\TRM; $env:VITE_API_URL='/api'; pnpm --filter web build
    ```
    Produces `apps/web/dist/` with hashed assets.
 
-   **The two build footguns from MPS_NG apply verbatim** (full write-ups in
-   `MPS_NG/.claude/skills/mps_deploy/SKILL.md` — both caused prod outages there):
+   **The two build footguns from ETM apply verbatim** (full write-ups in
+   `ETM/.claude/skills/mps_deploy/SKILL.md` — both caused prod outages there):
    - **Footgun A — git-bash path mangling**: `VITE_API_URL=/api` set through the Bash tool
      gets rewritten to `C:/Program Files/Git/api`. Build with PowerShell.
    - **Footgun B — unset var**: the bundle silently bakes in TRM's dev fallback
      `http://localhost:8080/api` (`apps/web/src/lib/api.ts`).
 
-   **Note**: the TRM build imports shared screens from the sibling `MPS_NG` checkout via the
-   `@mpsng` alias — the MPS_NG checkout must be present and on the code you intend to ship
-   (normally `master`). If MPS_NG master moved for a shared screen, both apps need a deploy.
+   **Note**: the TRM build imports shared screens from the sibling `ETM` checkout via the
+   `@etm` alias — the ETM checkout must be present and on the code you intend to ship
+   (normally `master`). If ETM master moved for a shared screen, both apps need a deploy.
 
 2. **Verify the built bundle BEFORE upload — negative AND positive checks:**
    ```bash
@@ -105,13 +105,13 @@ Test with `hostname` first; if the identity file is missing at one path, try the
       then check for `="/api"` (and absence of `localhost:8080` / `Program Files`)
 - [ ] Navigate to `http://mpstrm.malterre/atelier/planning` in a browser
 
-## Known issues (inherited from MPS_NG — same infra)
+## Known issues (inherited from ETM — same infra)
 
 - **Service Worker caching**: users may need a hard-refresh (Ctrl+Shift+R) to pick up the
   new bundle.
 - **"Impossible de charger la liste" while curl works**: diagnose **server-side first** —
   check the nginx access log for the request; if the browser errors but no request is
   logged, the bundle bakes a wrong API base (Footgun A/B) — it's a bad build, not a cache
-  problem. Full triage recipe in `MPS_NG/.claude/skills/mps_deploy/SKILL.md` §Known Issues.
-- **API-side problems** (500s, `HY090`, bridge storms): those are MPS_NG API issues —
-  investigate/fix/deploy from the MPS_NG checkout, never from here.
+  problem. Full triage recipe in `ETM/.claude/skills/mps_deploy/SKILL.md` §Known Issues.
+- **API-side problems** (500s, `HY090`, bridge storms): those are ETM API issues —
+  investigate/fix/deploy from the ETM checkout, never from here.

@@ -1,8 +1,8 @@
 {
-  "name": "mps-trm",
+  "name": "trm",
   "version": "0.1.0",
   "private": true,
-  "description": "MPS TRM - ERP for Tricotage Malterre (knitting production, Malterre Holding)",
+  "description": "TRM - ERP for Tricotage Malterre (knitting production, Malterre Holding)",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
