@@ -16,13 +16,24 @@ uploads the TRM web bundle.
 changes were landed on ETM `master` via a **paired NG worktree** (see
 `ETM/claude_doc/worktrees.md` §"Shared-API changes"). Before deploying the TRM web:
 
-1. Verify the API side is already deployed: the endpoint the screen needs must respond on
-   `https://mpsng.malterre/api/...` (or ask the user / the ETM deploy session).
-2. If it isn't, deploy the API first **from the ETM checkout** with its `/etm_deploy` —
-   not from here.
+1. **Run the gate — do not eyeball this:**
+   ```bash
+   cd /c/dev/etsmalterre/TRM && node scripts/check-api-routes.mjs
+   ```
+   It extracts every `apiFetch` path in `apps/web/src`, picks a concrete endpoint per
+   mount root, and probes production. Exit 0 = safe; exit 1 = **do not deploy**, it
+   names the missing routes and the pages that call them.
+2. If it fails, deploy the API first **from the ETM checkout** with its `/etm_deploy` —
+   not from here — then re-run the gate until it is green.
 
-Deploying TRM web against a stale API fails soft (404s on the new endpoints), but don't
-ship it knowingly.
+**Why this is a script and not a checklist item:** each TRM worktree develops against its
+own paired NG API on `808N`, so a screen whose API half was never deployed works perfectly
+in dev and 404s only in production. Nothing in the local loop can catch it. Verified
+2026-07-30: three merged screens (`clients-trm`, `commandes-trm`, `expeditions-trm`) would
+have shipped against an API that had none of them.
+
+The check **fails closed** — an unreachable API is a failure, never a silent pass. If you
+are off the factory LAN/VPN it will say so rather than wave the deploy through.
 
 ## Infrastructure
 
@@ -56,6 +67,15 @@ Key location varies per machine:
 Test with `hostname` first; if the identity file is missing at one path, try the other.
 
 ## Deploy Steps
+
+0. **Gate on the production API — before building anything:**
+   ```bash
+   cd /c/dev/etsmalterre/TRM && node scripts/check-api-routes.mjs
+   ```
+   Exit 1 → stop and read §Scope's coordination rule. Deploying past a red gate ships
+   screens whose backend is not on the server. Use `--verbose` to see every probe, and
+   `--base <url>` to point at another API (e.g. `https://mpsng.malterre/api` to test the
+   API directly rather than through TRM's nginx).
 
 1. **Build locally — use PowerShell, NOT the Bash tool.** `VITE_API_URL=/api` MUST be set:
    ```powershell
