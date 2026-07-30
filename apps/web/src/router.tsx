@@ -3,7 +3,6 @@ import { AppShell } from '@/components/layout/AppShell'
 import { PagePlaceholder } from '@/components/shared/PagePlaceholder'
 import { Dashboard } from '@/pages/Dashboard'
 import {
-  Receipt,
   Users,
   CalendarDays,
   Package,
@@ -39,7 +38,11 @@ function createPlaceholder(title: string, description: string, Icon: LucideIcon)
 // Commandes — real screen (TRM client ledger, IDsociete = 2). Not shared with
 // ETM: same tables, other partition, and a production-centric layout.
 import { ClientsCommandes } from '@/pages/ClientsCommandes'
-const ClientsFacturationPage = createPlaceholder('Facturation', 'Factures et factures proforma', Receipt)
+// Facturation — real screen. Not shared with ETM: `facture` / `facture_prov`
+// are partitioned by IDsociete, so it talks to `/factures-trm` (the same API
+// router factory as ETM's `/factures`, scoped to société 2) and shows the
+// TRM-only "Code comptable" field.
+import { ClientsFacturation } from '@/pages/ClientsFacturation'
 // Gestion — real screen (port of the legacy FI_Gestion_Client_TRM window).
 // Not shared with ETM: the two ledgers show different fields and read
 // IDsociete = 2 vs 1 (API: ETM `routes/clients-trm.ts`).
@@ -108,7 +111,7 @@ export const router = createBrowserRouter([
       { path: 'clients', element: <Navigate to="/clients/commandes" replace /> },
       { path: 'clients/commandes', element: <ClientsCommandes /> },
       { path: 'clients/expeditions', element: <ClientsExpeditions /> },
-      { path: 'clients/facturation', element: <ClientsFacturationPage /> },
+      { path: 'clients/facturation', element: <ClientsFacturation /> },
       { path: 'clients/gestion', element: <ClientsGestion /> },
       { path: 'clients/planning', element: <ClientsPlanningPage /> },
 

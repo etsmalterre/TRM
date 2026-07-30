@@ -66,7 +66,7 @@ The `public/logo-*.png` files are currently the ETM logos as placeholders — re
 Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 
 1. **Tableau de bord** (`/`) — placeholder
-2. **Clients** — **Commandes** (`/clients/commandes`, implemented — voir "Commandes clients" ci-dessous), **Expéditions** (`/clients/expeditions`, implemented — TRM-specific, NOT shared, see below), Facturation, **Gestion** (`/clients/gestion`, implemented — see "Clients › Gestion" below), Planning
+2. **Clients** — **Commandes** (`/clients/commandes`, implemented — voir "Commandes clients" ci-dessous), **Expéditions** (`/clients/expeditions`, implemented — TRM-specific, NOT shared, see below), **Facturation** (`/clients/facturation`, implemented — TRM-specific, NOT shared, see below), **Gestion** (`/clients/gestion`, implemented — see "Clients › Gestion" below), Planning
 3. **Fils** — Références, Stock, Fournisseurs
 4. **Tombé Métier** — **Références** (`/tombe-metier/references`, implemented — shared verbatim with ETM, see "Shared screens" below), Échantillons, **Stock** (`/tombe-metier/stock`, implemented — TRM-specific, NOT shared, see below). Menu icon is the custom `TmRollIcon`.
 5. **Production** — Gestion des OF, Visitage, Prime, TRS
@@ -126,6 +126,32 @@ fournisseur* rather than a lot code. Grouping is per `ordre_fabrication`: every
 piece of an OF shares the machine and the yarn lots (`asso_fil_of` → `stock_fil`
 `lot` / `lot_frs`), which is exactly that header line. The legacy **CSV TAD**
 export is deliberately not ported.
+
+### Clients › Facturation — partitioned, but the SAME object as ETM's
+
+`facture` / `facture_prov` are partitioned by `IDsociete` like `stock_ecru`, but unlike it
+the two halves are the **same object** (same columns, same lifecycle, same screen). So the
+API is **one router factory mounted twice** — `createFacturesRouter(scope)` in
+`ETM/apps/api/src/routes/factures.ts` → `/api/factures` (ETM) + **`/api/factures-trm`**
+(TRM) — not a second route file. Everything société-dependent lives in one `FacturesScope`.
+When a future TRM screen hits a partitioned table, pick between the two shapes on that
+"same object?" test; don't default to copying `stock-ecru-trm.ts`.
+
+The screen (`apps/web/src/pages/ClientsFacturation.tsx`) mirrors ETM's, with two
+deliberate deltas:
+- **Code comptable is exposed** in the Info tab (editable on a proforma). The legacy TRM
+  facture window shows it and TRM really varies it — 478 of its 512 invoices on "Vente à
+  façon", 33 on "Vente à façon internationale". It decides which sales account the XImport
+  export posts the HT half to. ETM's screen leaves it implicit.
+- **No "non envoyé" red liseré / counter pill.** TRM does not email its invoices: 511 of
+  512 definitive factures have no `envoi_email` row (ETM has 1 517 that do), so the
+  attention state would paint the whole list red — the noise `mps_designer` §41 rules out.
+  If TRM ever starts sending from this screen, reintroduce it **with a go-live date cutoff**
+  so the historical ledger stays neutral.
+
+Proforma generation reads the rolls through `stock_ecru.IDligne_expedition_TRM` (ETM uses
+`IDligne_expedition_ETM`) — the same physical roll carries both over its life, so reading
+the wrong column invoices the wrong shipment's weight.
 
 ### Tombé Métier › Stock data model — why it is NOT a shared screen
 
