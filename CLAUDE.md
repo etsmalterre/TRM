@@ -26,12 +26,12 @@ TRM is the ERP web app for **Tricotage Malterre (TRM)**, the knitting production
 
 When implementing a feature here you will therefore usually touch **two repos**: the screen in `TRM/apps/web`, and its endpoints in `ETM/apps/api`. All HFSQL rules from `ETM/CLAUDE.md` apply to those endpoints — read them before writing any route.
 
-**Paired-worktree rule for API changes**: API work is done in an **ETM worktree** (never in the ETM main checkout — that's NG's integration tree) and lands through NG's own pipeline (`feat/*` → NG `master` → NG `/mps_deploy`). A TRM feature needing endpoints = a pair of same-named worktrees, the TRM one spun up with `--api 808N` pointing at the NG one. Landing order: NG branch first, then TRM. Full rule: `ETM/claude_doc/worktrees.md` §"Shared-API changes"; the `/feature-complete` skill enforces the guardrail.
+**Paired-worktree rule for API changes**: API work is done in an **ETM worktree** (never in the ETM main checkout — that's NG's integration tree) and lands through NG's own pipeline (`feat/*` → NG `master` → `/etm_deploy`). A TRM feature needing endpoints = a pair of same-named worktrees, the TRM one spun up with `--api 808N` pointing at the NG one. Landing order: NG branch first, then TRM. Full rule: `ETM/claude_doc/worktrees.md` §"Shared-API changes"; the `/feature-complete` skill enforces the guardrail.
 
 ## Production / deploy
 
 - **Host**: `http://mpstrm.malterre` — nginx on `mfprod-erp` (`10.10.2.165`), dist at `/home/debian/mps_trm/dist`, `/api/` proxied to the shared ETM API (`10.10.2.163:8081`).
-- **Deploy ownership**: this repo's `/mps_deploy` skill ships the **TRM web bundle only**. The shared API (and `mpsng.malterre`) is deployed exclusively from the ETM checkout with its `/mps_deploy`. If a TRM feature needed API changes, the API deploy (from ETM) must happen **before or with** the TRM web deploy.
+- **Deploy ownership**: this repo's `/trm_deploy` skill ships the **TRM web bundle only**. The shared API (and `mpsng.malterre`) is deployed exclusively from the ETM checkout with its `/etm_deploy`. If a TRM feature needed API changes, the API deploy (from ETM) must happen **before or with** the TRM web deploy.
 
 ## Branding
 
@@ -43,7 +43,11 @@ Identical to ETM — same colors, same design system:
 | **Vivid Gold** | #F2B80A | CTAs, highlights, active states |
 | **Accent Blue** | #3B7DC9 | Links, alternative accent |
 
-Full design system in `.claude/skills/mps_designer/SKILL.md` (copied from ETM — ETM's copy is the upstream source of truth; re-sync when it changes).
+Full design system: **`../ETM/.claude/skills/mps_designer/SKILL.md`** — the one and only
+copy. This repo's `.claude/skills/mps_designer/SKILL.md` is a short **pointer** to it, not a
+duplicate: it used to be a full copy with a "re-sync when it changes" note, that never
+happened, and by 2026-07-30 it was 709 lines behind and teaching patterns ETM had already
+replaced. Never restore the copy — improve ETM's file instead.
 
 The `public/logo-*.png` files are currently the ETM logos as placeholders — replace with TRM logos when available.
 
@@ -92,7 +96,7 @@ Some screens are pixel-identical in both apps and hit the same non-partitioned d
 
 ## Design system rule
 
-**Before building or modifying any user-facing screen, component, button, tab, card, dialog, or interaction pattern, you MUST invoke the `mps_designer` skill (`Skill(skill: "mps_designer")`).** Not optional — same rule as ETM.
+**Before building or modifying any user-facing screen, component, button, tab, card, dialog, or interaction pattern, you MUST invoke the `mps_designer` skill (`Skill(skill: "mps_designer")`).** Not optional — same rule as ETM. The skill is a pointer, so its first instruction is to `Read` ETM's canonical file — do that before writing code, not after.
 
 **Before inventing a pattern, grep the ETM gold-standard reference screens** (`C:\dev\etsmalterre\ETM\apps\web\src\pages\`): `Entreprises.tsx`, `FilsGestion.tsx`, `FilsStock.tsx`, `FilsCommandes.tsx`, `EtudesColoris.tsx`. Reuse the exact same icons, strings and dialog structures.
 

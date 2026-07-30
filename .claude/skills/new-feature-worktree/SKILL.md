@@ -83,7 +83,7 @@ node C:/dev/etsmalterre/ETM/scripts/worktree/up.mjs <feature-name> --api 808N
 Work on the API in the NG worktree session and the screen in the TRM worktree session
 (or one session, editing the sibling worktree by path). **Landing order**: NG branch first
 (`/feature-complete` in the NG worktree), then the TRM branch. Deploys stay per-repo:
-NG `/mps_deploy` ships the API, TRM `/mps_deploy` ships the web. Full rule in
+`/etm_deploy` ships the API, `/trm_deploy` ships the web. Full rule in
 `ETM/claude_doc/worktrees.md` §"Shared-API changes".
 
 ## Notes / failure modes

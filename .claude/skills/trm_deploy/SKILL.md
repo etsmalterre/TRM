@@ -1,15 +1,15 @@
-# MPS Deploy Skill (TRM)
+# TRM Deploy Skill
 
 ## When to use
 
-Invoke with `/mps_deploy` **from the TRM main checkout** to deploy the TRM webapp
+Invoke with `/trm_deploy` **from the TRM main checkout** to deploy the TRM webapp
 to production (`http://mpstrm.malterre`).
 
 ## Scope — web only. NEVER deploy the API from here.
 
 **TRM is a frontend-only repo.** Production `mpstrm.malterre` proxies `/api/` to the
 **shared ETM API** (`10.10.2.163:8081`), which is owned and deployed by the **ETM**
-deploy workflow (`/mps_deploy` in `C:\dev\etsmalterre\ETM`). This skill only builds and
+deploy workflow (`/etm_deploy` in `C:\dev\etsmalterre\ETM`). This skill only builds and
 uploads the TRM web bundle.
 
 **Coordination rule:** if the TRM feature you're shipping needed shared-API changes, those
@@ -18,7 +18,7 @@ changes were landed on ETM `master` via a **paired NG worktree** (see
 
 1. Verify the API side is already deployed: the endpoint the screen needs must respond on
    `https://mpsng.malterre/api/...` (or ask the user / the ETM deploy session).
-2. If it isn't, deploy the API first **from the ETM checkout** with its `/mps_deploy` —
+2. If it isn't, deploy the API first **from the ETM checkout** with its `/etm_deploy` —
    not from here.
 
 Deploying TRM web against a stale API fails soft (404s on the new endpoints), but don't
@@ -64,7 +64,7 @@ Test with `hostname` first; if the identity file is missing at one path, try the
    Produces `apps/web/dist/` with hashed assets.
 
    **The two build footguns from ETM apply verbatim** (full write-ups in
-   `ETM/.claude/skills/mps_deploy/SKILL.md` — both caused prod outages there):
+   `ETM/.claude/skills/etm_deploy/SKILL.md` — both caused prod outages there):
    - **Footgun A — git-bash path mangling**: `VITE_API_URL=/api` set through the Bash tool
      gets rewritten to `C:/Program Files/Git/api`. Build with PowerShell.
    - **Footgun B — unset var**: the bundle silently bakes in TRM's dev fallback
@@ -112,6 +112,6 @@ Test with `hostname` first; if the identity file is missing at one path, try the
 - **"Impossible de charger la liste" while curl works**: diagnose **server-side first** —
   check the nginx access log for the request; if the browser errors but no request is
   logged, the bundle bakes a wrong API base (Footgun A/B) — it's a bad build, not a cache
-  problem. Full triage recipe in `ETM/.claude/skills/mps_deploy/SKILL.md` §Known Issues.
+  problem. Full triage recipe in `ETM/.claude/skills/etm_deploy/SKILL.md` §Known Issues.
 - **API-side problems** (500s, `HY090`, bridge storms): those are ETM API issues —
   investigate/fix/deploy from the ETM checkout, never from here.
