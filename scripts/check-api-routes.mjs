@@ -61,21 +61,58 @@ function walk(dir) {
  *  when a root has no fully-literal call site. */
 function collectTargets() {
   const byRoot = new Map() // root -> { candidates: [{path, truncated}], files: Set }
-  const re = /apiFetch\s*(?:<[^(]*?>)?\s*\(\s*(['"`])([^'"`$]*)(\$?)/g
+  const blindSpots = []
+
+  // (a) inline literal:      apiFetch('/clients-trm/comptes')
+  const reInline = /apiFetch\s*(?:<[^(]*?>)?\s*\(\s*(['"`])([^'"`$]*)(\$?)/g
+  // (b) via a const:         const BASE = '/factures-trm'  →  apiFetch(`${BASE}/prov/…`)
+  //     Missing this shipped a whole screen past the gate once — see git history.
+  const reConst = /(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*(['"`])(\/[^'"`$]*)\2/g
+  const reConstUse = /apiFetch\s*(?:<[^(]*?>)?\s*\(\s*(?:`\$\{([A-Za-z_$][\w$]*)\}|([A-Za-z_$][\w$]*)\s*[,)])/g
+  // (c) direct base:         fetch(`${API_URL}/expeditions-trm/…`)
+  const reApiUrl = /\$\{API_URL\}(\/[^'"`$\s)]*)/g
+
   for (const file of walk(SRC)) {
     const text = readFileSync(file, 'utf8')
-    for (const m of text.matchAll(re)) {
-      const truncated = m[3] === '$'
-      // Drop query strings and any trailing slash left by truncation.
-      const path = m[2].split('?')[0].replace(/\/+$/, '')
-      if (!path.startsWith('/')) continue
+    const rel = file.slice(SRC.length + 1).replace(/\\/g, '/')
+    let found = 0
+
+    const add = (rawPath, truncated) => {
+      const path = rawPath.split('?')[0].replace(/\/+$/, '')
+      if (!path.startsWith('/')) return
       const root = path.split('/')[1]
-      if (!root || ALWAYS_PRESENT.has(root)) continue
+      if (!root) return
+      // Allowlisted roots still count as "extracted", so a file calling only
+      // /auth/* is not mistaken for a blind spot.
+      if (ALWAYS_PRESENT.has(root)) {
+        found++
+        return
+      }
       if (!byRoot.has(root)) byRoot.set(root, { candidates: [], files: new Set() })
-      const entry = byRoot.get(root)
-      entry.candidates.push({ path, truncated })
-      entry.files.add(file.slice(SRC.length + 1).replace(/\\/g, '/'))
+      byRoot.get(root).candidates.push({ path, truncated })
+      byRoot.get(root).files.add(rel)
+      found++
     }
+
+    for (const m of text.matchAll(reInline)) add(m[2], m[3] === '$')
+
+    const consts = new Map()
+    for (const m of text.matchAll(reConst)) consts.set(m[1], m[3])
+    for (const m of text.matchAll(reConstUse)) {
+      const name = m[1] ?? m[2]
+      // `apiFetch(NAME)` uses the const whole; `apiFetch(\`${NAME}/…\`)` extends it.
+      if (consts.has(name)) add(consts.get(name), m[1] !== undefined)
+    }
+
+    for (const m of text.matchAll(reApiUrl)) add(m[1], false)
+
+    // A file that talks to the API but yielded nothing means the extractor has a
+    // new blind spot. Warn loudly — a guard that silently under-reports is worse
+    // than no guard. Match actual CALLS, not mentions: `lib/api.ts` defines the
+    // helper, and `lib/email.ts` names it in a comment while taking its URL as a
+    // parameter (the caller supplies the path, and is scanned itself).
+    const callsApi = /apiFetch\s*(?:<[^(]*?>)?\s*\(/.test(text) || /\$\{API_URL\}/.test(text)
+    if (found === 0 && callsApi && rel !== 'lib/api.ts') blindSpots.push(rel)
   }
 
   // Prefer a fully-literal path (a real endpoint that will answer 200/401);
@@ -86,7 +123,8 @@ function collectTargets() {
     const chosen = (literal[0] ?? candidates.sort((a, b) => b.path.length - a.path.length)[0]).path
     targets.push({ root, path: chosen, files: [...files] })
   }
-  return targets.sort((a, b) => a.root.localeCompare(b.root))
+  targets.sort((a, b) => a.root.localeCompare(b.root))
+  return { targets, blindSpots }
 }
 
 /** GET a URL, following redirects (mpstrm answers 308 http->https).
@@ -111,7 +149,15 @@ function probe(url, redirects = 0) {
   })
 }
 
-const targets = collectTargets()
+const { targets, blindSpots } = collectTargets()
+if (blindSpots.length) {
+  console.warn(
+    `⚠ ${blindSpots.length} file(s) reference apiFetch/API_URL but yielded no path — ` +
+      `the extractor may be blind to how they build it:`,
+  )
+  for (const f of blindSpots) console.warn(`    apps/web/src/${f}`)
+  console.warn('')
+}
 if (targets.length === 0) {
   console.error('✗ No apiFetch paths found — the extractor is broken, not the API.')
   process.exit(1)
