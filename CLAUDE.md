@@ -66,7 +66,7 @@ The `public/logo-*.png` files are currently the ETM logos as placeholders — re
 Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 
 1. **Tableau de bord** (`/`) — placeholder
-2. **Clients** — Commandes, **Expéditions** (`/clients/expeditions`, implemented — TRM-specific, NOT shared, see below), Facturation, **Gestion** (`/clients/gestion`, implemented — see "Clients › Gestion" below), Planning
+2. **Clients** — **Commandes** (`/clients/commandes`, implemented — voir "Commandes clients" ci-dessous), **Expéditions** (`/clients/expeditions`, implemented — TRM-specific, NOT shared, see below), Facturation, **Gestion** (`/clients/gestion`, implemented — see "Clients › Gestion" below), Planning
 3. **Fils** — Références, Stock, Fournisseurs
 4. **Tombé Métier** — **Références** (`/tombe-metier/references`, implemented — shared verbatim with ETM, see "Shared screens" below), Échantillons, **Stock** (`/tombe-metier/stock`, implemented — TRM-specific, NOT shared, see below). Menu icon is the custom `TmRollIcon`.
 5. **Production** — Gestion des OF, Visitage, Prime, TRS
@@ -76,6 +76,14 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 9. **Paramètres** — Utilisateurs (admin-only)
 
 All other screens are `PagePlaceholder`s for now. Legacy references for each domain: `FEN_Gestion_des_OF.wdw`, `FEN_Machines.wdw`, `FEN_Rapport_de_production.wdw`, etc. in `C:\Mes Projets\TRMPROD\` and the main MPS WinDev project (`FI_Planning_Atelier.wdw`, `FEN_Desiderata.wdw` in TRM mode).
+
+### Commandes clients data model (legacy, shared HFSQL)
+
+- Le registre TRM, c'est `commande_client` / `ligne_commande_client` **scopés `IDsociete = 2`** — les mêmes tables que l'écran ETM, autre partition. Une ligne TRM est toujours `TYPE = 1` (écru) et se compte en Kg : TRM tricote du tombé métier, rien d'autre.
+- ⚠️ **Une commande dont `IDcommande_ETM > 0` est un miroir d'une commande sous-traitant ETM, et elle est en LECTURE SEULE ici.** ETM pilote son entête et ses lignes et les redescend ; il n'y a **pas** de synchro retour, donc une écriture côté TRM diverge en silence. C'est le cas courant, pas le cas limite : 93 % du registre. L'écran masque Modifier / l'édition des lignes / la clôture, et l'API refuse en 409 (`commande_miroir_etm`). Seules les commandes natives (`IDcommande_ETM = 0`) sont éditables.
+- Le suivi d'une ligne passe par la **production**, pas par la réservation de stock comme côté ETM : `ordre_fabrication.IDligne_commande_client` → pièces sur **`stock_ecru.IDLigne_Commande_TRM`** (surtout pas `IDligne_commande_client`, qui reste à 0 sur les lignes TRM) → `ligne_expedition` via `IDligne_expedition_TRM`. « Produit » = somme des poids de ces pièces ; « expédié » = celles dont `IDligne_expedition_TRM > 0`.
+- La pastille « 37 % » de la fiche ligne du legacy est la **marge** : `(prix − PrixDeRevientTRM) / prix`. Le prix suggéré à la saisie, lui, vient de `trmLinePrix` (cost / 0.7, plancher `ref_ecru.prix`) — les deux fonctions vivent dans `ETM/apps/api/src/lib/pricing-trm.ts` et ne sont pas interchangeables.
+- Autres sources du tiroir Progression : `composition_ecru` → `stock_fil` (onglet Stock de fil ; le « potentiel » est borné par le composant le plus rare du mélange) et `ref_ecru_machine` → `machine.nom` (le « Compatible sur : 1H, 3F… » du pied de page).
 
 ### Clients › Expéditions data model — why it is NOT a shared screen
 

@@ -3,7 +3,6 @@ import { AppShell } from '@/components/layout/AppShell'
 import { PagePlaceholder } from '@/components/shared/PagePlaceholder'
 import { Dashboard } from '@/pages/Dashboard'
 import {
-  ShoppingCart,
   Receipt,
   Users,
   CalendarDays,
@@ -37,7 +36,9 @@ function createPlaceholder(title: string, description: string, Icon: LucideIcon)
 }
 
 // Clients
-const ClientsCommandesPage = createPlaceholder('Commandes clients', 'Commandes clients et affectation du stock', ShoppingCart)
+// Commandes — real screen (TRM client ledger, IDsociete = 2). Not shared with
+// ETM: same tables, other partition, and a production-centric layout.
+import { ClientsCommandes } from '@/pages/ClientsCommandes'
 const ClientsFacturationPage = createPlaceholder('Facturation', 'Factures et factures proforma', Receipt)
 // Gestion — real screen (port of the legacy FI_Gestion_Client_TRM window).
 // Not shared with ETM: the two ledgers show different fields and read
@@ -105,7 +106,7 @@ export const router = createBrowserRouter([
 
       // Clients
       { path: 'clients', element: <Navigate to="/clients/commandes" replace /> },
-      { path: 'clients/commandes', element: <ClientsCommandesPage /> },
+      { path: 'clients/commandes', element: <ClientsCommandes /> },
       { path: 'clients/expeditions', element: <ClientsExpeditions /> },
       { path: 'clients/facturation', element: <ClientsFacturationPage /> },
       { path: 'clients/gestion', element: <ClientsGestion /> },
