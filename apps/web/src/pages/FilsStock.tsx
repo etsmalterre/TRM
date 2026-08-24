@@ -11,7 +11,7 @@
 // stock, dernier_mouvement, stock_initial are strictly read-only here — the
 // production flow and the Archivage own them (see the route file's header).
 
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef, useDeferredValue, memo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { UnsavedChangesDialog } from '@/components/shared/UnsavedChangesDialog'
@@ -373,11 +373,15 @@ export function FilsStock() {
 
   const { data: rows, isLoading, isError, error } = useStockList(etat)
 
+  // Keystrokes update the input immediately; the 1.7k-row filter/sort and the
+  // table re-render follow at lower priority (same as TombeMetierStock).
+  const deferredSearch = useDeferredValue(searchQuery)
+
   const filteredSorted = useMemo(() => {
     // Field-scoped chips first (each chip ANDs, restricted to its column),
     // then the free text: AND across terms, OR across columns.
     let out = filterRowsByChips(rows ?? [], searchChips, rowHaystacks)
-    const terms = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    const terms = deferredSearch.trim().toLowerCase().split(/\s+/).filter(Boolean)
     if (terms.length > 0) {
       out = out.filter((r) => {
         const haystacks = rowHaystacks(r)
@@ -389,7 +393,7 @@ export function FilsStock() {
       return sort.dir === 'asc' ? cmp : -cmp
     })
     return out
-  }, [rows, searchQuery, searchChips, sort])
+  }, [rows, deferredSearch, searchChips, sort])
 
   const handleSort = useCallback((key: SortKey) => {
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
@@ -409,15 +413,21 @@ export function FilsStock() {
     onDiscard: () => drawerDiscardRef.current(),
   })
 
+  // The guard object is recreated every render; route the row handler through
+  // a ref so its identity is stable and the memoized rows don't re-render on
+  // every keystroke.
+  const guardRef = useRef(guard)
+  guardRef.current = guard
+
   const handleClose = useCallback(() => {
-    guard.guardAction(() => setSelectedId(null))
-  }, [guard])
+    guardRef.current.guardAction(() => setSelectedId(null))
+  }, [])
 
   const handleRowClick = useCallback((rowId: number) => {
-    guard.guardAction(() => {
+    guardRef.current.guardAction(() => {
       setSelectedId((prev) => (prev === rowId ? null : rowId))
     })
-  }, [guard])
+  }, [])
 
   const onMutationSuccess = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['stock-fil-trm'] })
@@ -514,55 +524,14 @@ export function FilsStock() {
                   <col style={{ width: ICON_COL_WIDTH }} />
                 </colgroup>
                 <tbody>
-                  {filteredSorted.map((r) => {
-                    const isSelected = r.IDstock_fil === selectedId
-                    return (
-                      <tr
-                        key={r.IDstock_fil}
-                        data-stock-row
-                        onClick={() => handleRowClick(r.IDstock_fil)}
-                        className={cn(
-                          'border-b border-border/40 cursor-pointer transition-colors',
-                          isSelected ? 'bg-accent/10' : 'hover:bg-accent/5'
-                        )}
-                      >
-                        <td className="px-2 py-1.5 font-medium truncate" title={r.ref_fil ?? undefined}>{r.ref_fil ?? '—'}</td>
-                        <td className="px-2 py-1.5 truncate" title={r.colori_reference ?? undefined}>{r.colori_reference ?? '—'}</td>
-                        <td className="px-2 py-1.5 tabular-nums truncate">{r.lot ?? '—'}</td>
-                        {/* Kg without the unit in the table — the header names it,
-                            and the fr-FR thousand separators wrap inside tight cells */}
-                        <td className="px-2 py-1.5 text-right tabular-nums font-medium whitespace-nowrap truncate">
-                          {r.stock != null ? fmtNum(r.stock, 1) : '—'}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground whitespace-nowrap truncate">
-                          {r.stock_initial != null ? fmtNum(r.stock_initial, 1) : '—'}
-                        </td>
-                        <td className="px-2 py-1.5 truncate" title={r.client_nom ?? undefined}>{r.client_nom ?? '—'}</td>
-                        <td className="px-2 py-1.5 truncate" title={r.emplacement ?? undefined}>{r.emplacement ?? '—'}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{r.niveau ?? '—'}</td>
-                        <td className="px-2 py-1.5 truncate" title={r.fournisseur_nom ?? undefined}>{r.fournisseur_nom ?? '—'}</td>
-                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">
-                          {fmtDateShort(r.date_entree)}
-                        </td>
-                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">
-                          {fmtDateShort(r.dernier_mouvement)}
-                        </td>
-                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">
-                          {fmtDateShort(r.dernier_pointage)}
-                        </td>
-                        <td className="px-2 py-1.5 text-muted-foreground truncate" title={r.commentaire ?? undefined}>
-                          {r.commentaire?.trim() || ''}
-                        </td>
-                        <td className="px-2 py-1.5 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {!!r.bio && <Leaf className="h-3.5 w-3.5 text-green-600" />}
-                            {!!r.recycle && <Recycle className="h-3.5 w-3.5 text-blue-600" />}
-                            {!!r.termine && <Badge variant="outline" className="text-[10px] py-0">A</Badge>}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  {filteredSorted.map((r) => (
+                    <StockRow
+                      key={r.IDstock_fil}
+                      row={r}
+                      selected={r.IDstock_fil === selectedId}
+                      onRowClick={handleRowClick}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -576,8 +545,8 @@ export function FilsStock() {
                   <StockLotCard
                     key={r.IDstock_fil}
                     row={r}
-                    isSelected={r.IDstock_fil === selectedId}
-                    onClick={() => handleRowClick(r.IDstock_fil)}
+                    selected={r.IDstock_fil === selectedId}
+                    onRowClick={handleRowClick}
                   />
                 ))}
               </div>
@@ -658,13 +627,83 @@ function SortHeader({ label, sortKey, sort, onSort, align = 'left' }: SortHeader
   )
 }
 
+// ── Table row (memoized) ──────────────────────────────
+// Up to 1.7k rows × 14 cells in "Tous" — memoized on (row, selected) so a
+// search keystroke or a selection change only re-renders the rows that
+// actually changed (same pattern as TombeMetierStock).
+
+const StockRow = memo(function StockRow({
+  row: r,
+  selected,
+  onRowClick,
+}: {
+  row: StockRow
+  selected: boolean
+  onRowClick: (id: number) => void
+}) {
+  return (
+    <tr
+      data-stock-row
+      onClick={() => onRowClick(r.IDstock_fil)}
+      className={cn(
+        'border-b border-border/40 cursor-pointer transition-colors',
+        selected ? 'bg-accent/10' : 'hover:bg-accent/5'
+      )}
+    >
+      <td className="px-2 py-1.5 font-medium truncate" title={r.ref_fil ?? undefined}>{r.ref_fil ?? '—'}</td>
+      <td className="px-2 py-1.5 truncate" title={r.colori_reference ?? undefined}>{r.colori_reference ?? '—'}</td>
+      <td className="px-2 py-1.5 tabular-nums truncate">{r.lot ?? '—'}</td>
+      {/* Kg without the unit in the table — the header names it, and the
+          fr-FR thousand separators wrap inside tight cells */}
+      <td className="px-2 py-1.5 text-right tabular-nums font-medium whitespace-nowrap truncate">
+        {r.stock != null ? fmtNum(r.stock, 1) : '—'}
+      </td>
+      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground whitespace-nowrap truncate">
+        {r.stock_initial != null ? fmtNum(r.stock_initial, 1) : '—'}
+      </td>
+      <td className="px-2 py-1.5 truncate" title={r.client_nom ?? undefined}>{r.client_nom ?? '—'}</td>
+      <td className="px-2 py-1.5 truncate" title={r.emplacement ?? undefined}>{r.emplacement ?? '—'}</td>
+      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{r.niveau ?? '—'}</td>
+      <td className="px-2 py-1.5 truncate" title={r.fournisseur_nom ?? undefined}>{r.fournisseur_nom ?? '—'}</td>
+      <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">
+        {fmtDateShort(r.date_entree)}
+      </td>
+      <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">
+        {fmtDateShort(r.dernier_mouvement)}
+      </td>
+      <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">
+        {fmtDateShort(r.dernier_pointage)}
+      </td>
+      <td className="px-2 py-1.5 text-muted-foreground truncate" title={r.commentaire ?? undefined}>
+        {r.commentaire?.trim() || ''}
+      </td>
+      <td className="px-2 py-1.5 text-right">
+        <div className="flex items-center justify-end gap-1">
+          {!!r.bio && <Leaf className="h-3.5 w-3.5 text-green-600" />}
+          {!!r.recycle && <Recycle className="h-3.5 w-3.5 text-blue-600" />}
+          {!!r.termine && <Badge variant="outline" className="text-[10px] py-0">A</Badge>}
+        </div>
+      </td>
+    </tr>
+  )
+})
+
 // ── Mobile card (below md) ─────────────────────────────
 
-function StockLotCard({ row, isSelected, onClick }: { row: StockRow; isSelected: boolean; onClick: () => void }) {
+const StockLotCard = memo(function StockLotCard({
+  row,
+  selected,
+  onRowClick,
+}: {
+  row: StockRow
+  selected: boolean
+  onRowClick: (id: number) => void
+}) {
+  const isSelected = selected
   return (
     <div
       data-stock-row
-      onClick={onClick}
+      onClick={() => onRowClick(row.IDstock_fil)}
       className={cn(
         'rounded-lg border p-3 cursor-pointer transition-colors shadow-sm',
         isSelected ? 'bg-accent/10 border-accent ring-1 ring-accent' : 'bg-white border-border/60 hover:border-accent/40'
@@ -693,7 +732,7 @@ function StockLotCard({ row, isSelected, onClick }: { row: StockRow; isSelected:
       )}
     </div>
   )
-}
+})
 
 // ── Side drawer ────────────────────────────────────────
 
