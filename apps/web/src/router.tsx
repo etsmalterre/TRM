@@ -63,7 +63,11 @@ import { ClientsExpeditions } from '@/pages/ClientsExpeditions'
 // both apps update. (ETM mounts FilsGestion at /fils/gestion — same screen.)
 import { FilsReferences } from '@etm/pages/FilsReferences'
 import { FilsGestion } from '@etm/pages/FilsGestion'
-const FilsStockPage = createPlaceholder('Stock fil', 'Lots de fil en stock', Package)
+// Stock is NOT shared with ETM: stock_fil is one un-partitioned table, but the
+// two screens are different flavors of it — TRM's adds the Client column (the
+// yarn's owner, à façon) and the lifecycle actions (division, titrage,
+// archivage). Own screen, own endpoints (`/stock/fil-trm`).
+import { FilsStock } from '@/pages/FilsStock'
 
 // Tombé Métier
 // Références is shared verbatim with ETM — imported from the sister repo
@@ -131,7 +135,7 @@ export const router = createBrowserRouter([
       // Fils
       { path: 'fils', element: <Navigate to="/fils/references" replace /> },
       { path: 'fils/references', element: <FilsReferences /> },
-      { path: 'fils/stock', element: <FilsStockPage /> },
+      { path: 'fils/stock', element: <FilsStock /> },
       { path: 'fils/fournisseurs', element: <FilsGestion /> },
 
       // Tombé Métier

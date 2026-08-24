@@ -67,7 +67,7 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 
 1. **Tableau de bord** (`/`, `/tableau-de-bord/:id`) — implemented, the ETM widget grid shared verbatim (see "Tableau de bord" below). First widget: **Poids des pièces**.
 2. **Clients** — **Commandes** (`/clients/commandes`, implemented — voir "Commandes clients" ci-dessous), **Expéditions** (`/clients/expeditions`, implemented — TRM-specific, NOT shared, see below), **Facturation** (`/clients/facturation`, implemented — TRM-specific, NOT shared, see below), **Gestion** (`/clients/gestion`, implemented — see "Clients › Gestion" below), Planning
-3. **Fils** — Références, Stock, Fournisseurs
+3. **Fils** — **Références** (`/fils/references`, shared verbatim with ETM), **Stock** (`/fils/stock`, implemented — TRM-specific, NOT shared, see "Fils › Stock" below), **Fournisseurs** (`/fils/fournisseurs`, shared verbatim with ETM)
 4. **Tombé Métier** — **Références** (`/tombe-metier/references`, implemented — shared verbatim with ETM, see "Shared screens" below), Échantillons, **Stock** (`/tombe-metier/stock`, implemented — TRM-specific, NOT shared, see below). Menu icon is the custom `TmRollIcon`.
 5. **Production** — **Gestion des OF** (`/production/of`, implemented — see "Production › Gestion des OF" below), Visitage, Prime, TRS
 6. **Atelier** — Maintenance, Productivité, Bonnetier, **Planning** (`/atelier/planning`, implemented — weekly bonnetier grid over `planning_bonnetier` + desiderata dialog; API route `ETM/apps/api/src/routes/planning-atelier.ts`)
@@ -225,6 +225,61 @@ Port of ETM's screen (`apps/web/src/pages/SettingsUtilisateurs.tsx`): user list 
 - **Permissions are TRM's own.** `PermissionsContext` reads **`/api/permissions-trm/me`**, the admin tab talks to `/api/permissions-trm/{keys,users}`; catalog `ETM/apps/api/src/lib/permission-keys-trm.ts`, store `data/permissions-trm.json`. Never point a TRM gate at `/api/permissions` — the two stores are separate so that neither admin screen can strip the other app's grants on save. A new switch = catalog entry (ETM API, paired NG worktree) + `trmUserHasPermission` on the route + `useHasPermission` in the screen. Default closed; effective admins bypass.
 - First key **`edit_commandes_client`**: hides « Nouvelle » / « Modifier » in Clients › Commandes (Supprimer and line editing sit inside edit mode) and 403s the write routes of `/commandes-trm`. Clôture is deliberately not under it (ETM keeps a separate `cloture_commande_client`).
 - **The user list is an allowlist**, not the whole shared `utilisateur` table: `TRM_STAFF` in the page (lowercase `prenom|nom`) — Vincent Malterre (admin), Nicolas Antonino, Mickael Grivelet, Isabelle Malterre, Laetitia Tellier, Pierre-Emmanuel Roux. Auth stays shared, so the picker still shows everyone. Mickael Grivelet was missing from the table: `ETM/apps/api/src/scripts/add-utilisateur-mickael-grivelet.ts` inserts him (idempotent; **run on prod before the first deploy**).
+
+### Fils › Stock (`/fils/stock`) — port of `FI_Stock_Fil_TRM.wdw`
+
+Tableau layout (§27). Screen `apps/web/src/pages/FilsStock.tsx`; API
+`ETM/apps/api/src/routes/stock-fil-trm.ts` (second router on the `/api/stock` mount,
+endpoints `/fil-trm/*`).
+
+**`stock_fil` is NOT partitioned — no `IDsociete` column.** The legacy TRM screen and
+ETM's Fournisseurs › Stock read the same ~1.7k rows: the yarn physically sits at TRM
+(`IDMagasin = 1` on 99% of rows) and **`IDclient` names its owner** (TRM knits à façon —
+Ets Malterre is TRM's biggest "client", holding most of the yarn). So the TRM screen
+lists ALL rows (user-confirmed), with a Client column and a Disponible (`terminé=0`,
+default) / Archivé / Tous filter. It is a different *flavor* of the same table, not a
+shared screen: TRM adds the lifecycle actions ETM's screen doesn't have.
+
+- **Read-only columns, verified against live data**: `stock` moves only via piece
+  declaration (`Δ = stock_ecru.poids × asso_fil_of.pourcentage/100` — can go negative),
+  `fil_incorpore`, and archivage (`stock = 0`); `dernier_mouvement` =
+  max(`stock_ecru.date_saisie`) of the lot's OFs (183/183 parity). Never written by the web.
+- **Lot numbering**: numeric string, unique key, `MAX(numeric lot)+1` computed **in JS**
+  (SQL `MAX(lot)` is lexicographic; CAST unverified on the bridge), 3-attempt retry.
+- **Create** writes IDclient, IDMagasin=1, `stock = stock_initial`,
+  `dernier_mouvement = date_entree`, `dernier_pointage` (defaults date_entree) — ETM's
+  older `POST /stock/fil` omits all four, don't reuse it.
+- **Diviser**: new row copies the identity fields + gets lot max+1 and
+  `stock = stock_initial = X`; source loses X on both columns. No ledger row exists.
+- **Contrôle de titrage**: reference block from `ref_fil`
+  (titrage/nb_fil/nb_brin/`unite_titrage`), Valider INSERTs into `controle_titrage` —
+  positional INSERT, max+1 PK (reserved `date` column). ⚠️ **Physical column order is
+  `IDcontrole_titrage, titrage, nb_fil, nb_brin, IDstock_fil, IDunite_titrage, date`** —
+  trust the runtime `SELECT *` key order, NOT the `.xdd` analysis listing (they differ;
+  this bit once).
+- **Archivage** (`GET /fil-trm/:id/bilan` + `POST /fil-trm/:id/archiver`): freinte =
+  `stock_initial − Σ(OF pieces poids × pourcentage/100)` — the **pourcentage weighting is
+  load-bearing** on blended yarns (verified vs legacy annotations). Defects verdict =
+  `defaut_qualite` `Type_Reference = 2` over the OFs' `stock_ecru` ids (« Aucun Défaut »
+  smiley when empty). Writes corrected `stock_initial`, `observation_freinte`,
+  `stock = 0`, `terminé = 1`. Thresholds (user-confirmed): freinte green ≤ 10 %, red
+  above or negative; second choix green 0 / amber ≤ 5 % / red. PDFs: Dymo 89×36
+  étiquette (`StockFilLabelPdf`) + A4 rapport de freinte (`RapportFreintePdf`,
+  **`issuer: companyTrm`**).
+- **`controlé` is a dead pre-2023 flag** (1 065 rows, always with `terminé=1`, unrelated
+  to the 2-row `controle_titrage`) — never write it, never render it editable.
+- **Windows driver footgun (this feature's discovery)**: any SELECT naming a
+  **memo-binary column** (`certif_bio`, `certif_recyclé`) — or `SELECT *` on a table
+  holding one (`stock_fil`, `client`) — silently returns **zero rows** on the Windows
+  ODBC driver. Probe blobs with `LENGTH(col)` on Windows; `SELECT *` works on the Linux
+  bridge. Both certif blobs are empty on every row (probed 2026-08), so the Linux
+  archive path (delete + positional reinsert à la `setClientFlag`, blob slots `''`)
+  is safe; it 409s `certificat_bloque` should a blob ever appear.
+- Probe/parity script: `ETM/apps/api/src/scripts/probe-stock-fil-trm.ts` (read-only) —
+  re-run it against prod after `/etm_deploy` to sanity-check the Linux paths.
+- Dev note: `apps/web` `pnpm dev` **hardcodes `VITE_API_URL=:8080` via cross-env**,
+  overriding `.env.development.local` — for a worktree API pair run
+  `VITE_API_URL=http://localhost:808N/api pnpm exec vite --port 5175` instead.
 
 ### Atelier planning data model (legacy, shared HFSQL)
 
