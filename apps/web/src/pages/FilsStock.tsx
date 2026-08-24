@@ -954,15 +954,15 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
               >
                 <Printer className="h-4 w-4" />
               </Button>
-              {/* Archived lot: the bilan is frozen — offer the rapport de freinte
-                  it was closed on. */}
+              {/* Archived lot: the bilan is frozen — reopen it read-only (the
+                  same dialog; its band prints the PDF). */}
               {isArchived && (
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
                   title="Rapport de freinte"
-                  onClick={() => window.open(`${API_URL}/stock/fil-trm/${detail.IDstock_fil}/rapport-freinte`, '_blank')}
+                  onClick={() => setArchiverOpen(true)}
                 >
                   <FileText className="h-4 w-4" />
                 </Button>
@@ -1273,6 +1273,7 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
             open={archiverOpen}
             onOpenChange={setArchiverOpen}
             detail={detail}
+            readOnly={isArchived}
             onDone={onMutationSuccess}
           />
         </>
@@ -1886,11 +1887,14 @@ function ArchiverDialog({
   open,
   onOpenChange,
   detail,
+  readOnly,
   onDone,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   detail: StockDetail
+  /** Archived lot: the same bilan, frozen — no inputs, no Archiver. */
+  readOnly: boolean
   onDone: () => void
 }) {
   const [qteInitiale, setQteInitiale] = useState('')
@@ -1950,7 +1954,7 @@ function ArchiverDialog({
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="text-base font-heading font-bold tracking-tight truncate text-primary-foreground">
-              Archivage — Lot {detail.lot ?? '—'}
+              {readOnly ? 'Bilan de freinte' : 'Archivage'} — Lot {detail.lot ?? '—'}
             </h2>
             <p className="text-xs text-white/70 truncate">
               {detail.ref_fil ?? '—'} • {detail.colori_reference ?? '—'} • {detail.client_nom ?? '—'}
@@ -1992,7 +1996,12 @@ function ArchiverDialog({
           <>
             {/* Quantité initiale — the one figure the operator corrects before
                 archiving (2 arrivages, retour…); gold edge = "this is written". */}
-            <div className="rounded-lg border-l-4 border-l-accent/70 border border-border/60 bg-card p-3 shadow-sm">
+            <div
+              className={cn(
+                'rounded-lg border border-border/60 bg-card p-3 shadow-sm',
+                !readOnly && 'border-l-4 border-l-accent/70',
+              )}
+            >
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <div className="h-7 w-7 rounded-md flex items-center justify-center flex-shrink-0 bg-accent/15 text-accent">
@@ -2001,21 +2010,27 @@ function ArchiverDialog({
                   <div className="min-w-0">
                     <p className="text-sm font-semibold">Quantité initiale</p>
                     <p className="text-[11px] text-muted-foreground truncate">
-                      Stock actuel {formatKg(bilan.stock)} — corrigez le reçu si besoin avant d'archiver
+                      {readOnly
+                        ? 'Quantité retenue à l’archivage'
+                        : `Stock actuel ${formatKg(bilan.stock)} — corrigez le reçu si besoin avant d'archiver`}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    value={qteInitiale}
-                    onChange={(e) => setQteInitiale(e.target.value)}
-                    className="h-9 w-32 px-2.5 text-sm font-semibold rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring text-right tabular-nums"
-                  />
-                  <span className="text-sm text-muted-foreground">kg</span>
-                </div>
+                {readOnly ? (
+                  <span className="text-base font-semibold tabular-nums">{formatKg(bilan.stock_initial)}</span>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={qteInitiale}
+                      onChange={(e) => setQteInitiale(e.target.value)}
+                      className="h-9 w-32 px-2.5 text-sm font-semibold rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring text-right tabular-nums"
+                    />
+                    <span className="text-sm text-muted-foreground">kg</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2124,19 +2139,33 @@ function ArchiverDialog({
               )}
             </DrawerCard>
 
-            {/* Observation freinte — written with the archive; gold edge */}
-            <div className="rounded-lg border-l-4 border-l-accent/70 border border-border/60 bg-card p-3 shadow-sm">
+            {/* Observation freinte — written with the archive; gold edge while
+                editable, plain card once archived */}
+            <div
+              className={cn(
+                'rounded-lg border border-border/60 bg-card p-3 shadow-sm',
+                !readOnly && 'border-l-4 border-l-accent/70',
+              )}
+            >
               <div className="flex items-center gap-2 mb-2">
                 <MessageSquare className="h-4 w-4 text-accent" />
                 <h3 className="text-sm font-semibold">Observation freinte</h3>
               </div>
-              <textarea
-                value={observation}
-                onChange={(e) => setObservation(e.target.value)}
-                rows={2}
-                placeholder="Justification de la freinte (retour client, 2 arrivages, lot mixé…)"
-                className="w-full px-2.5 py-1.5 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-              />
+              {readOnly ? (
+                observation.trim() ? (
+                  <p className="text-sm whitespace-pre-wrap">{observation.trim()}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Aucune observation</p>
+                )
+              ) : (
+                <textarea
+                  value={observation}
+                  onChange={(e) => setObservation(e.target.value)}
+                  rows={2}
+                  placeholder="Justification de la freinte (retour client, 2 arrivages, lot mixé…)"
+                  className="w-full px-2.5 py-1.5 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                />
+              )}
             </div>
           </>
         )}
@@ -2150,20 +2179,28 @@ function ArchiverDialog({
             </div>
           )}
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
-              Annuler
-            </Button>
-            <Button
-              onClick={() => mutation.mutate()}
-              disabled={!validQte || bilanQuery.isLoading || mutation.isPending}
-            >
-              {mutation.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-              ) : (
-                <Archive className="h-3.5 w-3.5 mr-1.5" />
-              )}
-              Archiver
-            </Button>
+            {readOnly ? (
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Fermer
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
+                  Annuler
+                </Button>
+                <Button
+                  onClick={() => mutation.mutate()}
+                  disabled={!validQte || bilanQuery.isLoading || mutation.isPending}
+                >
+                  {mutation.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  ) : (
+                    <Archive className="h-3.5 w-3.5 mr-1.5" />
+                  )}
+                  Archiver
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </DialogContent>
