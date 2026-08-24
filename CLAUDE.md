@@ -69,7 +69,7 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 2. **Clients** — **Commandes** (`/clients/commandes`, implemented — voir "Commandes clients" ci-dessous), **Expéditions** (`/clients/expeditions`, implemented — TRM-specific, NOT shared, see below), **Facturation** (`/clients/facturation`, implemented — TRM-specific, NOT shared, see below), **Gestion** (`/clients/gestion`, implemented — see "Clients › Gestion" below), Planning
 3. **Fils** — **Références** (`/fils/references`, shared verbatim with ETM), **Stock** (`/fils/stock`, implemented — TRM-specific, NOT shared, see "Fils › Stock" below), **Fournisseurs** (`/fils/fournisseurs`, shared verbatim with ETM)
 4. **Tombé Métier** — **Références** (`/tombe-metier/references`, implemented — shared verbatim with ETM, see "Shared screens" below), Échantillons, **Stock** (`/tombe-metier/stock`, implemented — TRM-specific, NOT shared, see below). Menu icon is the custom `TmRollIcon`.
-5. **Production** — **Gestion des OF** (`/production/of`, implemented — see "Production › Gestion des OF" below), Visitage, Prime, TRS
+5. **Production** — **Gestion des OF** (`/production/of`, implemented — see "Production › Gestion des OF" below), Visitage, **Prime** (`/production/prime`, implemented — see "Production › Prime" below), TRS
 6. **Atelier** — Maintenance, Productivité, Bonnetier, **Planning** (`/atelier/planning`, implemented — weekly bonnetier grid over `planning_bonnetier` + desiderata dialog; API route `ETM/apps/api/src/routes/planning-atelier.ts`)
 7. **Qualité** — Défauts récents, Retour client, Analyse
 8. **Rapports** — Production, Lots de fils, État stock fil, Analyse
@@ -280,6 +280,33 @@ shared screen: TRM adds the lifecycle actions ETM's screen doesn't have.
 - Dev note: `apps/web` `pnpm dev` **hardcodes `VITE_API_URL=:8080` via cross-env**,
   overriding `.env.development.local` — for a worktree API pair run
   `VITE_API_URL=http://localhost:808N/api pnpm exec vite --port 5175` instead.
+### Production › Prime (`/production/prime`) — port of `FI_Prime.wdw`
+
+Read-only dashboard (`apps/web/src/pages/ProductionPrime.tsx`; API
+`ETM/apps/api/src/routes/prime-trm.ts`, mounted `/api/prime-trm`). The legacy `.wdw` is
+PCS-compressed, but the full WLanguage survives as comments in the generated Android Java
+(`C:\Mes Projets\MPS\Android\dbg\Compile\GWDFFEN_Prime.java`) — that is the recovered spec.
+
+- **Period** = semester bounded by **15/06 and 15/12** (S1 = 15/12/(Y−1)→15/06/Y, labelled
+  by the *fin* year; S2 = 15/06→15/12, labelled by the *début* year). Précédent/Suivant
+  move a reference date ±6 months; Suivant is blocked on the current period.
+- **Sums** = `SUM(stock_ecru.poids)` over `date_saisie` (a DATETIME) × rate: 1er choix
+  (`second_choix = 0`) +0,05 €/Kg, 2nd choix (`second_choix = 1`) −0,20 €/Kg. **No
+  IDsociete filter** (the ETM handover flips delivered pieces to société 1 — filtering
+  would empty the semester); TRM production is scoped by **`IDordre_fabrication > 0`**
+  instead, a deliberate delta from the legacy whose predicate also caught ETM `lot='fictif'`
+  manual rows (~0.4% overcount). **Retour client (−0,60 €/Kg) is a dead tile**: the legacy
+  hardcodes it to 0 (never wired); keep it displayed at 0 until a real data source exists.
+- **Répartition** = bonnetiers `regleur = 0` (no `archivé` filter — `date_sortie` is what
+  scopes history) whose employment overlaps the period; prorata of days from
+  max(début, date_entree) to **min(today, fin, date_sortie)** — the period-end cap is the
+  second deliberate delta (the legacy counted to *today* even on past semesters, so
+  historical splits drifted). Photos come from `bonnetier.photo` (real JPEG blobs) via
+  `/prime-trm/bonnetiers/:id/photo` — **binary needs `queryRaw`**, the normal `query()`
+  path UTF-8-mangles blobs; the web falls back to initials on non-200.
+- The **week row always shows the current week** (Monday → open-ended), whatever semester
+  is browsed — legacy behavior. The PDF (`lib/pdf/PrimePdf.tsx`) rides `MalterreDocument`
+  with `issuer: companyTrm` and renders the same `/prime-trm` payload as the screen.
 
 ### Atelier planning data model (legacy, shared HFSQL)
 
