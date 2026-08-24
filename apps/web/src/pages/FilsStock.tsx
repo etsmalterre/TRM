@@ -840,6 +840,30 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Lifecycle actions (live lots only) — icon-only ghost buttons per
+              §27.5bis, left of the étiquette printer. */}
+          {detail && canMutate && !isArchived && !isEditing && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
+                title="Diviser le lot"
+                onClick={() => setDiviserOpen(true)}
+              >
+                <Split className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
+                title="Archiver le lot"
+                onClick={() => setArchiverOpen(true)}
+              >
+                <Archive className="h-4 w-4" />
+              </Button>
+            </>
+          )}
           {detail && !isEditing && (
             <Button
               variant="ghost"
@@ -1158,21 +1182,6 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
               </DrawerCard>
             )}
 
-            {/* Actions — division and archivage, on live lots only */}
-            {canMutate && !isArchived && !isEditing && (
-              <DrawerCard icon={<Archive className="h-4 w-4 text-accent" />} title="Actions">
-                <div className="flex flex-col gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setDiviserOpen(true)}>
-                    <Split className="h-3.5 w-3.5 mr-1.5" />
-                    Diviser le lot
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setArchiverOpen(true)}>
-                    <Archive className="h-3.5 w-3.5 mr-1.5" />
-                    Archiver
-                  </Button>
-                </div>
-              </DrawerCard>
-            )}
           </>
         )}
       </div>
