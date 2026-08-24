@@ -910,6 +910,27 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
               <div className="space-y-1.5">
                 <KV label="Stock actuel" value={<span className="font-semibold tabular-nums">{formatKg(detail.stock)}</span>} />
                 <KV label="Stock initial" value={<span className="tabular-nums">{formatKg(detail.stock_initial)}</span>} />
+                {/* Remaining-yarn gauge — same primitive as the ClientsCommandes
+                    production gauge. stock can legitimately be negative
+                    (fil_incorpore, post-archive production) → clamp to 0. */}
+                {detail.stock_initial != null && detail.stock_initial > 0 && (
+                  (() => {
+                    const pct = Math.min(100, Math.max(0, ((detail.stock ?? 0) / detail.stock_initial) * 100))
+                    return (
+                      <div className="flex items-center gap-2 pt-1">
+                        <div className="h-1.5 flex-1 rounded-full bg-zinc-200 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-accent transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground tabular-nums flex-shrink-0">
+                          {fmtNum(pct, 0)} % restant
+                        </span>
+                      </div>
+                    )
+                  })()
+                )}
               </div>
             </DrawerCard>
 
