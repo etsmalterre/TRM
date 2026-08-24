@@ -839,84 +839,91 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
             </>
           )}
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Lifecycle actions (live lots only) — icon-only ghost buttons per
-              §27.5bis, left of the étiquette printer. */}
-          {detail && canMutate && !isArchived && !isEditing && (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
-                title="Diviser le lot"
-                onClick={() => setDiviserOpen(true)}
-              >
-                <Split className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
-                title="Archiver le lot"
-                onClick={() => setArchiverOpen(true)}
-              >
-                <Archive className="h-4 w-4" />
-              </Button>
-            </>
-          )}
-          {detail && !isEditing && (
+        {/* Two-row action cluster: the canonical labeled gold Modifier (or
+            Annuler / Enregistrer) on top, the icon-only secondary actions
+            (Diviser · Archiver · Imprimer) underneath — keeps the band's width
+            for the title instead of a five-button row. */}
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1.5">
+            {detail && !isArchived &&
+              (isEditing ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="px-2 text-white/80 hover:bg-white/15 hover:text-white"
+                    onClick={() => setIsEditing(false)}
+                    title="Annuler"
+                  >
+                    <X className="h-3.5 w-3.5 sm:mr-1.5" />
+                    <span className="hidden sm:inline">Annuler</span>
+                  </Button>
+                  <Button
+                    variant="gold"
+                    size="sm"
+                    onClick={() => saveMutation.mutate()}
+                    disabled={saveMutation.isPending}
+                    title="Enregistrer"
+                  >
+                    {saveMutation.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
+                    ) : (
+                      <Save className="h-3.5 w-3.5 sm:mr-1.5" />
+                    )}
+                    <span className="hidden sm:inline">Enregistrer</span>
+                  </Button>
+                </>
+              ) : (
+                <Button variant="gold" size="sm" onClick={startEdit} title="Modifier">
+                  <Pencil className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Modifier</span>
+                </Button>
+              ))}
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
-              title="Imprimer l'étiquette"
-              onClick={() => window.open(`${API_URL}/stock/fil-trm/${detail.IDstock_fil}/label`, '_blank')}
+              className="h-8 w-8 flex-shrink-0 md:hidden text-white/80 hover:bg-white/15 hover:text-white"
+              onClick={onClose}
+              title="Fermer"
             >
-              <Printer className="h-4 w-4" />
+              <X className="h-4 w-4" />
             </Button>
-          )}
-          {detail && !isArchived &&
-            (isEditing ? (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="px-2 text-white/80 hover:bg-white/15 hover:text-white"
-                  onClick={() => setIsEditing(false)}
-                  title="Annuler"
-                >
-                  <X className="h-3.5 w-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Annuler</span>
-                </Button>
-                <Button
-                  variant="gold"
-                  size="sm"
-                  onClick={() => saveMutation.mutate()}
-                  disabled={saveMutation.isPending}
-                  title="Enregistrer"
-                >
-                  {saveMutation.isPending ? (
-                    <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
-                  ) : (
-                    <Save className="h-3.5 w-3.5 sm:mr-1.5" />
-                  )}
-                  <span className="hidden sm:inline">Enregistrer</span>
-                </Button>
-              </>
-            ) : (
-              <Button variant="gold" size="icon" className="h-8 w-8" onClick={startEdit} title="Modifier">
-                <Pencil className="h-4 w-4" />
+          </div>
+          {detail && !isEditing && (
+            <div className="flex items-center gap-1.5">
+              {canMutate && !isArchived && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
+                    title="Diviser le lot"
+                    onClick={() => setDiviserOpen(true)}
+                  >
+                    <Split className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
+                    title="Archiver le lot"
+                    onClick={() => setArchiverOpen(true)}
+                  >
+                    <Archive className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
+                title="Imprimer l'étiquette"
+                onClick={() => window.open(`${API_URL}/stock/fil-trm/${detail.IDstock_fil}/label`, '_blank')}
+              >
+                <Printer className="h-4 w-4" />
               </Button>
-            ))}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 flex-shrink-0 md:hidden text-white/80 hover:bg-white/15 hover:text-white"
-            onClick={onClose}
-            title="Fermer"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+            </div>
+          )}
         </div>
       </div>
 
