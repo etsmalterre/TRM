@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, NavLink } from 'react-router-dom'
-import { Menu, Maximize2, Minimize2, LogOut } from 'lucide-react'
+import { Menu, Maximize2, Minimize2, LogOut, MessageSquarePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getActiveMenu } from '@/config/navigation'
 import { cn } from '@/lib/utils'
 import { useUser, canSwitchUser } from '@/contexts/UserContext'
+import { TicketModal } from '@/components/tickets/TicketModal'
+import { useTicketNotifications } from '@/components/tickets/useTicketNotifications'
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -19,6 +21,43 @@ export function Header({ onMenuClick }: HeaderProps) {
   const allowSwitch = canSwitchUser(user)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
+
+  // Ticket reporting — the modal opens immediately; the screenshot is captured
+  // in the background and excludes dialog portals from the shot (the ticket
+  // modal is the only one that can be open — dialog overlays cover this button).
+  const [ticketOpen, setTicketOpen] = useState(false)
+  const [screenshot, setScreenshot] = useState<File | null>(null)
+  const [capturingScreenshot, setCapturingScreenshot] = useState(false)
+  // Unread = a ticket of this user moved status or got a developer reply since
+  // they last opened it. Read state is client-side (localStorage) — no DB.
+  const { unreadCount } = useTicketNotifications()
+
+  const openTicketModal = useCallback(() => {
+    setScreenshot(null)
+    setTicketOpen(true)
+    setCapturingScreenshot(true)
+    void (async () => {
+      try {
+        // html-to-image (SVG <foreignObject> rasterization) rather than
+        // html2canvas — the latter mis-renders text inside form inputs.
+        // Dynamic import keeps the library out of the main chunk.
+        // No cacheBust: it forces a network re-fetch of every image on the
+        // page, which made the capture take several seconds.
+        const htmlToImage = await import('html-to-image')
+        const blob = await htmlToImage.toBlob(document.body, {
+          pixelRatio: window.devicePixelRatio || 1,
+          filter: (node) => !(node instanceof Element && node.hasAttribute('data-dialog-root')),
+        })
+        if (blob) {
+          setScreenshot(new File([blob], `capture_${Date.now()}.png`, { type: 'image/png' }))
+        }
+      } catch {
+        // Capture failure must not block reporting — the modal is already open.
+      } finally {
+        setCapturingScreenshot(false)
+      }
+    })()
+  }, [])
 
   // Close the user menu when clicking outside
   useEffect(() => {
@@ -107,6 +146,32 @@ export function Header({ onMenuClick }: HeaderProps) {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
+        {/* Ticket report — red count badge when tickets have news */}
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={openTicketModal}
+            title={
+              unreadCount > 0
+                ? `${unreadCount} ticket${unreadCount > 1 ? 's' : ''} mis à jour`
+                : 'Envoyer un ticket'
+            }
+          >
+            <MessageSquarePlus className="h-5 w-5" />
+            <span className="sr-only">
+              {unreadCount > 0
+                ? `Envoyer un ticket — ${unreadCount} mis à jour`
+                : 'Envoyer un ticket'}
+            </span>
+          </Button>
+          {unreadCount > 0 && (
+            <span className="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white/80 shadow-sm pointer-events-none">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </div>
+
         {/* Fullscreen toggle */}
         <Button
           variant="ghost"
@@ -161,6 +226,13 @@ export function Header({ onMenuClick }: HeaderProps) {
           )}
         </div>
       </div>
+
+      <TicketModal
+        open={ticketOpen}
+        onOpenChange={setTicketOpen}
+        initialScreenshot={screenshot}
+        capturingScreenshot={capturingScreenshot}
+      />
     </header>
   )
 }

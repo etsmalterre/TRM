@@ -224,6 +224,24 @@ event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell
 - `bonnetier` — accented columns `prénom`/`archivé` (HFSQL accent rules apply). Grid rows = `archivé=0 AND regleur=0`; regleurs are excluded (roles in `role_employe`: apprenti/bonnetier/visiteur/regleur).
 - `desiderata` — `DATE` (reserved word → returns uppercased; 8-char YYYYMMDD), `description`, `IDbonnetier`, `justifie`, `declare`. Writes use positional INSERT (max+1 PK) to avoid naming the reserved column. "En cours" = date ≥ today.
 
+## Ticket widget (LIVA issue tracker) — feature version 1.1.1
+
+In-app bug/feature reporting to the LIVA tracker (product **`trm-erp`**), same widget as
+ETM's (spec + upgrade path: the `issue_tracker_integration` skill):
+
+- **Widget**: `apps/web/src/components/tickets/` + trigger/unread badge in
+  `components/layout/Header.tsx`, screenshot via lazy `html-to-image`. The files are
+  verbatim mirrors of ETM's `components/tickets/` — improve them **in ETM** and re-copy.
+  The single deliberate delta is `useTickets.ts` calling `/api/tickets-trm` instead of
+  `/api/tickets`.
+- **Proxy**: the ETM API's `routes/tickets.ts` router factory, mounted at
+  `/api/tickets-trm` and scoped by env `ISSUE_TRACKER_PRODUCT_SLUG_TRM=trm-erp` —
+  a **prod deploy requirement** on the shared API's env (`ETM/claude_doc/dev_setup.md` §4).
+  Never point the widget at `/api/tickets`: the tracker key is company-scoped and the
+  per-mount slug is what keeps ETM's and TRM's "Mes tickets" apart.
+- Read state (unread badge) is `localStorage`-only, keyed per user — no HFSQL change.
+  Reporters need an email mapped in Paramètres › Utilisateurs, or the proxy 400s.
+
 ## Shared screens (live cross-repo link with ETM)
 
 Some screens are pixel-identical in both apps and hit the same non-partitioned data (e.g. Tombé Métier → Références over `/references-ecru`). Those are **not copied** — TRM imports the ETM source file directly, so editing the one file updates both apps:
