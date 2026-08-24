@@ -648,9 +648,6 @@ export function ProductionPrime() {
             })}
           </div>
 
-          {/* Why the 2nd-choix line loses money — defect breakdown + trend */}
-          <DeclassementsCard data={data.declassements} />
-
           {/* Current week — only meaningful on the current semester: the block
               always describes the RUNNING week, which has nothing to do with a
               browsed historical period. */}
@@ -701,6 +698,10 @@ export function ProductionPrime() {
               </div>
             </div>
           )}
+
+          {/* Why the 2nd-choix line loses money — defect breakdown + trend.
+              Last, so it takes whatever height remains under the money cards. */}
+          <DeclassementsCard data={data.declassements} />
         </div>
       </div>
     </div>
