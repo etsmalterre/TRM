@@ -904,9 +904,8 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
                 </Button>
               </>
             ) : (
-              <Button variant="gold" size="sm" onClick={startEdit} title="Modifier">
-                <Pencil className="h-3.5 w-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">Modifier</span>
+              <Button variant="gold" size="icon" className="h-8 w-8" onClick={startEdit} title="Modifier">
+                <Pencil className="h-4 w-4" />
               </Button>
             ))}
           <Button
