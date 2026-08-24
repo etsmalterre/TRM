@@ -18,7 +18,6 @@ import { UnsavedChangesDialog } from '@/components/shared/UnsavedChangesDialog'
 import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
 import {
   Boxes,
-  Search,
   Loader2,
   AlertCircle,
   Pencil,
@@ -55,6 +54,11 @@ import { apiFetch, API_URL } from '@/lib/api'
 import { fmtNum } from '@/lib/format'
 import { useHasPermission } from '@/contexts/PermissionsContext'
 import { CardKV, MobileSortRow } from '@/components/stock/StockCardParts'
+import {
+  SmartSearchInput,
+  filterRowsByChips,
+  type SearchChip,
+} from '@/components/stock/SmartSearchInput'
 
 // ── Types ──────────────────────────────────────────────
 
@@ -268,6 +272,39 @@ function compareRows(a: StockRow, b: StockRow, key: SortKey): number {
   return String(va).localeCompare(String(vb), 'fr', { numeric: true, sensitivity: 'base' })
 }
 
+// ── Field-scoped search chips ──────────────────────────
+// The toolbar search accepts field-scoped chips ("Emplacement : B/7") on top
+// of the free-text multi-term search (mps_designer §27.2bis). Widget + chip
+// semantics live in the shared SmartSearchInput; this screen only declares
+// which of its columns can be scoped.
+const SEARCH_FIELDS = [
+  { key: 'ref_fil', label: 'Fil' },
+  { key: 'colori_reference', label: 'Coloris' },
+  { key: 'lot', label: 'Lot' },
+  { key: 'lot_frs', label: 'Lot fournisseur' },
+  { key: 'client_nom', label: 'Client' },
+  { key: 'fournisseur_nom', label: 'Fournisseur' },
+  { key: 'emplacement', label: 'Emplacement' },
+  { key: 'commentaire', label: 'Commentaire' },
+] as const
+type SearchFieldKey = (typeof SEARCH_FIELDS)[number]['key']
+
+/** Lower-cased text columns of a row, for the any-column match. */
+function rowHaystacks(r: StockRow): string[] {
+  return [
+    r.ref_fil,
+    r.colori_reference,
+    r.lot,
+    r.lot_frs,
+    r.client_nom,
+    r.fournisseur_nom,
+    r.emplacement,
+    r.commentaire,
+  ]
+    .filter((f): f is string => !!f)
+    .map((f) => f.toLowerCase())
+}
+
 const ETAT_OPTIONS = [
   { id: 1, primary: 'Disponible' },
   { id: 2, primary: 'Archivé' },
@@ -281,6 +318,8 @@ const ETAT_TO_ID: Record<EtatFilter, number> = { disponible: 1, archive: 2, tous
 export function FilsStock() {
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
+  // Field-scoped chips (see SEARCH_FIELDS above).
+  const [searchChips, setSearchChips] = useState<SearchChip<SearchFieldKey>[]>([])
   const [etat, setEtat] = useState<EtatFilter>('disponible')
   const [sort, setSort] = useState<SortState>({ key: 'date_entree', dir: 'desc' })
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -292,23 +331,13 @@ export function FilsStock() {
   const { data: rows, isLoading, isError, error } = useStockList(etat)
 
   const filteredSorted = useMemo(() => {
-    let out = rows ?? []
-    // AND across terms, OR across columns (same contract as ETM's FilsStock).
+    // Field-scoped chips first (each chip ANDs, restricted to its column),
+    // then the free text: AND across terms, OR across columns.
+    let out = filterRowsByChips(rows ?? [], searchChips, rowHaystacks)
     const terms = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean)
     if (terms.length > 0) {
       out = out.filter((r) => {
-        const haystacks = [
-          r.ref_fil,
-          r.colori_reference,
-          r.lot,
-          r.lot_frs,
-          r.client_nom,
-          r.fournisseur_nom,
-          r.emplacement,
-          r.commentaire,
-        ]
-          .filter((f): f is string => !!f)
-          .map((f) => f.toLowerCase())
+        const haystacks = rowHaystacks(r)
         return terms.every((t) => haystacks.some((h) => h.includes(t)))
       })
     }
@@ -317,7 +346,7 @@ export function FilsStock() {
       return sort.dir === 'asc' ? cmp : -cmp
     })
     return out
-  }, [rows, searchQuery, sort])
+  }, [rows, searchQuery, searchChips, sort])
 
   const handleSort = useCallback((key: SortKey) => {
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
@@ -358,16 +387,15 @@ export function FilsStock() {
           full-width row below sm (§40.5 wrapper rule); Nouveau stays top-right
           at every width. */}
       <div className="flex-shrink-0 flex flex-wrap items-center gap-3">
-        <div className="relative order-1 flex-1 min-w-0">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Rechercher (réf, coloris, lot, client, fournisseur, emplacement, commentaire…)"
-            className="h-9 w-full pl-8 pr-3 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
+        <SmartSearchInput<SearchFieldKey>
+          className="order-1 flex-1 min-w-0"
+          value={searchQuery}
+          onValueChange={setSearchQuery}
+          chips={searchChips}
+          onChipsChange={setSearchChips}
+          fields={SEARCH_FIELDS}
+          placeholder="Rechercher (réf, coloris, lot, client, fournisseur, emplacement, commentaire…)"
+        />
 
         <div className="order-3 w-full flex items-center gap-3 sm:contents">
           <div className="w-40 flex-shrink-0 sm:order-2">
