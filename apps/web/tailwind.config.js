@@ -10,6 +10,10 @@ export default {
     "../../../ETM/apps/web/src/pages/TombeMetierReferences.tsx",
     "../../../ETM/apps/web/src/pages/FilsReferences.tsx",
     "../../../ETM/apps/web/src/pages/FilsGestion.tsx",
+    // Tableau de bord shell (the widgets themselves are TRM-local, under src/).
+    "../../../ETM/apps/web/src/pages/Dashboard.tsx",
+    "../../../ETM/apps/web/src/components/dashboard/WidgetFrame.tsx",
+    "../../../ETM/apps/web/src/components/dashboard/DashboardContextMenu.tsx",
   ],
   theme: {
     container: {

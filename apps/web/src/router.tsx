@@ -1,7 +1,11 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { PagePlaceholder } from '@/components/shared/PagePlaceholder'
-import { Dashboard } from '@/pages/Dashboard'
+// Tableau de bord — the customisable widget grid is shared verbatim with ETM
+// (same shell, same edit mode, same per-user layout endpoint scoped by
+// `?app=trm`). Its `@/components/dashboard/registry` import resolves to THIS
+// app's registry, which is where TRM's widgets live.
+import { Dashboard } from '@etm/pages/Dashboard'
 import {
   CalendarDays,
   Package,
@@ -111,8 +115,10 @@ export const router = createBrowserRouter([
     path: '/',
     element: <AppShell />,
     children: [
-      // Dashboard
+      // Dashboard — the primary tableau de bord at `/`, the user's secondary
+      // ones at `/tableau-de-bord/<id>` (same screen, different layout).
       { index: true, element: <Dashboard /> },
+      { path: 'tableau-de-bord/:dashboardId', element: <Dashboard /> },
 
       // Clients
       { path: 'clients', element: <Navigate to="/clients/commandes" replace /> },

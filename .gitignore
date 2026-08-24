@@ -52,3 +52,6 @@ tmpclaude-*
 
 # Per-user Claude Code local settings (skills/ stay tracked)
 .claude/settings.local.json
+
+# Per-worktree @etm alias override for tsc (see apps/web/vite.config.ts)
+tsconfig.local.json

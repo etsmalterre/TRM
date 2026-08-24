@@ -33,7 +33,9 @@ export interface MainMenuItem {
   submenus: SubMenuItem[]
 }
 
-// Dashboard - standalone item at top
+// Dashboard - standalone item at top. Its submenu tabs are the user's own
+// tableaux de bord (data, not config) — the Header reads them from the
+// dashboard layout query rather than from `submenus`.
 export const dashboardItem: MainMenuItem = {
   id: 'dashboard',
   title: 'Tableau de bord',
@@ -41,6 +43,9 @@ export const dashboardItem: MainMenuItem = {
   href: '/',
   submenus: [],
 }
+
+/** Secondary dashboards live at `/tableau-de-bord/<id>`; the primary at `/`. */
+export const DASHBOARD_ROUTE_PREFIX = '/tableau-de-bord'
 
 // Settings - standalone item at bottom
 export const settingsItem: MainMenuItem = {
@@ -143,8 +148,8 @@ export const mainNavigation: MainMenuItem[] = [
 
 // Helper to find active menu based on current path
 export function getActiveMenu(pathname: string): MainMenuItem | undefined {
-  // Check dashboard
-  if (pathname === dashboardItem.href) {
+  // Check dashboard — `/` plus every secondary dashboard of the current user
+  if (pathname === dashboardItem.href || pathname.startsWith(DASHBOARD_ROUTE_PREFIX)) {
     return dashboardItem
   }
   // Check settings
@@ -160,6 +165,7 @@ export function getActiveMenu(pathname: string): MainMenuItem | undefined {
 // Route titles for breadcrumbs
 export const routeTitles: Record<string, string> = {
   '/': 'Accueil',
+  '/tableau-de-bord': 'Tableau de bord',
   // Clients
   '/clients': 'Clients',
   '/clients/commandes': 'Commandes',

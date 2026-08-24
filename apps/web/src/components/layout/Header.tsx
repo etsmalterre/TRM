@@ -1,12 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useLocation, NavLink } from 'react-router-dom'
 import { Menu, Maximize2, Minimize2, LogOut, MessageSquarePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getActiveMenu } from '@/config/navigation'
 import { cn } from '@/lib/utils'
 import { useUser, canSwitchUser } from '@/contexts/UserContext'
+import { useHeaderActionsSlot } from '@/contexts/HeaderActionsContext'
 import { TicketModal } from '@/components/tickets/TicketModal'
 import { useTicketNotifications } from '@/components/tickets/useTicketNotifications'
+import { useDashboardTabs } from '@/components/dashboard/useDashboardLayout'
+import { dashboardHref } from '@/components/dashboard/types'
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -21,6 +24,19 @@ export function Header({ onMenuClick }: HeaderProps) {
   const allowSwitch = canSwitchUser(user)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
+  const headerActionsSlot = useHeaderActionsSlot()
+
+  // Tabs under "Tableau de bord" = the user's dashboards ("Principal" plus any
+  // they created). Same cache entry as the dashboard screen, so creating or
+  // renaming one updates the tabs immediately.
+  const { tabs: dashboards } = useDashboardTabs()
+  const submenuTabs = useMemo(() => {
+    if (!activeMenu) return []
+    if (activeMenu.id === 'dashboard') {
+      return dashboards.map((d, i) => ({ title: d.name, href: dashboardHref(d.id, i) }))
+    }
+    return activeMenu.submenus.map((s) => ({ title: s.title, href: s.href }))
+  }, [activeMenu, dashboards])
 
   // Ticket reporting — the modal opens immediately; the screenshot is captured
   // in the background and excludes dialog portals from the shot (the ticket
@@ -119,13 +135,18 @@ export function Header({ onMenuClick }: HeaderProps) {
         <span className="sr-only">Menu</span>
       </Button>
 
-      {/* Submenu tabs */}
-      {activeMenu && activeMenu.submenus.length > 0 && (
+      {/* Submenu tabs. The dashboard's are the user's own tableaux de bord —
+          data, not config — so they come from the layout query rather than
+          from navigation.ts. Everything else is static. */}
+      {submenuTabs.length > 0 && (
         <nav className="flex gap-1 overflow-x-auto">
-          {activeMenu.submenus.map((submenu) => (
+          {submenuTabs.map((submenu) => (
             <NavLink
               key={submenu.href}
               to={submenu.href}
+              // `/` matches every route without `end` — the primary dashboard
+              // would stay highlighted while on a secondary one.
+              end={submenu.href === '/'}
               className={({ isActive }: { isActive: boolean }) =>
                 cn(
                   'px-4 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap',
@@ -146,6 +167,14 @@ export function Header({ onMenuClick }: HeaderProps) {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
+        {/* Screen-level actions slot — the current screen portals its own
+            controls here (see HeaderActionsContext). Right-aligned, just left
+            of the global actions, so it stays clear of the submenu tabs.
+            The divider only renders when a screen actually fills the slot. */}
+        <div
+          ref={headerActionsSlot}
+          className="flex items-center gap-2 min-w-0 [&:not(:empty)]:mr-1 [&:not(:empty)]:border-r [&:not(:empty)]:border-gold/30 [&:not(:empty)]:pr-3"
+        />
         {/* Ticket report — red count badge when tickets have news */}
         <div className="relative">
           <Button

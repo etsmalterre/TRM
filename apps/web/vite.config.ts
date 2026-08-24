@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
@@ -8,9 +8,27 @@ import path from 'path'
 // ETM checkout must live next to this repo: C:\dev\etsmalterre\ETM.
 // Their `@/` imports resolve to THIS app's src (same alias), so shared
 // screens use TRM's local copies of components/lib.
-const etmSrc = path.resolve(__dirname, '../../../ETM/apps/web/src')
+//
+// `ETM_WEB_SRC` (gitignored `.env.local`) repoints the alias at a paired NG
+// worktree — e.g. `../../../ETM-dashboard/apps/web/src` — while a shared
+// screen is being changed there and hasn't landed on ETM master yet. Pair it
+// with `tsconfig.local.json` for `tsc`. Never commit a value: the default is
+// what production builds from. See CLAUDE.md § Shared screens.
+const DEFAULT_ETM_SRC = '../../../ETM/apps/web/src'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, __dirname, '')
+  const etmSrc = path.resolve(__dirname, env.ETM_WEB_SRC || DEFAULT_ETM_SRC)
+  if (env.ETM_WEB_SRC) console.log(`[vite] @etm → ${etmSrc} (ETM_WEB_SRC override)`)
+
+  return {
+  define: {
+    // react-draggable (inside react-grid-layout) gates its debug logging on
+    // process.env.DRAGGABLE_DEBUG — Vite only substitutes NODE_ENV in deps, so
+    // without this define the browser throws "process is not defined" the
+    // moment a dashboard widget is dragged. Same define as ETM's.
+    'process.env.DRAGGABLE_DEBUG': 'undefined',
+  },
   plugins: [
     react(),
     VitePWA({
@@ -84,6 +102,7 @@ export default defineConfig({
     },
     // Bare imports inside shared ETM screens would otherwise resolve to
     // ETM's node_modules — a second React copy crashes hooks at runtime.
-    dedupe: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query', 'lucide-react']
+    dedupe: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query', 'lucide-react', 'react-grid-layout']
+  }
   }
 })
