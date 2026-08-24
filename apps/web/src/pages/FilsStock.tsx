@@ -239,19 +239,22 @@ interface SortState {
 // mouvement, Dernier pointage, Commentaire). Widths sum to 100% minus the
 // trailing icon column.
 const COLUMNS: { key: SortKey; label: string; width: string; align?: 'left' | 'right' }[] = [
-  { key: 'ref_fil', label: 'Fil', width: '10%' },
-  { key: 'colori_reference', label: 'Coloris', width: '7%' },
-  { key: 'lot', label: 'Lot', width: '6%' },
-  { key: 'stock', label: 'Stock', width: '7%', align: 'right' },
-  { key: 'stock_initial', label: 'Initial', width: '7%', align: 'right' },
-  { key: 'client_nom', label: 'Client', width: '9%' },
-  { key: 'emplacement', label: 'Empl.', width: '5%' },
+  // Widths favor the text columns (Fil / Coloris / Client / Fournisseur used
+  // to truncate while the numeric and date columns idled half-empty) — the
+  // numbers and dd/mm/yy dates need little room at the 13px table font.
+  { key: 'ref_fil', label: 'Fil', width: '13%' },
+  { key: 'colori_reference', label: 'Coloris', width: '9%' },
+  { key: 'lot', label: 'Lot', width: '5%' },
+  { key: 'stock', label: 'Stock', width: '6%', align: 'right' },
+  { key: 'stock_initial', label: 'Initial', width: '6%', align: 'right' },
+  { key: 'client_nom', label: 'Client', width: '10%' },
+  { key: 'emplacement', label: 'Empl.', width: '6%' },
   { key: 'niveau', label: 'Niv.', width: '3%', align: 'right' },
-  { key: 'fournisseur_nom', label: 'Fournisseur', width: '8%' },
-  { key: 'date_entree', label: 'Entrée', width: '8%' },
-  { key: 'dernier_mouvement', label: 'Mouv.', width: '8%' },
-  { key: 'dernier_pointage', label: 'Pointage', width: '8%' },
-  { key: 'commentaire', label: 'Commentaire', width: '11%' },
+  { key: 'fournisseur_nom', label: 'Fournisseur', width: '10%' },
+  { key: 'date_entree', label: 'Entrée', width: '6.5%' },
+  { key: 'dernier_mouvement', label: 'Mouv.', width: '6.5%' },
+  { key: 'dernier_pointage', label: 'Pointage', width: '6.5%' },
+  { key: 'commentaire', label: 'Commentaire', width: '9.5%' },
 ]
 const ICON_COL_WIDTH = '3%'
 
@@ -405,7 +408,9 @@ export function FilsStock() {
           <>
             {/* Desktop table (md+) — split header/body sharing one colgroup */}
             <div className="hidden md:flex md:flex-col flex-1 min-h-0">
-            <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+            {/* 13px table font (vs the app's text-sm) — user-requested density:
+                13 columns is the widest table in the app. */}
+            <table className="w-full text-[13px]" style={{ tableLayout: 'fixed' }}>
               <colgroup>
                 {COLUMNS.map((c) => (
                   <col key={c.key} style={{ width: c.width }} />
@@ -424,13 +429,13 @@ export function FilsStock() {
                       align={c.align}
                     />
                   ))}
-                  <th className="px-3 py-2.5 text-left font-semibold"></th>
+                  <th className="px-2 py-2.5 text-left font-semibold"></th>
                 </tr>
               </thead>
             </table>
 
             <div className="flex-1 min-h-0 overflow-auto scrollbar-transparent">
-              <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+              <table className="w-full text-[13px]" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
                   {COLUMNS.map((c) => (
                     <col key={c.key} style={{ width: c.width }} />
@@ -450,34 +455,34 @@ export function FilsStock() {
                           isSelected ? 'bg-accent/10' : 'hover:bg-accent/5'
                         )}
                       >
-                        <td className="px-3 py-2 font-medium truncate" title={r.ref_fil ?? undefined}>{r.ref_fil ?? '—'}</td>
-                        <td className="px-3 py-2 truncate" title={r.colori_reference ?? undefined}>{r.colori_reference ?? '—'}</td>
-                        <td className="px-3 py-2 tabular-nums truncate">{r.lot ?? '—'}</td>
+                        <td className="px-2 py-1.5 font-medium truncate" title={r.ref_fil ?? undefined}>{r.ref_fil ?? '—'}</td>
+                        <td className="px-2 py-1.5 truncate" title={r.colori_reference ?? undefined}>{r.colori_reference ?? '—'}</td>
+                        <td className="px-2 py-1.5 tabular-nums truncate">{r.lot ?? '—'}</td>
                         {/* Kg without the unit in the table — the header names it,
-                            and the fr-FR thousand separators wrap inside 7% cells */}
-                        <td className="px-3 py-2 text-right tabular-nums font-medium whitespace-nowrap truncate">
+                            and the fr-FR thousand separators wrap inside tight cells */}
+                        <td className="px-2 py-1.5 text-right tabular-nums font-medium whitespace-nowrap truncate">
                           {r.stock != null ? fmtNum(r.stock, 1) : '—'}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground whitespace-nowrap truncate">
+                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground whitespace-nowrap truncate">
                           {r.stock_initial != null ? fmtNum(r.stock_initial, 1) : '—'}
                         </td>
-                        <td className="px-3 py-2 truncate" title={r.client_nom ?? undefined}>{r.client_nom ?? '—'}</td>
-                        <td className="px-3 py-2 truncate" title={r.emplacement ?? undefined}>{r.emplacement ?? '—'}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{r.niveau ?? '—'}</td>
-                        <td className="px-3 py-2 truncate" title={r.fournisseur_nom ?? undefined}>{r.fournisseur_nom ?? '—'}</td>
-                        <td className="px-3 py-2 tabular-nums text-muted-foreground whitespace-nowrap truncate">
+                        <td className="px-2 py-1.5 truncate" title={r.client_nom ?? undefined}>{r.client_nom ?? '—'}</td>
+                        <td className="px-2 py-1.5 truncate" title={r.emplacement ?? undefined}>{r.emplacement ?? '—'}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{r.niveau ?? '—'}</td>
+                        <td className="px-2 py-1.5 truncate" title={r.fournisseur_nom ?? undefined}>{r.fournisseur_nom ?? '—'}</td>
+                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">
                           {fmtDateShort(r.date_entree)}
                         </td>
-                        <td className="px-3 py-2 tabular-nums text-muted-foreground whitespace-nowrap truncate">
+                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">
                           {fmtDateShort(r.dernier_mouvement)}
                         </td>
-                        <td className="px-3 py-2 tabular-nums text-muted-foreground whitespace-nowrap truncate">
+                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">
                           {fmtDateShort(r.dernier_pointage)}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground truncate" title={r.commentaire ?? undefined}>
+                        <td className="px-2 py-1.5 text-muted-foreground truncate" title={r.commentaire ?? undefined}>
                           {r.commentaire?.trim() || ''}
                         </td>
-                        <td className="px-3 py-2 text-right">
+                        <td className="px-2 py-1.5 text-right">
                           <div className="flex items-center justify-end gap-1">
                             {!!r.bio && <Leaf className="h-3.5 w-3.5 text-green-600" />}
                             {!!r.recycle && <Recycle className="h-3.5 w-3.5 text-blue-600" />}
@@ -569,7 +574,7 @@ function SortHeader({ label, sortKey, sort, onSort, align = 'left' }: SortHeader
     <th
       onClick={() => onSort(sortKey)}
       className={cn(
-        'px-3 py-2.5 font-semibold cursor-pointer select-none whitespace-nowrap',
+        'px-2 py-2.5 font-semibold cursor-pointer select-none whitespace-nowrap',
         align === 'right' ? 'text-right' : 'text-left',
         active && 'text-accent'
       )}
