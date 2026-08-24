@@ -42,6 +42,8 @@ import {
   User,
   Smile,
   Frown,
+  TrendingDown,
+  Layers,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -201,19 +203,59 @@ function ageDays(dateEntree: string | null): number | null {
   return Math.floor(diff / (1000 * 60 * 60 * 24))
 }
 
-// Archivage pill thresholds (user-confirmed): freinte green ≤ 10 %, red above
-// or negative; second choix green at 0, amber ≤ 5 %, red above. Kept in sync
-// with the RapportFreintePdf colors.
-function freinteClass(pct: number | null): string {
-  if (pct == null) return 'text-foreground'
-  if (pct < 0 || pct > 10) return 'text-destructive'
-  return 'text-green-600'
+// Archivage verdict thresholds (user-confirmed): freinte green ≤ 10 %, red
+// above or negative; second choix green at 0, amber ≤ 5 %, red above. Kept in
+// sync with the RapportFreintePdf colors. Rendered through the §7 status card
+// system (left edge + icon box + value share one tone).
+type VerdictTone = 'success' | 'warning' | 'danger' | 'neutral'
+
+const VERDICT_TONE: Record<VerdictTone, { border: string; iconBg: string; icon: string; value: string }> = {
+  success: { border: 'border-l-green-500/60', iconBg: 'bg-green-500/10', icon: 'text-green-600', value: 'text-green-600' },
+  warning: { border: 'border-l-amber-400/60', iconBg: 'bg-amber-400/10', icon: 'text-amber-600', value: 'text-amber-600' },
+  danger: { border: 'border-l-destructive/60', iconBg: 'bg-destructive/10', icon: 'text-destructive/70', value: 'text-destructive' },
+  neutral: { border: 'border-l-border', iconBg: 'bg-muted', icon: 'text-muted-foreground', value: 'text-foreground' },
 }
-function secondChoixClass(pct: number | null): string {
-  if (pct == null) return 'text-foreground'
-  if (pct === 0) return 'text-green-600'
-  if (pct <= 5) return 'text-amber-600'
-  return 'text-destructive'
+
+function freinteTone(pct: number | null): VerdictTone {
+  if (pct == null) return 'neutral'
+  if (pct < 0 || pct > 10) return 'danger'
+  return 'success'
+}
+function secondChoixTone(pct: number | null): VerdictTone {
+  if (pct == null) return 'neutral'
+  if (pct === 0) return 'success'
+  if (pct <= 5) return 'warning'
+  return 'danger'
+}
+
+/** One stat tile of the Archivage bilan — status-colored card (§7) with the
+ *  big figure carrying the verdict color. */
+function VerdictTile({
+  icon,
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  detail: string
+  tone: VerdictTone
+}) {
+  const t = VERDICT_TONE[tone]
+  return (
+    <div className={cn('rounded-lg border-l-4 border border-border/60 bg-card p-3 shadow-sm', t.border)}>
+      <div className="flex items-center gap-2">
+        <div className={cn('h-7 w-7 rounded-md flex items-center justify-center flex-shrink-0', t.iconBg, t.icon)}>
+          {icon}
+        </div>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      </div>
+      <p className={cn('mt-2 text-2xl font-bold tabular-nums leading-none', t.value)}>{value}</p>
+      <p className="mt-1.5 text-xs tabular-nums text-muted-foreground">{detail}</p>
+    </div>
+  )
 }
 
 // ── Sort handling ──────────────────────────────────────
@@ -1879,140 +1921,140 @@ function ArchiverDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto" onClose={() => onOpenChange(false)}>
-        <DialogHeader>
-          <DialogTitle className="font-heading flex items-center gap-2">
-            <Archive className="h-4 w-4 text-accent" />
-            Archivage — Lot {detail.lot}
-          </DialogTitle>
-        </DialogHeader>
+      {/* A card-like surface opening over the content → the §43 navy/gold band
+          is its header (same as the drawer, §27.5bis), the body is a zinc panel
+          of white cards and the footer a zinc-200/50 strip — the app's panel
+          composition rather than a bare white sheet. p-0 overrides the
+          primitive's p-6; the band carries its own close button. */}
+      <DialogContent className="max-w-2xl p-0 overflow-hidden max-h-[90dvh] flex flex-col">
+        <div className="flex-shrink-0 flex items-center gap-2.5 border-b-2 border-gold bg-primary px-4 py-2.5">
+          <div className="h-8 w-8 flex-shrink-0 rounded-lg flex items-center justify-center shadow-sm bg-gold text-gold-foreground">
+            <Archive className="h-[18px] w-[18px]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-heading font-bold tracking-tight truncate text-primary-foreground">
+              Archivage — Lot {detail.lot ?? '—'}
+            </h2>
+            <p className="text-xs text-white/70 truncate">
+              {detail.ref_fil ?? '—'} • {detail.colori_reference ?? '—'} • {detail.client_nom ?? '—'}
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
+              title="Imprimer le rapport de freinte"
+              onClick={() =>
+                window.open(
+                  `${API_URL}/stock/fil-trm/${detail.IDstock_fil}/rapport-freinte${validQte ? `?stock_initial=${qte}` : ''}`,
+                  '_blank',
+                )
+              }
+            >
+              <Printer className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
+              title="Fermer"
+              onClick={() => onOpenChange(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
 
-        <p className="text-sm text-muted-foreground">
-          {detail.ref_fil ?? '—'} — {detail.colori_reference ?? '—'} • {detail.client_nom ?? '—'}
-        </p>
-
+        <div className="flex-1 min-h-0 overflow-y-auto bg-zinc-100/80 p-4 space-y-3 scrollbar-transparent">
         {bilanQuery.isLoading || !bilan ? (
           <div className="flex items-center justify-center py-10">
             <Loader2 className="h-6 w-6 animate-spin text-accent" />
           </div>
         ) : (
           <>
-            <div className="flex flex-wrap items-end justify-between gap-3 mt-2">
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Quantité initiale (kg)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={qteInitiale}
-                  onChange={(e) => setQteInitiale(e.target.value)}
-                  className="h-9 w-36 px-2.5 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring text-right tabular-nums"
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  window.open(
-                    `${API_URL}/stock/fil-trm/${detail.IDstock_fil}/rapport-freinte${validQte ? `?stock_initial=${qte}` : ''}`,
-                    '_blank',
-                  )
-                }
-              >
-                <Printer className="h-3.5 w-3.5 mr-1.5" />
-                Imprimer
-              </Button>
-            </div>
-
-            {/* OF consumption table */}
-            <div className="rounded-lg border border-border/60 overflow-hidden mt-3">
-              <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
-                <thead className="bg-zinc-200/60 border-b border-border/60">
-                  <tr className="text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-3 py-2 text-left font-semibold w-[15%]">OF</th>
-                    <th className="px-3 py-2 text-left font-semibold w-[37%]">Référence écru</th>
-                    <th className="px-3 py-2 text-right font-semibold w-[16%]">1er choix</th>
-                    <th className="px-3 py-2 text-right font-semibold w-[16%]">2nd choix</th>
-                    <th className="px-3 py-2 text-right font-semibold w-[16%]">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bilan.ofs.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-3 py-4 text-center text-sm text-muted-foreground">
-                        Aucun ordre de fabrication n'a consommé ce lot.
-                      </td>
-                    </tr>
-                  ) : (
-                    bilan.ofs.map((o) => (
-                      <tr key={o.of} className="border-b border-border/40">
-                        <td className="px-3 py-1.5 tabular-nums">{o.of}</td>
-                        <td className="px-3 py-1.5 truncate" title={o.ref_ecru || undefined}>{o.ref_ecru || '—'}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(o.premier_choix, 2)} kg</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(o.second_choix, 2)} kg</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(o.premier_choix + o.second_choix, 2)} kg</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-                {bilan.ofs.length > 0 && (
-                  <tfoot className="bg-zinc-100/80">
-                    <tr className="font-semibold">
-                      <td className="px-3 py-1.5">Somme</td>
-                      <td></td>
-                      <td className="px-3 py-1.5 text-right tabular-nums">
-                        {fmtNum(bilan.ofs.reduce((s, o) => s + o.premier_choix, 0), 2)} kg
-                      </td>
-                      <td className="px-3 py-1.5 text-right tabular-nums">
-                        {fmtNum(bilan.ofs.reduce((s, o) => s + o.second_choix, 0), 2)} kg
-                      </td>
-                      <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(bilan.poids_total, 2)} kg</td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-
-            {/* Freinte + second choix stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-              <div className="rounded-lg border border-border/60 bg-zinc-100/80 p-3 text-center">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Freinte de tricotage</p>
-                <p className="text-sm tabular-nums text-muted-foreground">
-                  {freinteKg != null ? `${fmtNum(freinteKg, 2)} kg / ${fmtNum(qte, 2)} kg` : '—'}
-                </p>
-                <p className={cn('text-2xl font-bold tabular-nums', freinteClass(freintePct))}>
-                  {freintePct != null ? `${fmtNum(freintePct, 2)} %` : '—'}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border/60 bg-zinc-100/80 p-3 text-center">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Second choix</p>
-                <p className="text-sm tabular-nums text-muted-foreground">
-                  {fmtNum(bilan.poids_second, 2)} kg / {fmtNum(bilan.poids_total, 2)} kg
-                </p>
-                <p className={cn('text-2xl font-bold tabular-nums', secondChoixClass(secondPct))}>
-                  {secondPct != null ? `${fmtNum(secondPct, 2)} %` : '—'}
-                </p>
+            {/* Quantité initiale — the one figure the operator corrects before
+                archiving (2 arrivages, retour…); gold edge = "this is written". */}
+            <div className="rounded-lg border-l-4 border-l-accent/70 border border-border/60 bg-card p-3 shadow-sm">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="h-7 w-7 rounded-md flex items-center justify-center flex-shrink-0 bg-accent/15 text-accent">
+                    <Package className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">Quantité initiale</p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      Stock actuel {formatKg(bilan.stock)} — corrigez le reçu si besoin avant d'archiver
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={qteInitiale}
+                    onChange={(e) => setQteInitiale(e.target.value)}
+                    className="h-9 w-32 px-2.5 text-sm font-semibold rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring text-right tabular-nums"
+                  />
+                  <span className="text-sm text-muted-foreground">kg</span>
+                </div>
               </div>
             </div>
 
-            {/* Defects verdict — the legacy dialog's smiley */}
-            <div className="rounded-lg border border-border/60 bg-zinc-100/80 p-4 mt-3">
+            {/* Freinte + second choix — the two verdicts, status-colored */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <VerdictTile
+                icon={<TrendingDown className="h-4 w-4" />}
+                label="Freinte de tricotage"
+                value={freintePct != null ? `${fmtNum(freintePct, 2)} %` : '—'}
+                detail={freinteKg != null ? `${fmtNum(freinteKg, 2)} kg perdus sur ${fmtNum(qte, 2)} kg` : '—'}
+                tone={freinteTone(freintePct)}
+              />
+              <VerdictTile
+                icon={<Layers className="h-4 w-4" />}
+                label="Second choix"
+                value={secondPct != null ? `${fmtNum(secondPct, 2)} %` : '—'}
+                detail={`${fmtNum(bilan.poids_second, 2)} kg sur ${fmtNum(bilan.poids_total, 2)} kg produits`}
+                tone={secondChoixTone(secondPct)}
+              />
+            </div>
+
+            {/* Defects verdict — the legacy dialog's smiley, as a status card */}
+            <div
+              className={cn(
+                'rounded-lg border-l-4 border border-border/60 bg-card p-3 shadow-sm',
+                aucunDefaut ? 'border-l-green-500/60' : 'border-l-amber-400/60',
+              )}
+            >
               {aucunDefaut ? (
-                <div className="flex flex-col items-center gap-1.5 py-2">
-                  <Smile className="h-10 w-10 text-green-600" />
-                  <p className="text-lg font-semibold text-green-600">Aucun défaut</p>
+                <div className="flex items-center gap-3 py-1">
+                  <div className="h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-green-500/10">
+                    <Smile className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-green-600">Aucun défaut</p>
+                    <p className="text-xs text-muted-foreground">Rien relevé au visitage des pièces de ce lot</p>
+                  </div>
                 </div>
               ) : (
                 <>
                   <div className="flex items-center gap-2 mb-2">
-                    <Frown className="h-5 w-5 text-amber-600" />
+                    <div className="h-7 w-7 rounded-md flex items-center justify-center flex-shrink-0 bg-amber-400/10">
+                      <Frown className="h-4 w-4 text-amber-600" />
+                    </div>
                     <p className="text-sm font-semibold">Défauts relevés au visitage</p>
+                    <Badge variant="outline" className="ml-auto text-xs bg-amber-500/15 text-amber-800 border-amber-500/30">
+                      {bilan.defauts.reduce((s, d) => s + d.nombre, 0)}
+                    </Badge>
                   </div>
-                  <div className="max-h-40 overflow-y-auto scrollbar-transparent space-y-1">
+                  <div className="max-h-40 overflow-y-auto scrollbar-transparent divide-y divide-border/40">
                     {bilan.defauts.map((d, i) => (
-                      <div key={i} className="flex items-center justify-between gap-2 text-sm">
+                      <div key={i} className="flex items-center justify-between gap-2 py-1 text-sm">
                         <span className="truncate">{d.label}</span>
-                        <span className="tabular-nums font-medium flex-shrink-0">×{d.nombre}</span>
+                        <span className="rounded-full bg-amber-500/15 px-1.5 py-0 text-[11px] font-medium tabular-nums text-amber-800 flex-shrink-0">
+                          ×{d.nombre}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -2020,9 +2062,57 @@ function ArchiverDialog({
               )}
             </div>
 
-            {/* Observation freinte */}
-            <div className="mt-3">
-              <label className="text-xs text-muted-foreground mb-1 block">Observation freinte</label>
+            {/* OF consumption */}
+            <DrawerCard icon={<Factory className="h-4 w-4 text-accent" />} title="Consommation par ordre de fabrication">
+              {bilan.ofs.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">Aucun ordre de fabrication n'a consommé ce lot.</p>
+              ) : (
+                <div className="rounded-md border border-border/60 overflow-hidden">
+                  <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+                    <thead className="bg-zinc-200/60 border-b border-border/60">
+                      <tr className="text-xs uppercase tracking-wide text-muted-foreground">
+                        <th className="px-3 py-2 text-left font-semibold w-[15%]">OF</th>
+                        <th className="px-3 py-2 text-left font-semibold w-[37%]">Référence écru</th>
+                        <th className="px-3 py-2 text-right font-semibold w-[16%]">1er choix</th>
+                        <th className="px-3 py-2 text-right font-semibold w-[16%]">2nd choix</th>
+                        <th className="px-3 py-2 text-right font-semibold w-[16%]">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bilan.ofs.map((o) => (
+                        <tr key={o.of} className="border-b border-border/40">
+                          <td className="px-3 py-1.5 tabular-nums font-medium">{o.of}</td>
+                          <td className="px-3 py-1.5 truncate" title={o.ref_ecru || undefined}>{o.ref_ecru || '—'}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(o.premier_choix, 2)} kg</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{fmtNum(o.second_choix, 2)} kg</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(o.premier_choix + o.second_choix, 2)} kg</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-zinc-100/80">
+                      <tr className="font-semibold">
+                        <td className="px-3 py-1.5">Somme</td>
+                        <td></td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">
+                          {fmtNum(bilan.ofs.reduce((s, o) => s + o.premier_choix, 0), 2)} kg
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">
+                          {fmtNum(bilan.ofs.reduce((s, o) => s + o.second_choix, 0), 2)} kg
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(bilan.poids_total, 2)} kg</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </DrawerCard>
+
+            {/* Observation freinte — written with the archive; gold edge */}
+            <div className="rounded-lg border-l-4 border-l-accent/70 border border-border/60 bg-card p-3 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <MessageSquare className="h-4 w-4 text-accent" />
+                <h3 className="text-sm font-semibold">Observation freinte</h3>
+              </div>
               <textarea
                 value={observation}
                 onChange={(e) => setObservation(e.target.value)}
@@ -2033,30 +2123,32 @@ function ArchiverDialog({
             </div>
           </>
         )}
+        </div>
 
-        {error && (
-          <div className="mt-2 flex items-center gap-2 text-sm text-destructive">
-            <AlertCircle className="h-4 w-4" />
-            {error}
+        <div className="flex-shrink-0 flex items-center gap-3 border-t border-border/60 bg-zinc-200/50 px-4 py-3">
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-destructive min-w-0">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span className="truncate">{error}</span>
+            </div>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
+              Annuler
+            </Button>
+            <Button
+              onClick={() => mutation.mutate()}
+              disabled={!validQte || bilanQuery.isLoading || mutation.isPending}
+            >
+              {mutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <Archive className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Archiver
+            </Button>
           </div>
-        )}
-
-        <DialogFooter className="mt-4 gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
-            Annuler
-          </Button>
-          <Button
-            onClick={() => mutation.mutate()}
-            disabled={!validQte || bilanQuery.isLoading || mutation.isPending}
-          >
-            {mutation.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Archive className="h-3.5 w-3.5 mr-1.5" />
-            )}
-            Archiver
-          </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   )
