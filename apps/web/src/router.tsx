@@ -12,7 +12,6 @@ import {
   Layers,
   ClipboardList,
   Eye,
-  Coins,
   Gauge,
   Wrench,
   TrendingUp,
@@ -86,7 +85,9 @@ import { TombeMetierStock } from '@/pages/TombeMetierStock'
 // (ETM/apps/api/src/routes/of-trm.ts, mounted at /api/of-trm).
 import { ProductionOf } from '@/pages/ProductionOf'
 const ProductionVisitagePage = createPlaceholder('Visitage', 'Visitage des pièces produites', Eye)
-const ProductionPrimePage = createPlaceholder('Prime', 'Primes de production', Coins)
+// Prime — real screen (port of the legacy FI_Prime window). TRM-only: reads
+// TRM knitted production (stock_ecru via OF) through `/prime-trm` on the ETM API.
+import { ProductionPrime } from '@/pages/ProductionPrime'
 const ProductionTrsPage = createPlaceholder('TRS', 'Taux de rendement synthétique', Gauge)
 
 // Atelier
@@ -148,7 +149,7 @@ export const router = createBrowserRouter([
       { path: 'production', element: <Navigate to="/production/of" replace /> },
       { path: 'production/of', element: <ProductionOf /> },
       { path: 'production/visitage', element: <ProductionVisitagePage /> },
-      { path: 'production/prime', element: <ProductionPrimePage /> },
+      { path: 'production/prime', element: <ProductionPrime /> },
       { path: 'production/trs', element: <ProductionTrsPage /> },
 
       // Atelier
