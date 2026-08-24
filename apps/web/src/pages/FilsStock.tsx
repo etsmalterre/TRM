@@ -44,6 +44,7 @@ import {
   Frown,
   TrendingDown,
   Layers,
+  FileText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -934,26 +935,15 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
           {detail && !isEditing && (
             <div className="flex items-center gap-1.5">
               {canMutate && !isArchived && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
-                    title="Diviser le lot"
-                    onClick={() => setDiviserOpen(true)}
-                  >
-                    <Split className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
-                    title="Archiver le lot"
-                    onClick={() => setArchiverOpen(true)}
-                  >
-                    <Archive className="h-4 w-4" />
-                  </Button>
-                </>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
+                  title="Diviser le lot"
+                  onClick={() => setDiviserOpen(true)}
+                >
+                  <Split className="h-4 w-4" />
+                </Button>
               )}
               <Button
                 variant="ghost"
@@ -964,6 +954,32 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
               >
                 <Printer className="h-4 w-4" />
               </Button>
+              {/* Archived lot: the bilan is frozen — offer the rapport de freinte
+                  it was closed on. */}
+              {isArchived && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
+                  title="Rapport de freinte"
+                  onClick={() => window.open(`${API_URL}/stock/fil-trm/${detail.IDstock_fil}/rapport-freinte`, '_blank')}
+                >
+                  <FileText className="h-4 w-4" />
+                </Button>
+              )}
+              {/* Archiver — last in the row and red: it is the one irreversible
+                  action here (light-on-navy red, §27.5bis). */}
+              {canMutate && !isArchived && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-red-400 hover:bg-white/15 hover:text-red-300"
+                  title="Archiver le lot"
+                  onClick={() => setArchiverOpen(true)}
+                >
+                  <Archive className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -984,8 +1000,9 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
                 <KV label="Stock initial" value={<span className="tabular-nums">{formatKg(detail.stock_initial)}</span>} />
                 {/* Remaining-yarn gauge — same primitive as the ClientsCommandes
                     production gauge. stock can legitimately be negative
-                    (fil_incorpore, post-archive production) → clamp to 0. */}
-                {detail.stock_initial != null && detail.stock_initial > 0 && (
+                    (fil_incorpore, post-archive production) → clamp to 0.
+                    Pointless on an archived lot (stock forced to 0). */}
+                {!isArchived && detail.stock_initial != null && detail.stock_initial > 0 && (
                   (() => {
                     const pct = Math.min(100, Math.max(0, ((detail.stock ?? 0) / detail.stock_initial) * 100))
                     return (
