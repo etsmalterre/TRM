@@ -60,6 +60,7 @@ import { cn } from '@/lib/utils'
 import { formatHfsqlDate, hfsqlDateToInput, inputDateToHfsql } from '@/lib/dates'
 import { fmtNum } from '@/lib/format'
 import { apiFetch } from '@/lib/api'
+import { useHasPermission } from '@/contexts/PermissionsContext'
 
 // ── Types ──────────────────────────────────────────────
 
@@ -314,6 +315,11 @@ export function ClientsCommandes() {
   const [amberOnly, setAmberOnly] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
+  // TRM permission gate: create / edit / delete of native orders and their
+  // lines ("Nouvelle", "Modifier", "Supprimer"). The API enforces it too
+  // (403 edit_commandes_client); view-mode workflows (état, progression,
+  // documents) stay open. Admins bypass via /permissions-trm/me.
+  const canEditCommandes = useHasPermission('edit_commandes_client')
   const [progressionLineId, setProgressionLineId] = useState<number | null>(null)
   const [autoEditForId, setAutoEditForId] = useState<number | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -514,6 +520,7 @@ export function ClientsCommandes() {
             onToggleAmber={() => setAmberOnly((v) => !v)}
             onNew={() => setCreateOpen(true)}
             isEditing={isEditing}
+            canEdit={canEditCommandes}
           />
         }
         detailHeader={
@@ -521,6 +528,7 @@ export function ClientsCommandes() {
             commande={detail ?? null}
             isLoading={detailLoading && selectedId !== null}
             isEditing={isEditing}
+            canEdit={canEditCommandes}
             onStartEdit={startEdit}
             onCancelEdit={cancelEdit}
             onSave={() => saveHeaderMut.mutate()}
@@ -611,7 +619,7 @@ function CommandeList({
   searchQuery, onSearchChange,
   statusFilter, onStatusFilterChange,
   amberCount, amberOn, onToggleAmber,
-  onNew, isEditing,
+  onNew, isEditing, canEdit,
 }: {
   rows: CommandeListRow[]
   isLoading: boolean
@@ -628,6 +636,7 @@ function CommandeList({
   onToggleAmber: () => void
   onNew: () => void
   isEditing: boolean
+  canEdit: boolean
 }) {
   return (
     <div className="flex flex-col h-full rounded-lg border shadow-sm bg-zinc-100/80">
@@ -745,7 +754,7 @@ function CommandeList({
 
       <div className="p-3 border-t text-xs text-muted-foreground flex items-center justify-between rounded-b-lg bg-zinc-200/50">
         <span>{rows.length} commande{rows.length !== 1 ? 's' : ''}</span>
-        {!isEditing && (
+        {!isEditing && canEdit && (
           <Button size="sm" variant="ghost" onClick={onNew} className="text-accent hover:text-accent hover:bg-accent/10">
             <Plus className="h-3.5 w-3.5 mr-1" />Nouvelle
           </Button>
@@ -758,12 +767,13 @@ function CommandeList({
 // ── Center: Detail Header ──────────────────────────────
 
 function DetailHeader({
-  commande, isLoading, isEditing,
+  commande, isLoading, isEditing, canEdit,
   onStartEdit, onCancelEdit, onSave, isSaving, onDelete,
 }: {
   commande: CommandeDetail | null
   isLoading: boolean
   isEditing: boolean
+  canEdit: boolean
   onStartEdit: () => void
   onCancelEdit: () => void
   onSave: () => void
@@ -824,7 +834,7 @@ function DetailHeader({
                   {isSaving ? 'Enregistrement...' : 'Enregistrer'}
                 </Button>
               </>
-            ) : !isMirror ? (
+            ) : !isMirror && canEdit ? (
               <Button variant="gold" size="sm" onClick={onStartEdit}>
                 <Pencil className="h-3.5 w-3.5 mr-1.5" />Modifier
               </Button>

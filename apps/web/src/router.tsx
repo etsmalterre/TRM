@@ -3,7 +3,6 @@ import { AppShell } from '@/components/layout/AppShell'
 import { PagePlaceholder } from '@/components/shared/PagePlaceholder'
 import { Dashboard } from '@/pages/Dashboard'
 import {
-  Users,
   CalendarDays,
   Package,
   Layers,
@@ -101,7 +100,11 @@ const RapportsEtatStockFilPage = createPlaceholder('État stock fil', 'État et 
 const RapportsAnalysePage = createPlaceholder('Analyse', 'Analyses et comparatifs', BarChart3)
 
 // Settings
-const SettingsUtilisateursPage = createPlaceholder('Utilisateurs', 'Gestion des utilisateurs et permissions', Users)
+// Utilisateurs — real screen (admin-only): the TRM staff list, Profil cards
+// (email / photo / signature, shared stores with ETM) and the Permissions tab
+// over TRM's own catalog (/api/permissions-trm). Écrans / notifications
+// toggles arrive with the features that need them.
+import { SettingsUtilisateurs } from '@/pages/SettingsUtilisateurs'
 
 export const router = createBrowserRouter([
   {
@@ -160,7 +163,7 @@ export const router = createBrowserRouter([
 
       // Settings (admin-only sub-routes)
       { path: 'settings', element: <Navigate to="/settings/utilisateurs" replace /> },
-      { path: 'settings/utilisateurs', element: <SettingsUtilisateursPage /> },
+      { path: 'settings/utilisateurs', element: <SettingsUtilisateurs /> },
     ],
   },
 ])

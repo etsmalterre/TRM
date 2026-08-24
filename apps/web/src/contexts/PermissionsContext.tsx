@@ -1,6 +1,11 @@
 // Permissions context — fetches the current user's granted permission keys
-// from /api/permissions/me and exposes a fast has(key) check. Refetches when
-// the active user changes (login, switch).
+// from /api/permissions-trm/me and exposes a fast has(key) check. Refetches
+// when the active user changes (login, switch).
+//
+// TRM has its own permission catalog + store on the shared API (separate from
+// ETM's /api/permissions — each app's admin screen saves by replacing the
+// whole grant list, so a shared store would let one app strip the other's
+// grants). The admin flags carried by /me are the same shared cookie facts.
 //
 // Admins (user.isAdmin === true) get the full set of known keys from the API
 // so the frontend doesn't need to special-case the bypass — has(anything)
@@ -49,7 +54,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     }
     setIsLoading(true)
     try {
-      const me = await apiFetch<MeResponse>('/permissions/me')
+      const me = await apiFetch<MeResponse>('/permissions-trm/me')
       setGranted(new Set(me.granted))
       setIsAdmin(me.isAdmin)
       setIsEffectiveAdmin(me.isEffectiveAdmin)
