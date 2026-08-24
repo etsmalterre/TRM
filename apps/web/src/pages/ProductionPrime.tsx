@@ -316,14 +316,22 @@ export function ProductionPrime() {
           })}
         </div>
 
-        {/* Current week — always the running week, whatever semester is browsed */}
+        {/* Current week — only meaningful on the current semester: the block
+            always describes the RUNNING week, which has nothing to do with a
+            browsed historical period. */}
+        {periode.estCourante && (
         <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
           <SectionBand
             icon={CalendarDays}
             actions={
-              <span className={cn('text-lg font-heading font-bold tabular-nums', montantOnNavyClass(semaine.total))}>
-                {fmtEur(semaine.total)}
-              </span>
+              <>
+                <Badge className="bg-white/15 text-white border-transparent text-[10px] flex-shrink-0">
+                  Semaine en cours
+                </Badge>
+                <span className={cn('text-lg font-heading font-bold tabular-nums', montantOnNavyClass(semaine.total))}>
+                  {fmtEur(semaine.total)}
+                </span>
+              </>
             }
           >
             Semaine {semaine.numero}
@@ -357,6 +365,7 @@ export function ProductionPrime() {
             })}
           </div>
         </div>
+        )}
 
         {/* Répartition */}
         <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
