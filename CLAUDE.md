@@ -69,7 +69,7 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 2. **Clients** — **Commandes** (`/clients/commandes`, implemented — voir "Commandes clients" ci-dessous), **Expéditions** (`/clients/expeditions`, implemented — TRM-specific, NOT shared, see below), **Facturation** (`/clients/facturation`, implemented — TRM-specific, NOT shared, see below), **Gestion** (`/clients/gestion`, implemented — see "Clients › Gestion" below), Planning
 3. **Fils** — Références, Stock, Fournisseurs
 4. **Tombé Métier** — **Références** (`/tombe-metier/references`, implemented — shared verbatim with ETM, see "Shared screens" below), Échantillons, **Stock** (`/tombe-metier/stock`, implemented — TRM-specific, NOT shared, see below). Menu icon is the custom `TmRollIcon`.
-5. **Production** — Gestion des OF, Visitage, Prime, TRS
+5. **Production** — **Gestion des OF** (`/production/of`, implemented — see "Production › Gestion des OF" below), Visitage, Prime, TRS
 6. **Atelier** — Maintenance, Productivité, Bonnetier, **Planning** (`/atelier/planning`, implemented — weekly bonnetier grid over `planning_bonnetier` + desiderata dialog; API route `ETM/apps/api/src/routes/planning-atelier.ts`)
 7. **Qualité** — Défauts récents, Retour client, Analyse
 8. **Rapports** — Production, Lots de fils, État stock fil, Analyse
@@ -191,6 +191,32 @@ never edited from here.
 - **Two deliberate gaps**, both because the legacy `.wdw` is PCS-compressed and unreadable:
   - the « En Attente » radio of Stocks de fil is **not implemented** (only En cours / Historique / Tous). `terminé` is the single state flag on `stock_fil`; `niveau` is the rack level, `controlé` is 0 on every open lot, and OF affectation doesn't fit either — nothing backs a third state. Do not invent one.
   - the historique's « Marge Brute » column is **rendered but always empty** (`marge_brute: null` from the API). Every observable legacy value is 0,00 %, so the formula could not be recovered. Fill it in when the calculation is specified.
+
+### Production › Gestion des OF (`/production/of`) — port of FEN_Gestion_des_OF.wdw
+
+Fiche layout + §29 status pill; screen `apps/web/src/pages/ProductionOf.tsx`; API
+`ETM/apps/api/src/routes/of-trm.ts` (`/api/of-trm` — the OF tables have **no IDsociete**,
+scope goes through the commande chain). The legacy windows are PCS-compressed: the data
+model was recovered from `MPS.xdd` + a live DB probe — the full dossier (column semantics,
+event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell.md`.
+
+- **Queue**: `priorite` ranks OFs per métier (1 = running, 0 = terminé), one `est_actif`
+  max per métier; Terminer re-ranks and flips the new head active if `auto_activation=1`
+  (our endpoint owns that flip — the legacy trigger is unreadable).
+- **Form mapping**: consigne = `observations`; Ouvert au large = `ouvert_visiteuse`;
+  1/2 Nettoyages = `Nettoyage` (capital N); Visitage int = 1 « 2 premières pièces et
+  toutes les 3 pièces » / 2 « Toutes les pièces » (0 = 20 legacy rows, shown « — »);
+  Tricoter = `asso_fil_of`, Incorporer = `fil_incorpore`; nb_pieces derived
+  ceil(quantite/poids_piece); quantité locked once production started.
+- **5 sidebar tabs**: Observations = `message_of` (positional INSERT — reserved `date`);
+  Production = `piece_production` + `evenement_piece` timeline (avatars =
+  `bonnetier.photo` blob endpoint, initials fallback); Visitage = `stock_ecru` rolls;
+  Qualité = `defaut_qualite` both populations (Type_Reference 1 = pièce, 2 = rouleau),
+  trim `type_defaut` (historical `"Autre Barrure "`); Performance = `evenement_machine`
+  (recorder covers PLC métiers only, no data after 2026-03-09 → honest empty state).
+- **Flagged approximations** (legacy formulas unrecoverable): per-piece % =
+  trs_10kg_chute/nb_chutes × poids/10 ÷ vitesse (fallback orf → machine → ref_ecru);
+  faux-arrêts filter = 120 s. Imprimer (ETAT_OF work sheet) is still the §18 placeholder.
 
 ### Atelier planning data model (legacy, shared HFSQL)
 

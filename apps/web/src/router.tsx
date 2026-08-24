@@ -73,7 +73,11 @@ const TmEchantillonsPage = createPlaceholder('Échantillons', 'Échantillons tom
 import { TombeMetierStock } from '@/pages/TombeMetierStock'
 
 // Production
-const ProductionOfPage = createPlaceholder('Gestion des OF', 'Ordres de fabrication : métiers, fils à tricoter et incorporer', ClipboardList)
+// Gestion des OF is TRM-only by nature: ordre_fabrication / piece_production /
+// asso_fil_of have no IDsociete column — knitting production IS Tricotage
+// Malterre. Own screen (port of FEN_Gestion_des_OF.wdw), own endpoints
+// (ETM/apps/api/src/routes/of-trm.ts, mounted at /api/of-trm).
+import { ProductionOf } from '@/pages/ProductionOf'
 const ProductionVisitagePage = createPlaceholder('Visitage', 'Visitage des pièces produites', Eye)
 const ProductionPrimePage = createPlaceholder('Prime', 'Primes de production', Coins)
 const ProductionTrsPage = createPlaceholder('TRS', 'Taux de rendement synthétique', Gauge)
@@ -129,7 +133,7 @@ export const router = createBrowserRouter([
 
       // Production
       { path: 'production', element: <Navigate to="/production/of" replace /> },
-      { path: 'production/of', element: <ProductionOfPage /> },
+      { path: 'production/of', element: <ProductionOf /> },
       { path: 'production/visitage', element: <ProductionVisitagePage /> },
       { path: 'production/prime', element: <ProductionPrimePage /> },
       { path: 'production/trs', element: <ProductionTrsPage /> },

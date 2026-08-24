@@ -147,7 +147,6 @@ type SortKey =
   | 'coloris_reference'
   | 'numero'
   | 'poids'
-  | 'IDordre_fabrication'
   | 'machine_nom'
   | 'commande_numero'
   | 'client_nom'
@@ -163,18 +162,19 @@ interface SortState {
 }
 
 const COLUMNS: { key: SortKey; label: string; width: string; align?: 'left' | 'right' }[] = [
+  // No OF column: the roll's numero is "<OF>/<pièce>", so the OF id is already
+  // the numero's prefix (and the drawer's Production card names it in full).
   { key: 'ref_ecru', label: 'Référence', width: '7%' },
   { key: 'coloris_reference', label: 'Coloris', width: '7%' },
-  { key: 'numero', label: 'Numéro', width: '7%' },
+  { key: 'numero', label: 'Numéro', width: '9%' },
   { key: 'poids', label: 'Poids', width: '5%', align: 'right' },
-  { key: 'IDordre_fabrication', label: 'OF', width: '5%' },
   { key: 'machine_nom', label: 'Métier', width: '6%' },
   { key: 'commande_numero', label: 'N° Cmd', width: '5%' },
   { key: 'client_nom', label: 'Client', width: '11%' },
   { key: 'date_saisie', label: 'Date saisie', width: '7%' },
   { key: 'second_choix', label: '2ᵉ', width: '3%' },
   { key: 'visiteur', label: 'Visiteur', width: '9%' },
-  { key: 'observations', label: 'Observations', width: '14%' },
+  { key: 'observations', label: 'Observations', width: '17%' },
   { key: 'defauts', label: 'Défauts', width: '14%' },
 ]
 
@@ -420,9 +420,6 @@ const StockRow = memo(function StockRow({
       <td className="px-2 py-2 truncate">{row.coloris_reference ?? '—'}</td>
       <td className="px-2 py-2 tabular-nums truncate text-muted-foreground">{row.numero ?? '—'}</td>
       <td className="px-2 py-2 text-right tabular-nums font-medium">{formatKg(row.poids)}</td>
-      <td className="px-2 py-2 tabular-nums truncate text-muted-foreground">
-        {row.IDordre_fabrication || '—'}
-      </td>
       <td className="px-2 py-2 truncate">{row.machine_nom ?? '—'}</td>
       <td className="px-2 py-2 tabular-nums truncate text-muted-foreground">{row.commande_numero ?? '—'}</td>
       <td className="px-2 py-2 truncate">{row.client_nom ?? '—'}</td>
@@ -430,8 +427,10 @@ const StockRow = memo(function StockRow({
         {row.date_saisie ? formatHfsqlDate(row.date_saisie) : '—'}
       </td>
       <td className="px-2 py-2">
+        {/* Second choix = amber warning per the §7 status system (red is
+            reserved for destructive/errors — the défauts column). */}
         {!!row.second_choix && (
-          <Badge variant="outline" className="text-[10px] py-0 border-red-300 text-red-700">2ᵉ</Badge>
+          <Badge variant="outline" className="text-[10px] py-0 bg-amber-500/15 text-amber-800 border-amber-500/30">2ᵉ</Badge>
         )}
       </td>
       <td className="px-2 py-2 truncate text-muted-foreground" title={row.visiteur ?? undefined}>
@@ -471,7 +470,7 @@ const StockEcruTrmCard = memo(function StockEcruTrmCard({
         <p className="text-sm font-medium truncate flex-1 min-w-0">{row.ref_ecru ?? '—'}</p>
         <div className="flex items-center gap-1 flex-shrink-0">
           {!!row.second_choix && (
-            <Badge variant="outline" className="text-[10px] py-0 border-red-300 text-red-700">2ᵉ</Badge>
+            <Badge variant="outline" className="text-[10px] py-0 bg-amber-500/15 text-amber-800 border-amber-500/30">2ᵉ choix</Badge>
           )}
           {!!row.IDLigne_Commande_TRM && (
             <Badge className="bg-sky-100 text-sky-700 border-sky-200 gap-1 text-[10px] py-0">
@@ -485,7 +484,6 @@ const StockEcruTrmCard = memo(function StockEcruTrmCard({
       <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2">
         <CardKV label="Numéro" value={row.numero ?? '—'} mono />
         <CardKV label="Poids" value={formatKg(row.poids)} mono strong />
-        <CardKV label="OF" value={row.IDordre_fabrication || '—'} mono />
         <CardKV label="Métier" value={row.machine_nom ?? '—'} />
         <CardKV label="N° Cmd" value={row.commande_numero ?? '—'} mono />
         <CardKV label="Client" value={row.client_nom ?? '—'} />
@@ -587,7 +585,7 @@ function StockEcruTrmDrawer({ id, onClose }: { id: number | null; onClose: () =>
                     {detail.ref_ecru ?? '—'}
                   </h2>
                   {!!detail.second_choix && (
-                    <Badge className="bg-red-100 text-red-700 border-red-200 gap-1 text-[10px] py-0">2ᵉ choix</Badge>
+                    <Badge variant="outline" className="bg-amber-500/20 text-amber-200 border-amber-400/40 gap-1 text-[10px] py-0">2ᵉ choix</Badge>
                   )}
                   {!!detail.IDLigne_Commande_TRM && (
                     <Badge className="bg-sky-100 text-sky-700 border-sky-200 gap-1 text-[10px] py-0">
@@ -649,7 +647,7 @@ function StockEcruTrmDrawer({ id, onClose }: { id: number | null; onClose: () =>
                     label="2ᵉ choix"
                     value={
                       detail.second_choix ? (
-                        <span className="text-red-600 font-medium">Oui</span>
+                        <span className="text-amber-700 font-medium">Oui</span>
                       ) : (
                         <span className="text-muted-foreground">Non</span>
                       )
