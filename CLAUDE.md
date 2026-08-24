@@ -304,9 +304,18 @@ PCS-compressed, but the full WLanguage survives as comments in the generated And
   historical splits drifted). Photos come from `bonnetier.photo` (real JPEG blobs) via
   `/prime-trm/bonnetiers/:id/photo` — **binary needs `queryRaw`**, the normal `query()`
   path UTF-8-mangles blobs; the web falls back to initials on non-200.
-- The **week row always shows the current week** (Monday → open-ended), whatever semester
-  is browsed — legacy behavior. The PDF (`lib/pdf/PrimePdf.tsx`) rides `MalterreDocument`
-  with `issuer: companyTrm` and renders the same `/prime-trm` payload as the screen.
+- The **week row always describes the current week** (Monday → open-ended) and therefore
+  renders **only when the current semester is displayed** (screen and PDF both). The PDF
+  (`lib/pdf/PrimePdf.tsx`) rides `MalterreDocument` with `issuer: companyTrm` and renders
+  the same `/prime-trm` payload as the screen.
+- **Analyse des déclassements** (not in the legacy): taux de 2nd choix (kg-based) compared
+  to the previous semester over the **same elapsed window** while the period runs
+  (full-vs-full once finished), plus the defect-type breakdown of the déclassé pieces
+  (`defaut_qualite`, `Type_Reference = 2`). A piece's weight splits **equally across its
+  distinct defect types** so the donut sums to the true déclassé weight; unknown types
+  fold into « Autres », defect-less pieces into « Non renseigné ». Defects on 1er-choix
+  pieces exist too — this section is about **déclassements**, don't rebrand it « défauts ».
+  Donut colors are a fixed type→color map validated with the dataviz six-checks script.
 
 ### Atelier planning data model (legacy, shared HFSQL)
 
