@@ -306,13 +306,16 @@ function TauxComparison({ data }: { data: DeclassementsAnalyse }) {
           </span>
         </div>
         <div className="flex items-center gap-2.5">
-          <span className="w-28 text-xs text-muted-foreground flex-shrink-0">Semestre préc.</span>
+          {/* The exact comparison window (and "même avancement" on a running
+              semester) lives in the tooltip — the PDF spells it out. */}
+          <span className="w-28 text-xs text-muted-foreground flex-shrink-0 cursor-help" title={comparaison.label}>
+            Semestre préc.
+          </span>
           {bar(prevTaux, 'bg-zinc-400')}
           <span className="w-14 text-xs tabular-nums text-muted-foreground text-right">
             {prevTaux !== null ? fmtPct(prevTaux) : '—'}
           </span>
         </div>
-        <p className="text-[11px] text-muted-foreground">{comparaison.label}</p>
       </div>
 
       {deltaPts !== null ? (
