@@ -8,8 +8,12 @@ import {
   ChevronRight,
   Coins,
   Loader2,
+  Minus,
   PackageX,
+  PieChart,
   Printer,
+  TrendingDown,
+  TrendingUp,
   TriangleAlert,
   Users,
 } from 'lucide-react'
@@ -44,6 +48,23 @@ interface PrimeBlocSet {
   total: number
 }
 
+interface DeclassementType {
+  type: string
+  kg: number
+  pieces: number
+  /** Positive "manque à gagner" (kg × 0,20 €) — rendered with a minus. */
+  montant: number
+  pct: number
+}
+
+interface DeclassementsAnalyse {
+  kg: number
+  kgTotal: number
+  taux: number | null
+  comparaison: { label: string; debut: string; fin: string; taux: number | null }
+  types: DeclassementType[]
+}
+
 interface PrimePayload {
   periode: {
     numSemestre: 1 | 2
@@ -65,6 +86,7 @@ interface PrimePayload {
     montant: number
   }>
   joursTotal: number
+  declassements: DeclassementsAnalyse
 }
 
 // ── Formatting ───────────────────────────────────────────
@@ -148,6 +170,208 @@ function SectionBand({
         {children}
       </h2>
       {actions}
+    </div>
+  )
+}
+
+// ── Déclassements: fixed defect-type colors + donut ──────
+// Palette validated with the dataviz six-checks script against the app surface
+// (light mode); the 6.9-ΔE deutan pair is relieved by the 2px slice gaps and
+// the ranked legend list, which always names every slice with its values.
+// Color follows the ENTITY: a type keeps its color whatever its rank.
+
+const DEFAUT_COLORS: Record<string, string> = {
+  Maille: '#3B7DC9',
+  'Démaillage': '#BE5F37',
+  'Barrure Lycra': '#00A190',
+  'Autre Barrure': '#B84A6E',
+  Trou: '#C28A04',
+  Grille: '#8A63B8',
+  Autres: '#94A3B8',
+  'Non renseigné': '#CBD5E1',
+}
+
+function defautColor(type: string): string {
+  return DEFAUT_COLORS[type] ?? DEFAUT_COLORS.Autres
+}
+
+function fmtPct(v: number): string {
+  return `${fmtNum(v * 100, 2)} %`
+}
+
+/** Dependency-free SVG donut. Slices start at 12 o'clock; the white stroke
+ *  provides the 2px surface gap between fills the mark specs require. */
+function Donut({
+  slices,
+  centerTitle,
+  centerSub,
+}: {
+  slices: Array<{ label: string; value: number; color: string; title: string }>
+  centerTitle: string
+  centerSub: string
+}) {
+  const SIZE = 168
+  const R = 62
+  const THICKNESS = 26
+  const c = SIZE / 2
+  const total = slices.reduce((s, x) => s + x.value, 0)
+  if (total <= 0) return null
+
+  const polar = (angle: number, radius: number) => ({
+    x: c + radius * Math.sin(angle),
+    y: c - radius * Math.cos(angle),
+  })
+  let acc = 0
+  const paths = slices
+    .filter((s) => s.value > 0)
+    .map((s) => {
+      const a0 = (acc / total) * Math.PI * 2
+      acc += s.value
+      // Cap at 99.999% so a lone full-circle slice still renders as an arc.
+      const a1 = (Math.min(acc / total, 0.99999) / 1) * Math.PI * 2
+      const rOut = R
+      const rIn = R - THICKNESS
+      const large = a1 - a0 > Math.PI ? 1 : 0
+      const p0 = polar(a0, rOut)
+      const p1 = polar(a1, rOut)
+      const p2 = polar(a1, rIn)
+      const p3 = polar(a0, rIn)
+      const d = [
+        `M ${p0.x} ${p0.y}`,
+        `A ${rOut} ${rOut} 0 ${large} 1 ${p1.x} ${p1.y}`,
+        `L ${p2.x} ${p2.y}`,
+        `A ${rIn} ${rIn} 0 ${large} 0 ${p3.x} ${p3.y}`,
+        'Z',
+      ].join(' ')
+      return { ...s, d }
+    })
+
+  return (
+    <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" className="flex-shrink-0">
+      {paths.map((s) => (
+        <path key={s.label} d={s.d} fill={s.color} stroke="white" strokeWidth={2} strokeLinejoin="round">
+          <title>{s.title}</title>
+        </path>
+      ))}
+      <text x={c} y={c - 4} textAnchor="middle" className="fill-foreground" fontSize={17} fontWeight={700}>
+        {centerTitle}
+      </text>
+      <text x={c} y={c + 13} textAnchor="middle" className="fill-muted-foreground" fontSize={10}>
+        {centerSub}
+      </text>
+    </svg>
+  )
+}
+
+// ── Déclassements analysis card ──────────────────────────
+
+function DeclassementsCard({ data }: { data: DeclassementsAnalyse }) {
+  const { taux, comparaison, types, kg, kgTotal } = data
+  const deltaPts = taux !== null && comparaison.taux !== null ? (taux - comparaison.taux) * 100 : null
+  const totalPerdu = types.reduce((s, t) => s + t.montant, 0)
+
+  return (
+    <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
+      <SectionBand
+        icon={PieChart}
+        actions={
+          kg > 0 ? (
+            <span className="text-lg font-heading font-bold tabular-nums text-red-300">
+              -{fmtEur(totalPerdu)}
+            </span>
+          ) : undefined
+        }
+      >
+        Analyse des déclassements
+        <span className="font-normal text-white/60 text-sm"> · 2nd choix</span>
+      </SectionBand>
+
+      {kg <= 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+          <BadgeCheck className="h-10 w-10 mb-2 text-green-600/50" />
+          <p className="text-sm">Aucun déclassement sur la période</p>
+        </div>
+      ) : (
+        <div className="p-4 flex flex-col lg:flex-row gap-6">
+          {/* Taux + comparison */}
+          <div className="lg:w-64 flex-shrink-0 space-y-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Taux de 2nd choix
+              </p>
+              <p className="text-3xl font-heading font-bold tabular-nums leading-tight">
+                {taux !== null ? fmtPct(taux) : '—'}
+              </p>
+              <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
+                {fmtNum(kg)} kg sur {fmtNum(kgTotal)} kg produits
+              </p>
+            </div>
+            {deltaPts !== null && (
+              <div
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-semibold tabular-nums',
+                  deltaPts < -0.005
+                    ? 'bg-green-500/10 text-green-700'
+                    : deltaPts > 0.005
+                      ? 'bg-destructive/10 text-destructive'
+                      : 'bg-muted text-muted-foreground',
+                )}
+              >
+                {deltaPts < -0.005 ? (
+                  <TrendingDown className="h-4 w-4" />
+                ) : deltaPts > 0.005 ? (
+                  <TrendingUp className="h-4 w-4" />
+                ) : (
+                  <Minus className="h-4 w-4" />
+                )}
+                {deltaPts > 0 ? '+' : ''}
+                {fmtNum(deltaPts, 2)} pt
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {comparaison.taux !== null ? (
+                <>
+                  {comparaison.label} : <span className="font-medium tabular-nums">{fmtPct(comparaison.taux)}</span>
+                </>
+              ) : (
+                <>Pas de production comparable sur {comparaison.label}</>
+              )}
+            </p>
+          </div>
+
+          {/* Donut + ranked legend (the legend doubles as the data table) */}
+          <div className="flex-1 min-w-0 flex flex-col sm:flex-row items-center gap-5">
+            <Donut
+              slices={types.map((t) => ({
+                label: t.type,
+                value: t.kg,
+                color: defautColor(t.type),
+                title: `${t.type} — ${fmtNum(t.kg)} kg · -${fmtEur(t.montant)} (${fmtNum(t.pct * 100, 1)} %)`,
+              }))}
+              centerTitle={`${fmtNum(kg)} kg`}
+              centerSub="déclassés"
+            />
+            <div className="flex-1 min-w-0 w-full space-y-1">
+              {types.map((t) => (
+                <div key={t.type} className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted/50">
+                  <span
+                    className="h-2.5 w-2.5 rounded-sm flex-shrink-0"
+                    style={{ backgroundColor: defautColor(t.type) }}
+                  />
+                  <span className="text-sm min-w-0 flex-1 truncate">{t.type}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">{fmtNum(t.kg)} kg</span>
+                  <span className="text-sm font-semibold tabular-nums text-destructive w-20 text-right">
+                    -{fmtEur(t.montant)}
+                  </span>
+                  <span className="text-xs text-muted-foreground tabular-nums w-12 text-right">
+                    {fmtNum(t.pct * 100, 1)} %
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -315,6 +539,9 @@ export function ProductionPrime() {
             )
           })}
         </div>
+
+        {/* Why the 2nd-choix line loses money — defect breakdown + trend */}
+        <DeclassementsCard data={data.declassements} />
 
         {/* Current week — only meaningful on the current semester: the block
             always describes the RUNNING week, which has nothing to do with a
