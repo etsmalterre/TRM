@@ -272,6 +272,16 @@ function TauxComparison({ data }: { data: DeclassementsAnalyse }) {
   const prevTaux = comparaison.taux
   const deltaPts = taux !== null && prevTaux !== null ? (taux - prevTaux) * 100 : null
   const max = Math.max(taux ?? 0, prevTaux ?? 0)
+  // Verdict tint for the headline — only when a comparison exists; the chip
+  // below repeats it with an icon + label so the colour is never alone.
+  const verdictClass =
+    deltaPts === null
+      ? 'text-foreground'
+      : deltaPts < -0.005
+        ? 'text-green-700'
+        : deltaPts > 0.005
+          ? 'text-destructive'
+          : 'text-foreground'
 
   const bar = (value: number | null, colorClass: string) => (
     <div className="flex-1 h-2.5 rounded-full bg-zinc-200/70 overflow-hidden">
@@ -288,7 +298,7 @@ function TauxComparison({ data }: { data: DeclassementsAnalyse }) {
     <div className="flex flex-col justify-center gap-4">
       <div>
         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Taux de 2nd choix</p>
-        <p className="text-4xl font-heading font-bold tabular-nums leading-tight">
+        <p className={cn('text-4xl font-heading font-bold tabular-nums leading-tight', verdictClass)}>
           {taux !== null ? fmtPct(taux) : '—'}
         </p>
         <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
