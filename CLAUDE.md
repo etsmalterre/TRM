@@ -319,6 +319,11 @@ PCS-compressed, but the full WLanguage survives as comments in the generated And
   fold into « Autres », defect-less pieces into « Non renseigné ». Defects on 1er-choix
   pieces exist too — this section is about **déclassements**, don't rebrand it « défauts ».
   Donut colors are a fixed type→color map validated with the dataviz six-checks script.
+- ⚠️ **The rates are module constants in the API and apply to every browsable period**, so
+  editing them recomputes the whole history and the screen would display primes that were
+  never paid. A barème revision (under discussion with the atelier since 2026-08-24 — the
+  scenario studied is +0,055 / −0,40 €/Kg) must therefore ship **date-effective rates**
+  (barème applicable per semester) *before* the new values go in.
 
 ### Atelier planning data model (legacy, shared HFSQL)
 
