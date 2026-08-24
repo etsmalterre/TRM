@@ -248,8 +248,10 @@ function Donut({
       return { ...s, d }
     })
 
+  // `size` is the coordinate space; the SVG scales to its container so the
+  // donut grows into whatever room the card gives it.
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" className="flex-shrink-0">
+    <svg viewBox={`0 0 ${size} ${size}`} role="img" className="w-full h-auto max-w-[360px] flex-shrink-0">
       {paths.map((s) => (
         <path key={s.label} d={s.d} fill={s.color} stroke="white" strokeWidth={2} strokeLinejoin="round">
           <title>{s.title}</title>
@@ -295,10 +297,10 @@ function TauxComparison({ data }: { data: DeclassementsAnalyse }) {
   )
 
   return (
-    <div className="flex flex-col justify-center gap-4">
+    <div className="h-full flex flex-col justify-center gap-6">
       <div>
         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Taux de 2nd choix</p>
-        <p className={cn('text-4xl font-heading font-bold tabular-nums leading-tight', verdictClass)}>
+        <p className={cn('text-5xl font-heading font-bold tabular-nums leading-tight', verdictClass)}>
           {taux !== null ? fmtPct(taux) : '—'}
         </p>
         <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
@@ -364,7 +366,7 @@ function DeclassementsCard({ data }: { data: DeclassementsAnalyse }) {
   const totalPerdu = types.reduce((s, t) => s + t.montant, 0)
 
   return (
-    <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
+    <div className="rounded-lg border shadow-sm overflow-hidden bg-card lg:flex-1 lg:min-h-0 flex flex-col">
       <SectionBand
         icon={PieChart}
         actions={
@@ -380,12 +382,12 @@ function DeclassementsCard({ data }: { data: DeclassementsAnalyse }) {
       </SectionBand>
 
       {kg <= 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+        <div className="flex-1 flex flex-col items-center justify-center py-8 text-muted-foreground">
           <BadgeCheck className="h-10 w-10 mb-2 text-green-600/50" />
           <p className="text-sm">Aucun déclassement sur la période</p>
         </div>
       ) : (
-        <div className="p-4 sm:p-5 flex flex-col xl:flex-row gap-6 xl:gap-8">
+        <div className="flex-1 min-h-0 p-4 sm:p-5 flex flex-col xl:flex-row gap-6 xl:gap-8">
           <div className="xl:w-80 flex-shrink-0">
             <TauxComparison data={data} />
           </div>
@@ -393,19 +395,22 @@ function DeclassementsCard({ data }: { data: DeclassementsAnalyse }) {
 
           {/* Donut + ranked legend (the legend doubles as the data table,
               strictly sorted by lost money — server-side order). Side by side
-              only when there is real room for both; stacked otherwise. */}
-          <div className="flex-1 min-w-0 flex flex-col 2xl:flex-row items-center gap-6">
-            <Donut
-              slices={types.map((t) => ({
-                label: t.type,
-                value: t.kg,
-                color: defautColor(t.type),
-                title: `${t.type} — ${fmtNum(t.kg)} kg · -${fmtEur(t.montant)} (${fmtNum(t.pct * 100, 1)} %)`,
-              }))}
-              centerTitle={`${fmtNum(kg)} kg`}
-              centerSub="déclassés"
-            />
-            <div className="flex-1 min-w-0 w-full space-y-1 self-center">
+              only when there is real room for both; stacked otherwise. The
+              legend rows spread over the card's full height. */}
+          <div className="flex-1 min-w-0 flex flex-col 2xl:flex-row items-center 2xl:items-stretch gap-6">
+            <div className="flex items-center justify-center 2xl:w-[42%] flex-shrink-0">
+              <Donut
+                slices={types.map((t) => ({
+                  label: t.type,
+                  value: t.kg,
+                  color: defautColor(t.type),
+                  title: `${t.type} — ${fmtNum(t.kg)} kg · -${fmtEur(t.montant)} (${fmtNum(t.pct * 100, 1)} %)`,
+                }))}
+                centerTitle={`${fmtNum(kg)} kg`}
+                centerSub="déclassés"
+              />
+            </div>
+            <div className="flex-1 min-w-0 w-full flex flex-col justify-evenly gap-1">
               {types.map((t) => (
                 <div key={t.type} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-muted/50">
                   <span
