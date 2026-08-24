@@ -318,9 +318,10 @@ function TauxComparison({ data }: { data: DeclassementsAnalyse }) {
           </span>
         </div>
         <div className="flex items-center gap-2.5">
-          {/* The exact comparison window (and "même avancement" on a running
-              semester) lives in the tooltip — the PDF spells it out. */}
-          <span className="w-28 text-xs text-muted-foreground flex-shrink-0 cursor-help" title={comparaison.label}>
+          {/* Always the FULL previous semester — a fixed number to beat, not a
+              window that moves with the calendar. Which semester it is lives in
+              the tooltip; the PDF spells it out. */}
+          <span className="w-28 text-xs text-muted-foreground flex-shrink-0 cursor-help" title={`${comparaison.label} (semestre complet)`}>
             Semestre préc.
           </span>
           {bar(prevTaux, 'bg-zinc-400')}

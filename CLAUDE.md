@@ -309,8 +309,11 @@ PCS-compressed, but the full WLanguage survives as comments in the generated And
   (`lib/pdf/PrimePdf.tsx`) rides `MalterreDocument` with `issuer: companyTrm` and renders
   the same `/prime-trm` payload as the screen.
 - **Analyse des déclassements** (not in the legacy): taux de 2nd choix (kg-based) compared
-  to the previous semester over the **same elapsed window** while the period runs
-  (full-vs-full once finished), plus the defect-type breakdown of the déclassé pieces
+  to the **previous semester in full** — always, including while the current one is still
+  running. A same-elapsed-days window would be more like-for-like statistically, but it
+  moves every day; the full previous semester is a fixed number to beat, which is the point
+  of showing it (user decision, 2026-08-24 — don't "fix" it back). Plus the defect-type
+  breakdown of the déclassé pieces
   (`defaut_qualite`, `Type_Reference = 2`). A piece's weight splits **equally across its
   distinct defect types** so the donut sums to the true déclassé weight; unknown types
   fold into « Autres », defect-less pieces into « Non renseigné ». Defects on 1er-choix
