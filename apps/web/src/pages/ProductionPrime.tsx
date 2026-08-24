@@ -25,14 +25,14 @@ import { Badge } from '@/components/ui/badge'
 
 // Production › Prime — semester production bonus (legacy FI_Prime / FEN_Prime).
 // Read-only dashboard: the semester being browsed (Précédent / Suivant, blocked
-// at the current one), the current week, and the per-bonnetier répartition.
-// All computation lives in the API (ETM `routes/prime-trm.ts`) so the screen
-// and the printed PDF can never disagree.
+// at the current one), the déclassements analysis, the current week, and the
+// per-bonnetier répartition. All computation lives in the API (ETM
+// `routes/prime-trm.ts`) so the screen and the printed PDF can never disagree.
 //
-// Visual language: every section is capped by the §43 navy widget band (gold
-// tile, white title, gold hairline) — the treatment designed against exactly
-// the "stack of lifeless white cards" failure mode — and the three production
-// blocs carry the §7 status color system (green / amber / red left edges).
+// Layout: hero navy band on top, then the classic two-column shape — the
+// répartition as a left list panel (zinc body, §43 navy cap), the money story
+// on the right (tiles → analysis → current week). Every section is capped by
+// the §43 navy widget band; the production blocs carry the §7 status colors.
 
 // ── Types (mirror apps/api/src/routes/prime-trm.ts) ──────
 
@@ -106,6 +106,10 @@ function fmtTaux(v: number): string {
   return `${v > 0 ? '+' : ''}${fmtNum(v, 2)} €/Kg`
 }
 
+function fmtPct(v: number): string {
+  return `${fmtNum(v * 100, 2)} %`
+}
+
 /** Amount color on a white surface: green earns, red costs, muted at zero. */
 function montantClass(v: number): string {
   if (v > 0) return 'text-green-600'
@@ -150,7 +154,7 @@ const BLOCS = [
   },
 ]
 
-// ── §43 navy widget band, shared by the three section cards ──
+// ── §43 navy widget band, shared by the section cards ────
 
 function SectionBand({
   icon: Icon,
@@ -195,25 +199,23 @@ function defautColor(type: string): string {
   return DEFAUT_COLORS[type] ?? DEFAUT_COLORS.Autres
 }
 
-function fmtPct(v: number): string {
-  return `${fmtNum(v * 100, 2)} %`
-}
-
 /** Dependency-free SVG donut. Slices start at 12 o'clock; the white stroke
  *  provides the 2px surface gap between fills the mark specs require. */
 function Donut({
   slices,
   centerTitle,
   centerSub,
+  size = 224,
+  thickness = 34,
 }: {
   slices: Array<{ label: string; value: number; color: string; title: string }>
   centerTitle: string
   centerSub: string
+  size?: number
+  thickness?: number
 }) {
-  const SIZE = 168
-  const R = 62
-  const THICKNESS = 26
-  const c = SIZE / 2
+  const c = size / 2
+  const R = c - 4
   const total = slices.reduce((s, x) => s + x.value, 0)
   if (total <= 0) return null
 
@@ -228,9 +230,9 @@ function Donut({
       const a0 = (acc / total) * Math.PI * 2
       acc += s.value
       // Cap at 99.999% so a lone full-circle slice still renders as an arc.
-      const a1 = (Math.min(acc / total, 0.99999) / 1) * Math.PI * 2
+      const a1 = Math.min(acc / total, 0.99999) * Math.PI * 2
       const rOut = R
-      const rIn = R - THICKNESS
+      const rIn = R - thickness
       const large = a1 - a0 > Math.PI ? 1 : 0
       const p0 = polar(a0, rOut)
       const p1 = polar(a1, rOut)
@@ -247,27 +249,105 @@ function Donut({
     })
 
   return (
-    <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" className="flex-shrink-0">
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" className="flex-shrink-0">
       {paths.map((s) => (
         <path key={s.label} d={s.d} fill={s.color} stroke="white" strokeWidth={2} strokeLinejoin="round">
           <title>{s.title}</title>
         </path>
       ))}
-      <text x={c} y={c - 4} textAnchor="middle" className="fill-foreground" fontSize={17} fontWeight={700}>
+      <text x={c} y={c - 5} textAnchor="middle" className="fill-foreground" fontSize={size / 9} fontWeight={700}>
         {centerTitle}
       </text>
-      <text x={c} y={c + 13} textAnchor="middle" className="fill-muted-foreground" fontSize={10}>
+      <text x={c} y={c + size / 14} textAnchor="middle" className="fill-muted-foreground" fontSize={size / 18}>
         {centerSub}
       </text>
     </svg>
   )
 }
 
+// ── Taux comparison — two labeled mini-bars, verdict chip ──
+
+function TauxComparison({ data }: { data: DeclassementsAnalyse }) {
+  const { taux, comparaison, kg, kgTotal } = data
+  const prevTaux = comparaison.taux
+  const deltaPts = taux !== null && prevTaux !== null ? (taux - prevTaux) * 100 : null
+  const max = Math.max(taux ?? 0, prevTaux ?? 0)
+
+  const bar = (value: number | null, colorClass: string) => (
+    <div className="flex-1 h-2.5 rounded-full bg-zinc-200/70 overflow-hidden">
+      {value !== null && max > 0 && (
+        <div
+          className={cn('h-full rounded-full', colorClass)}
+          style={{ width: `${Math.max(3, (value / max) * 100)}%` }}
+        />
+      )}
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col justify-center gap-4">
+      <div>
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Taux de 2nd choix</p>
+        <p className="text-4xl font-heading font-bold tabular-nums leading-tight">
+          {taux !== null ? fmtPct(taux) : '—'}
+        </p>
+        <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
+          {fmtNum(kg)} kg déclassés sur {fmtNum(kgTotal)} kg produits
+        </p>
+      </div>
+
+      {/* The comparison, readable at a glance: shorter bar = better semester. */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2.5">
+          <span className="w-28 text-xs font-medium flex-shrink-0">Ce semestre</span>
+          {bar(taux, 'bg-primary')}
+          <span className="w-14 text-xs font-semibold tabular-nums text-right">
+            {taux !== null ? fmtPct(taux) : '—'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <span className="w-28 text-xs text-muted-foreground flex-shrink-0">Semestre préc.</span>
+          {bar(prevTaux, 'bg-zinc-400')}
+          <span className="w-14 text-xs tabular-nums text-muted-foreground text-right">
+            {prevTaux !== null ? fmtPct(prevTaux) : '—'}
+          </span>
+        </div>
+        <p className="text-[11px] text-muted-foreground">{comparaison.label}</p>
+      </div>
+
+      {deltaPts !== null ? (
+        <div
+          className={cn(
+            'inline-flex items-center gap-1.5 self-start rounded-md px-2.5 py-1.5 text-sm font-semibold tabular-nums',
+            deltaPts < -0.005
+              ? 'bg-green-500/10 text-green-700'
+              : deltaPts > 0.005
+                ? 'bg-destructive/10 text-destructive'
+                : 'bg-muted text-muted-foreground',
+          )}
+        >
+          {deltaPts < -0.005 ? (
+            <TrendingDown className="h-4 w-4" />
+          ) : deltaPts > 0.005 ? (
+            <TrendingUp className="h-4 w-4" />
+          ) : (
+            <Minus className="h-4 w-4" />
+          )}
+          {deltaPts > 0 ? '+' : ''}
+          {fmtNum(deltaPts, 2)} pt ·{' '}
+          {deltaPts < -0.005 ? 'en amélioration' : deltaPts > 0.005 ? 'en dégradation' : 'stable'}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">Pas de production comparable sur {comparaison.label}</p>
+      )}
+    </div>
+  )
+}
+
 // ── Déclassements analysis card ──────────────────────────
 
 function DeclassementsCard({ data }: { data: DeclassementsAnalyse }) {
-  const { taux, comparaison, types, kg, kgTotal } = data
-  const deltaPts = taux !== null && comparaison.taux !== null ? (taux - comparaison.taux) * 100 : null
+  const { types, kg } = data
   const totalPerdu = types.reduce((s, t) => s + t.montant, 0)
 
   return (
@@ -292,55 +372,16 @@ function DeclassementsCard({ data }: { data: DeclassementsAnalyse }) {
           <p className="text-sm">Aucun déclassement sur la période</p>
         </div>
       ) : (
-        <div className="p-4 flex flex-col lg:flex-row gap-6">
-          {/* Taux + comparison */}
-          <div className="lg:w-64 flex-shrink-0 space-y-3">
-            <div>
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Taux de 2nd choix
-              </p>
-              <p className="text-3xl font-heading font-bold tabular-nums leading-tight">
-                {taux !== null ? fmtPct(taux) : '—'}
-              </p>
-              <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
-                {fmtNum(kg)} kg sur {fmtNum(kgTotal)} kg produits
-              </p>
-            </div>
-            {deltaPts !== null && (
-              <div
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-semibold tabular-nums',
-                  deltaPts < -0.005
-                    ? 'bg-green-500/10 text-green-700'
-                    : deltaPts > 0.005
-                      ? 'bg-destructive/10 text-destructive'
-                      : 'bg-muted text-muted-foreground',
-                )}
-              >
-                {deltaPts < -0.005 ? (
-                  <TrendingDown className="h-4 w-4" />
-                ) : deltaPts > 0.005 ? (
-                  <TrendingUp className="h-4 w-4" />
-                ) : (
-                  <Minus className="h-4 w-4" />
-                )}
-                {deltaPts > 0 ? '+' : ''}
-                {fmtNum(deltaPts, 2)} pt
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              {comparaison.taux !== null ? (
-                <>
-                  {comparaison.label} : <span className="font-medium tabular-nums">{fmtPct(comparaison.taux)}</span>
-                </>
-              ) : (
-                <>Pas de production comparable sur {comparaison.label}</>
-              )}
-            </p>
+        <div className="p-4 sm:p-5 flex flex-col xl:flex-row gap-6 xl:gap-8">
+          <div className="xl:w-80 flex-shrink-0">
+            <TauxComparison data={data} />
           </div>
+          <div className="hidden xl:block w-px bg-border flex-shrink-0" />
 
-          {/* Donut + ranked legend (the legend doubles as the data table) */}
-          <div className="flex-1 min-w-0 flex flex-col sm:flex-row items-center gap-5">
+          {/* Donut + ranked legend (the legend doubles as the data table,
+              strictly sorted by lost money — server-side order). Side by side
+              only when there is real room for both; stacked otherwise. */}
+          <div className="flex-1 min-w-0 flex flex-col 2xl:flex-row items-center gap-6">
             <Donut
               slices={types.map((t) => ({
                 label: t.type,
@@ -351,19 +392,21 @@ function DeclassementsCard({ data }: { data: DeclassementsAnalyse }) {
               centerTitle={`${fmtNum(kg)} kg`}
               centerSub="déclassés"
             />
-            <div className="flex-1 min-w-0 w-full space-y-1">
+            <div className="flex-1 min-w-0 w-full space-y-1 self-center">
               {types.map((t) => (
-                <div key={t.type} className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted/50">
+                <div key={t.type} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-muted/50">
                   <span
                     className="h-2.5 w-2.5 rounded-sm flex-shrink-0"
                     style={{ backgroundColor: defautColor(t.type) }}
                   />
                   <span className="text-sm min-w-0 flex-1 truncate">{t.type}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">{fmtNum(t.kg)} kg</span>
-                  <span className="text-sm font-semibold tabular-nums text-destructive w-20 text-right">
+                  <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap w-16 text-right">
+                    {fmtNum(t.kg)} kg
+                  </span>
+                  <span className="text-sm font-semibold tabular-nums whitespace-nowrap text-destructive w-20 text-right">
                     -{fmtEur(t.montant)}
                   </span>
-                  <span className="text-xs text-muted-foreground tabular-nums w-12 text-right">
+                  <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap w-12 text-right">
                     {fmtNum(t.pct * 100, 1)} %
                   </span>
                 </div>
@@ -383,7 +426,7 @@ function BonnetierAvatar({ id, prenom, nom }: { id: number; prenom: string; nom:
   const initials = `${prenom.charAt(0)}${nom.charAt(0)}`.toUpperCase() || '?'
   if (failed) {
     return (
-      <div className="h-11 w-11 rounded-full flex-shrink-0 flex items-center justify-center bg-primary/10 text-primary text-sm font-semibold">
+      <div className="h-10 w-10 rounded-full flex-shrink-0 flex items-center justify-center bg-primary/10 text-primary text-sm font-semibold">
         {initials}
       </div>
     )
@@ -392,9 +435,56 @@ function BonnetierAvatar({ id, prenom, nom }: { id: number; prenom: string; nom:
     <img
       src={`${API_URL}/prime-trm/bonnetiers/${id}/photo?size=96`}
       alt={prenom}
-      className="h-11 w-11 rounded-full flex-shrink-0 object-cover border-2 border-white shadow-sm bg-muted"
+      className="h-10 w-10 rounded-full flex-shrink-0 object-cover border-2 border-white shadow-sm bg-muted"
       onError={() => setFailed(true)}
     />
+  )
+}
+
+// ── Répartition — left list panel ────────────────────────
+
+function RepartitionPanel({
+  repartition,
+  joursTotal,
+  total,
+}: {
+  repartition: PrimePayload['repartition']
+  joursTotal: number
+  total: number
+}) {
+  return (
+    <div className="lg:w-80 flex-shrink-0 flex flex-col rounded-lg border shadow-sm overflow-hidden bg-zinc-100/80 lg:min-h-0 order-last lg:order-none">
+      <SectionBand icon={Users}>Répartition</SectionBand>
+      {repartition.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+          <Users className="h-10 w-10 mb-2 opacity-40" />
+          <p className="text-sm">Aucun bonnetier sur la période</p>
+        </div>
+      ) : (
+        <>
+          <div className="lg:flex-1 lg:min-h-0 lg:overflow-auto scrollbar-transparent p-3 space-y-2">
+            {repartition.map((r) => (
+              <div key={r.IDbonnetier} className="flex items-center gap-3 p-2.5 rounded-lg border bg-card shadow-sm">
+                <BonnetierAvatar id={r.IDbonnetier} prenom={r.prenom} nom={r.nom} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold truncate">{r.prenom}</p>
+                  <p className="text-[11px] text-muted-foreground tabular-nums">{r.jours} jours</p>
+                </div>
+                <span className={cn('text-sm font-heading font-bold tabular-nums flex-shrink-0', montantClass(r.montant))}>
+                  {fmtEur(r.montant)}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="p-3 border-t bg-zinc-200/50 flex items-center justify-between text-xs">
+            <span className="text-muted-foreground tabular-nums">{joursTotal} jours travaillés</span>
+            <span className={cn('font-heading font-bold text-sm tabular-nums', montantClass(total))}>
+              {fmtEur(total)}
+            </span>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -501,89 +591,37 @@ export function ProductionPrime() {
         </Button>
       </div>
 
-      {/* Body */}
-      <div className="flex-1 min-h-0 overflow-auto scrollbar-transparent space-y-4">
-        {/* Semester blocs — §7 status-colored cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {BLOCS.map((b) => {
-            const bloc = semestre[b.key]
-            return (
-              <div
-                key={b.key}
-                className={cn(
-                  'rounded-lg border-l-4 border border-border/60 bg-card shadow-sm p-4',
-                  b.edge,
-                )}
-              >
-                <div className="flex items-center justify-between gap-2">
+      {/* Body: répartition left panel + money story on the right */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 overflow-auto lg:overflow-hidden scrollbar-transparent">
+        <RepartitionPanel repartition={repartition} joursTotal={joursTotal} total={semestre.total} />
+
+        <div className="flex-1 min-w-0 flex flex-col gap-4 lg:min-h-0 lg:overflow-auto scrollbar-transparent">
+          {/* Semester blocs — §7 status-colored cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {BLOCS.map((b) => {
+              const bloc = semestre[b.key]
+              return (
+                <div
+                  key={b.key}
+                  className={cn(
+                    'rounded-lg border-l-4 border border-border/60 bg-card shadow-sm p-4',
+                    b.edge,
+                  )}
+                >
                   <div className="flex items-center gap-2 min-w-0">
                     <div className={cn('h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0', b.iconBg)}>
                       <b.icon className={cn('h-4 w-4', b.iconColor)} />
                     </div>
                     <p className="text-sm font-semibold truncate">{b.label}</p>
                   </div>
-                  <Badge variant="outline" className={cn('text-[10px] flex-shrink-0 tabular-nums', b.badge)}>
-                    {fmtTaux(tauxOf[b.key])}
-                  </Badge>
-                </div>
-                <div className="mt-4 flex items-end justify-between gap-2">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Poids</p>
-                    <p className="text-sm font-medium tabular-nums">{fmtNum(bloc.kg)} kg</p>
-                  </div>
-                  <span className={cn('text-2xl font-heading font-bold tabular-nums', montantClass(bloc.montant))}>
-                    {fmtEur(bloc.montant)}
-                  </span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Why the 2nd-choix line loses money — defect breakdown + trend */}
-        <DeclassementsCard data={data.declassements} />
-
-        {/* Current week — only meaningful on the current semester: the block
-            always describes the RUNNING week, which has nothing to do with a
-            browsed historical period. */}
-        {periode.estCourante && (
-        <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
-          <SectionBand
-            icon={CalendarDays}
-            actions={
-              <>
-                <Badge className="bg-white/15 text-white border-transparent text-[10px] flex-shrink-0">
-                  Semaine en cours
-                </Badge>
-                <span className={cn('text-lg font-heading font-bold tabular-nums', montantOnNavyClass(semaine.total))}>
-                  {fmtEur(semaine.total)}
-                </span>
-              </>
-            }
-          >
-            Semaine {semaine.numero}
-            <span className="font-normal text-white/60 text-sm">
-              {' '}· du {frDate(semaine.debut, false)} au {frDate(semaine.fin, false)}
-            </span>
-          </SectionBand>
-          <div className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {BLOCS.map((b) => {
-              const bloc = semaine[b.key]
-              return (
-                <div
-                  key={b.key}
-                  className={cn(
-                    'flex items-center justify-between gap-2 rounded-lg border-l-4 border border-border/60 bg-zinc-100/80 px-3 py-2.5',
-                    b.edge,
-                  )}
-                >
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <b.icon className={cn('h-3.5 w-3.5 flex-shrink-0', b.iconColor)} />
-                    <span className="text-xs font-medium truncate">{b.label}</span>
-                  </div>
-                  <div className="flex items-baseline gap-2 flex-shrink-0 tabular-nums">
-                    <span className="text-xs text-muted-foreground">{fmtNum(bloc.kg)} kg</span>
-                    <span className={cn('text-sm font-bold', montantClass(bloc.montant))}>
+                  <div className="mt-4 flex items-end justify-between gap-2">
+                    <div className="min-w-0">
+                      <Badge variant="outline" className={cn('text-[10px] tabular-nums', b.badge)}>
+                        {fmtTaux(tauxOf[b.key])}
+                      </Badge>
+                      <p className="text-sm font-medium tabular-nums mt-1.5 whitespace-nowrap">{fmtNum(bloc.kg)} kg</p>
+                    </div>
+                    <span className={cn('text-2xl font-heading font-bold tabular-nums whitespace-nowrap', montantClass(bloc.montant))}>
                       {fmtEur(bloc.montant)}
                     </span>
                   </div>
@@ -591,47 +629,58 @@ export function ProductionPrime() {
               )
             })}
           </div>
-        </div>
-        )}
 
-        {/* Répartition */}
-        <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
-          <SectionBand
-            icon={Users}
-            actions={
-              repartition.length > 0 ? (
-                <Badge className="bg-white/15 text-white border-transparent text-xs tabular-nums">
-                  {joursTotal} jours travaillés
-                </Badge>
-              ) : undefined
-            }
-          >
-            Répartition
-          </SectionBand>
-          {repartition.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-              <Users className="h-10 w-10 mb-2 opacity-40" />
-              <p className="text-sm">Aucun bonnetier sur la période</p>
-            </div>
-          ) : (
-            <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {repartition.map((r) => (
-                <div
-                  key={r.IDbonnetier}
-                  className="flex items-center gap-3 rounded-lg border-l-4 border-l-gold/70 border border-border/60 bg-zinc-100/80 p-3"
-                >
-                  <BonnetierAvatar id={r.IDbonnetier} prenom={r.prenom} nom={r.nom} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold truncate">{r.prenom}</p>
-                    <p className="text-[11px] text-muted-foreground tabular-nums">{r.jours} jours</p>
-                  </div>
-                  <span
-                    className={cn('text-base font-heading font-bold tabular-nums flex-shrink-0', montantClass(r.montant))}
-                  >
-                    {fmtEur(r.montant)}
-                  </span>
-                </div>
-              ))}
+          {/* Why the 2nd-choix line loses money — defect breakdown + trend */}
+          <DeclassementsCard data={data.declassements} />
+
+          {/* Current week — only meaningful on the current semester: the block
+              always describes the RUNNING week, which has nothing to do with a
+              browsed historical period. */}
+          {periode.estCourante && (
+            <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
+              <SectionBand
+                icon={CalendarDays}
+                actions={
+                  <>
+                    <Badge className="bg-white/15 text-white border-transparent text-[10px] flex-shrink-0">
+                      Semaine en cours
+                    </Badge>
+                    <span className={cn('text-lg font-heading font-bold tabular-nums', montantOnNavyClass(semaine.total))}>
+                      {fmtEur(semaine.total)}
+                    </span>
+                  </>
+                }
+              >
+                Semaine {semaine.numero}
+                <span className="font-normal text-white/60 text-sm">
+                  {' '}· du {frDate(semaine.debut, false)} au {frDate(semaine.fin, false)}
+                </span>
+              </SectionBand>
+              <div className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {BLOCS.map((b) => {
+                  const bloc = semaine[b.key]
+                  return (
+                    <div
+                      key={b.key}
+                      className={cn(
+                        'flex items-center justify-between gap-2 rounded-lg border-l-4 border border-border/60 bg-zinc-100/80 px-3 py-2.5',
+                        b.edge,
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <b.icon className={cn('h-3.5 w-3.5 flex-shrink-0', b.iconColor)} />
+                        <span className="text-xs font-medium truncate">{b.label}</span>
+                      </div>
+                      <div className="flex items-baseline gap-2 flex-shrink-0 tabular-nums">
+                        <span className="text-xs text-muted-foreground">{fmtNum(bloc.kg)} kg</span>
+                        <span className={cn('text-sm font-bold', montantClass(bloc.montant))}>
+                          {fmtEur(bloc.montant)}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
