@@ -166,7 +166,7 @@ function BonnetierAvatar({ id, prenom, nom }: { id: number; prenom: string; nom:
   }
   return (
     <img
-      src={`${API_URL}/prime-trm/bonnetiers/${id}/photo`}
+      src={`${API_URL}/prime-trm/bonnetiers/${id}/photo?size=96`}
       alt={prenom}
       className="h-11 w-11 rounded-full flex-shrink-0 object-cover border-2 border-white shadow-sm bg-muted"
       onError={() => setFailed(true)}
