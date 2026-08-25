@@ -373,7 +373,59 @@ The screen is ETM's (`import { Dashboard } from '@etm/pages/Dashboard'`): same r
 - **Layouts are stored per app.** The hook calls `GET/PUT /api/user-profiles/me/dashboard?app=trm`; the store keeps `dashboards_trm` next to ETM's `dashboards` for the same `IDutilisateur` (`ETM/apps/api/src/lib/user-profiles.ts`). No `?app=` means ETM — every pre-existing client.
 - **Widget permissions are TRM keys** (`ETM/apps/api/src/lib/permission-keys-trm.ts`, category « Tableau de bord », one `dashboard_*` key per widget, granted from Paramètres › Utilisateurs). The TRM `PermissionsContext` reads `/permissions-trm/me`; admins see every widget.
 - **Plumbing TRM had to grow for the shell**: `contexts/HeaderActionsContext.tsx` (verbatim ETM mirror; `AppShell` wraps in its provider, `Header` owns the slot div and swaps the dashboard submenu for `useDashboardTabs()`), the `.dashboard-grid` block at the end of `index.css` (verbatim), `react-grid-layout` in `package.json` + `resolve.dedupe`, the `process.env.DRAGGABLE_DEBUG` define in `vite.config.ts`, `DASHBOARD_ROUTE_PREFIX` in `navigation.ts`, and the three ETM files in `tailwind.config.js` `content`.
-- **Adding a widget** = one registry entry + its component in `src/components/dashboard/` + a key in `permission-keys-trm.ts` + an endpoint in `ETM/apps/api/src/routes/dashboard-trm.ts` (`/api/dashboard-trm`, one router for every TRM widget, gated with `trmUserHasPermission`).
+- **Adding a widget** = one registry entry + its component in `src/components/dashboard/` + a key in `permission-keys-trm.ts` + an endpoint in `ETM/apps/api/src/routes/dashboard-trm.ts` (`/api/dashboard-trm`, one router for every TRM widget, gated with `trmUserHasPermission`). `dashboard-trm.ts` is for widgets with **no ETM equivalent**; a widget that mirrors an ETM one over a partitioned table gets a scoped router factory instead — see the finance widgets below.
+
+### Widgets financiers — Charges · Chiffre d'affaires · Analyse financière · Évolution du CA
+
+The four ETM finance widgets, over **TRM's own partition of the same books**. There is
+no second aggregation: `upload_compta` / `compte_compta` (`id_societe`) and `facture`
+(`IDsociete`) are partitioned tables whose two halves are the **same object**, so the API
+is the `factures.ts` shape — **one router factory, two scopes** —
+`createFinanceRouter(scope)` in **`ETM/apps/api/src/lib/finance-common.ts`**, mounted on
+ETM's `rapportsRouter` (URLs unchanged) and at **`/api/rapports-trm`** for this app.
+Everything société-dependent, *including which permission store answers*, lives in
+`FINANCE_SCOPE_TRM`. Improve that file — never fork a TRM copy.
+
+| Widget | Endpoint | Permission |
+|---|---|---|
+| Charges | `GET /rapports-trm/finance` | `dashboard_charges` |
+| Analyse financière | `GET /rapports-trm/finance/analyse` | `dashboard_finance` |
+| Chiffre d'affaires | `GET /rapports-trm/ca-clients` | `dashboard_ca` |
+| Évolution du CA | `GET /rapports-trm/ca-evolution` | `dashboard_evolution_ca` (sous-droit, l'API exige `dashboard_ca`) |
+
+- **The web components are verbatim mirrors of ETM's** (`components/dashboard/*Widget.tsx`
+  plus `lib/depassement.tsx`) — improve them **in ETM** and re-copy, like
+  `components/tickets/`. Deltas, all documented in each file's header: the endpoint path,
+  a `trm-`-prefixed React Query key (the two apps must never share a cache entry for the
+  same URL shape), and the CA donut below.
+- **The Répartition donut drops ETM's 10 000 € / 5 000 € "Other" buckets.** TRM invoices
+  **8 or 9 clients a year** (ETM: ~144) and bills **~98 % of its revenue to Ets Malterre**
+  (2025: 335 304 € of 340 853 €), so those thresholds would fold the whole book except one
+  client into a single grey wedge. Every client that billed something gets its own slice;
+  the near-single ring is the finding, not a bug.
+- **`view_rapport_finance` deliberately does NOT exist in TRM's catalog.** `/finance`
+  returns the compte-by-compte balance (it names the salary lines), so it is gated on
+  `dashboard_charges` — the widget's own key — rather than on a right whose screen isn't
+  ported. When Rapports › Finance lands, add `view_rapport_finance` to `financeKeys` and
+  fill `editComptesKey` in the scope; the compte write routes are **not mounted** here
+  today, so they 404 rather than 403.
+- **Verified against société 2 before shipping** (probe
+  `ETM/apps/api/src/scripts/probe-finance-trm.ts`, re-run it after an `/etm_deploy`):
+  the compte-level sums reproduce `upload_compta`'s `frais_fixe` / `frais_variable`
+  **exactly** on the 2025 and 2026 anchors (46 633,56 € / 10 562,04 € at 2026-03-23), and
+  the `facture` × `ligne_facture` CA agrees with `upload_compta.produits` to 0,0 % on
+  2026 — two independent sources for the same number. The **2024 anchor drifts ~4,5 k€**
+  because `frais_variable` is the compte's *current* classification, not the one in force
+  that year; ETM drifts the same way and the legacy screen does too, so it is not corrected.
+- **TRM's shape is the mirror of ETM's**: charges *fixes* dominate (46 634 € vs 10 562 €
+  variables) and the marge brute runs at ~90 % of CA, because TRM knits **à façon** — the
+  client supplies the fil, so there is almost no variable purchase. EBE 54 429 € on a CA of
+  111 625 € at 2026-03-23.
+- ⚠️ **The Charges pills compare a partial year against a *full* N-1** early in an
+  exercise ("19 %" in March). That is the legacy rule — amount for a year = the last
+  upload *falling in that calendar year* — and ETM's report reads the same way. Do not
+  "fix" it on one side only: the two apps would then quote different figures for the same
+  compte.
 
 ### Widget « Poids des pièces » — port of `FI_Mauvais_Compteur.wdw` + `FEN_Graphe_Compteur.wdw`
 
