@@ -23,14 +23,43 @@ changes were landed on ETM `master` via a **paired NG worktree** (see
    It extracts every `apiFetch` path in `apps/web/src`, picks a concrete endpoint per
    mount root, and probes production. Exit 0 = safe; exit 1 = **do not deploy**, it
    names the missing routes and the pages that call them.
-2. If it fails, deploy the API first **from the ETM checkout** with its `/etm_deploy` —
-   not from here — then re-run the gate until it is green.
+2. **Check the API is not merely *present* but *current* — the route gate does NOT cover
+   this.** `check-api-routes.mjs` probes one concrete path per mount root and fails only
+   on 404, so it catches a router that was never deployed. It does **not** catch a router
+   that is mounted with an **older handler**: a feature adding a field, a sub-route or a
+   query param to an already-deployed mount (e.g. a new block inside `/prime-trm`) gets a
+   green gate while prod serves the stale payload, and the screen ships broken. Compare
+   the API host's deploy stamp against ETM master:
+   ```bash
+   # factory PC (wsl transport — see §SSH Access for the laptop form)
+   API_SHA=$(wsl bash -c "ssh $WOPTS debian@10.10.2.163 'cat /home/debian/mps_api/DEPLOYED_SHA 2>/dev/null || echo none'" | tr -d '[:space:]')
+   cd /c/dev/etsmalterre/ETM && git fetch origin -q
+   git log --oneline ${API_SHA}..origin/master -- apps/api      # empty = API is current
+   ```
+   Non-empty output = the shared API is behind on `apps/api/**` → deploy it first. An
+   `API_SHA` of `none`, or one git does not know, counts as behind.
+   **Exception**: a range touching only `apps/api/src/scripts/**` has no runtime effect —
+   the service never imports those, so it does not warrant restarting the shared API
+   (which blips `mpsng` too). Run such a script by hand instead; on the prod host that is
+   `node --env-file=.env --import tsx src/scripts/<x>.ts` from `/home/debian/mps_api`
+   (a bare `npx tsx` gets no env and dies with `[IM007] No data source or driver`).
+3. If either check fails, deploy the API first **from the ETM checkout** with its
+   `/etm_deploy` — not from here — then re-run both until they are green.
 
 **Why this is a script and not a checklist item:** each TRM worktree develops against its
 own paired NG API on `808N`, so a screen whose API half was never deployed works perfectly
 in dev and 404s only in production. Nothing in the local loop can catch it. Verified
 2026-07-30: three merged screens (`clients-trm`, `commandes-trm`, `expeditions-trm`) would
 have shipped against an API that had none of them.
+
+**Why the two checks are different.** The route gate answers "does prod have this
+router?"; the SHA check answers "does prod have *this version* of it?". Both are needed
+because a TRM screen and its endpoints land as **two commits in two repos** — the NG
+branch first, then the TRM one — and only the API half has a deploy of its own.
+Verified 2026-08-25: a deploy believed done the day before had in fact shipped nothing
+(the session was cut short mid-way), and prod sat a whole feature-set behind on both
+halves with no trace of it in git — the `DEPLOYED_SHA` stamps on each server were the
+only way to see it. Read them before trusting any memory of "we deployed that".
 
 The check **fails closed** — an unreachable API is a failure, never a silent pass. If you
 are off the factory LAN/VPN it will say so rather than wave the deploy through.
