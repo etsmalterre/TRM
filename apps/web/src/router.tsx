@@ -7,7 +7,6 @@ import { PagePlaceholder } from '@/components/shared/PagePlaceholder'
 // app's registry, which is where TRM's widgets live.
 import { Dashboard } from '@etm/pages/Dashboard'
 import {
-  CalendarDays,
   Package,
   Layers,
   ClipboardList,
@@ -49,7 +48,6 @@ import { ClientsFacturation } from '@/pages/ClientsFacturation'
 // Not shared with ETM: the two ledgers show different fields and read
 // IDsociete = 2 vs 1 (API: ETM `routes/clients-trm.ts`).
 import { ClientsGestion } from '@/pages/ClientsGestion'
-const ClientsPlanningPage = createPlaceholder('Planning', 'Planning des commandes clients', CalendarDays)
 // Expéditions is NOT shared with ETM: `expedition` is partitioned by IDsociete
 // and the two halves ship different merchandise (TRM sends tombé de métier off
 // its own OFs; ETM sends finished rolls out of a magasin). Own screen, own
@@ -131,7 +129,6 @@ export const router = createBrowserRouter([
       { path: 'clients/expeditions', element: <ClientsExpeditions /> },
       { path: 'clients/facturation', element: <ClientsFacturation /> },
       { path: 'clients/gestion', element: <ClientsGestion /> },
-      { path: 'clients/planning', element: <ClientsPlanningPage /> },
 
       // Fils
       { path: 'fils', element: <Navigate to="/fils/references" replace /> },

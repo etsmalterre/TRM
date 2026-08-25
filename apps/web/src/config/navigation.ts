@@ -72,7 +72,6 @@ export const mainNavigation: MainMenuItem[] = [
       { title: 'Expéditions', href: '/clients/expeditions' },
       { title: 'Facturation', href: '/clients/facturation' },
       { title: 'Gestion', href: '/clients/gestion' },
-      { title: 'Planning', href: '/clients/planning' },
     ],
   },
   {
@@ -172,7 +171,6 @@ export const routeTitles: Record<string, string> = {
   '/clients/expeditions': 'Expéditions',
   '/clients/facturation': 'Facturation',
   '/clients/gestion': 'Gestion',
-  '/clients/planning': 'Planning',
   // Fils
   '/fils': 'Fils',
   '/fils/references': 'Références',
