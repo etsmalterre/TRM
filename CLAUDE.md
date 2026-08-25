@@ -72,7 +72,7 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 5. **Production** — **Gestion des OF** (`/production/of`, implemented — see "Production › Gestion des OF" below), Visitage, **Prime** (`/production/prime`, implemented — see "Production › Prime" below), TRS
 6. **Atelier** — Maintenance, Productivité, Bonnetier, **Planning** (`/atelier/planning`, implemented — weekly bonnetier grid over `planning_bonnetier` + desiderata dialog; API route `ETM/apps/api/src/routes/planning-atelier.ts`)
 7. **Qualité** — Défauts récents, Retour client, Analyse
-8. **Rapports** — Production, Lots de fils, État stock fil, Analyse
+8. **Rapports** — **Finance** (`/rapports/finance`, implemented — the menu's only screen, shared verbatim with ETM; see "Rapports › Finance" below). The Production / Lots de fils / État stock fil / Analyse placeholders were removed with it.
 9. **Paramètres** — **Utilisateurs** (`/settings/utilisateurs`, implemented, admin-only — see "Paramètres › Utilisateurs" below)
 
 All other screens are `PagePlaceholder`s for now. Legacy references for each domain: `FEN_Gestion_des_OF.wdw`, `FEN_Machines.wdw`, `FEN_Rapport_de_production.wdw`, etc. in `C:\Mes Projets\TRMPROD\` and the main MPS WinDev project (`FI_Planning_Atelier.wdw`, `FEN_Desiderata.wdw` in TRM mode).
@@ -349,6 +349,42 @@ PCS-compressed, but the full WLanguage survives as comments in the generated And
   scenario studied is +0,055 / −0,40 €/Kg) must therefore ship **date-effective rates**
   (barème applicable per semester) *before* the new values go in.
 
+### Rapports › Finance (`/rapports/finance`) — ETM's screen, TRM's partition
+
+Port of the legacy `FI_Analyse_Finance.wdw` (Analyse › Finance): the balance comptable
+with a Charges fixes / Charges variables toggle, one row per compte, N vs N-1, and a
+drawer holding the compte's yearly history and its two editable fields. Tableau layout
+(§27).
+
+**Nothing is forked — neither tier.** The API was already there: the finance widgets
+(above) mount `createFinanceRouter(FINANCE_SCOPE_TRM)` at `/api/rapports-trm`, and this
+screen reads the very same endpoints. Landing it was the two edits
+`ETM/apps/api/src/lib/finance-common.ts` was left open for — `view_rapport_finance` joined
+`financeKeys`, and `editComptesKey` switched the compte drawer's routes on.
+
+- **The screen is ETM's file**: `import { RapportFinance } from '@etm/pages/RapportFinance'`,
+  rendered `<RapportFinance basePath="/rapports-trm/finance" />`. `basePath` is the ONLY
+  per-app difference (ETM defaults to `/rapports/finance`) — the frontend mirror of what
+  `FinanceScope` is on the backend. Improve the file in ETM; never fork a TRM copy.
+- **The rule** (verified to the cent on société 2): montant(compte, année) = `debit − credit`
+  of the `releve_compta` row at the **last upload of that calendar year**. Uploads are
+  cumulative YTD — never sum them, never take the early-January upload that closes the prior
+  exercise. Class-7 accounts (`numero >= 700000`) are produits and are excluded.
+- **Permissions**: `view_rapport_finance` + child `edit_compte_description` in
+  `permission-keys-trm.ts`. Same key NAMES as ETM's catalog on purpose — same action,
+  separate store. **The Rapports menu disappears entirely without the key**, Finance being
+  its only screen (`SubMenuItem.permission`, on top of the menu's own `screen_rapports`
+  grant). Nav hiding is convenience: the page renders "Accès restreint" and the API 403s.
+- ⚠️ **`releve_compta` has no `id_societe`** — a compte id is the only thing that carries the
+  partition. `GET /finance/comptes/:id/historique` had no ownership check while ETM was its
+  only mount; it does now, or a TRM caller could have read an ETM payroll account's year
+  series by guessing its id. Any future `:id` route on this factory needs the same guard.
+- **One dependency was missing** for the shared screen: `xlsx` (Excel export of the visible
+  rows). `lib/depassement.tsx` — the N/N-1 traffic light the screen and the Charges widget
+  share — was already here, copied in with the widgets.
+- HTTP guard for the two newly-mounted compte routes:
+  `ETM/apps/api/src/scripts/check-finance-comptes-trm.ts`.
+
 ### Atelier planning data model (legacy, shared HFSQL)
 
 - `planning_bonnetier` — `IDplanning_bonnetier`, `date_debut`/`date_fin` (DATETIME, one row per bonnetier per worked day), `IDbonnetier`. No équipe column: the shift (Matin/Après-Midi/Nuit) is derived from the start hour. Overnight (Nuit) shifts end on the next day.
@@ -423,12 +459,12 @@ Everything société-dependent, *including which permission store answers*, live
   (2025: 335 304 € of 340 853 €), so those thresholds would fold the whole book except one
   client into a single grey wedge. Every client that billed something gets its own slice;
   the near-single ring is the finding, not a bug.
-- **`view_rapport_finance` deliberately does NOT exist in TRM's catalog.** `/finance`
-  returns the compte-by-compte balance (it names the salary lines), so it is gated on
-  `dashboard_charges` — the widget's own key — rather than on a right whose screen isn't
-  ported. When Rapports › Finance lands, add `view_rapport_finance` to `financeKeys` and
-  fill `editComptesKey` in the scope; the compte write routes are **not mounted** here
-  today, so they 404 rather than 403.
+- **`/finance` is an any-of gate.** It returns the compte-by-compte balance (it names the
+  salary lines) and feeds two unrelated consumers, so `FINANCE_SCOPE_TRM.financeKeys` lists
+  **both** `dashboard_charges` (this widget) and `view_rapport_finance` (the Rapports ›
+  Finance screen, landed 2026-08-25). Neither key is the other's parent — holding one does
+  not imply the other, and **removing `dashboard_charges` from that list would silently
+  blank this card** for anyone granted only the widget.
 - **Verified against société 2 before shipping** (probe
   `ETM/apps/api/src/scripts/probe-finance-trm.ts`, re-run it after an `/etm_deploy`):
   the compte-level sums reproduce `upload_compta`'s `frais_fixe` / `frais_variable`

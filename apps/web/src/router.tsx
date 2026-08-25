@@ -7,7 +7,6 @@ import { PagePlaceholder } from '@/components/shared/PagePlaceholder'
 // app's registry, which is where TRM's widgets live.
 import { Dashboard } from '@etm/pages/Dashboard'
 import {
-  Package,
   Layers,
   ClipboardList,
   Eye,
@@ -18,15 +17,8 @@ import {
   AlertTriangle,
   Undo2,
   BarChart3,
-  FileBarChart,
   type LucideIcon,
 } from 'lucide-react'
-import { BobineIcon } from '@/components/icons/BobineIcon'
-
-// PagePlaceholder takes a LucideIcon — widen it locally so our custom
-// SVG components (BobineIcon, TmRollIcon, etc.) are accepted too. They
-// share the same React props shape.
-const PlaceholderIcon = (c: unknown) => c as LucideIcon
 
 // Placeholder component factory
 function createPlaceholder(title: string, description: string, Icon: LucideIcon) {
@@ -101,10 +93,13 @@ const QualiteRetourClientPage = createPlaceholder('Retour client', 'Retours et r
 const QualiteAnalysePage = createPlaceholder('Analyse', 'Analyse qualité', BarChart3)
 
 // Rapports
-const RapportsProductionPage = createPlaceholder('Rapport de production', 'Rapports de production par période', FileBarChart)
-const RapportsLotsFilsPage = createPlaceholder('Lots de fils', 'Rapport sur les lots de fils', PlaceholderIcon(BobineIcon))
-const RapportsEtatStockFilPage = createPlaceholder('État stock fil', 'État et âge du stock de fil', Package)
-const RapportsAnalysePage = createPlaceholder('Analyse', 'Analyses et comparatifs', BarChart3)
+// Finance is shared verbatim with ETM — same file, imported from the sister
+// repo via the @etm alias. `compte_compta` / `upload_compta` are partitioned by
+// IDsociete and the two halves are the SAME object, so the only per-app
+// difference is the endpoint prefix it is handed: `/rapports-trm/finance`, the
+// ETM API's finance router factory mounted on société 2 (the very endpoints the
+// Charges and Analyse financière widgets already read). Edit it in ETM.
+import { RapportFinance } from '@etm/pages/RapportFinance'
 
 // Settings
 // Utilisateurs — real screen (admin-only): the TRM staff list, Profil cards
@@ -163,11 +158,10 @@ export const router = createBrowserRouter([
       { path: 'qualite/analyse', element: <QualiteAnalysePage /> },
 
       // Rapports
-      { path: 'rapports', element: <Navigate to="/rapports/production" replace /> },
-      { path: 'rapports/production', element: <RapportsProductionPage /> },
-      { path: 'rapports/lots-de-fils', element: <RapportsLotsFilsPage /> },
-      { path: 'rapports/etat-stock-fil', element: <RapportsEtatStockFilPage /> },
-      { path: 'rapports/analyse', element: <RapportsAnalysePage /> },
+      { path: 'rapports', element: <Navigate to="/rapports/finance" replace /> },
+      // The page renders its own "Accès restreint" state without the
+      // view_rapport_finance permission; the API refuses too.
+      { path: 'rapports/finance', element: <RapportFinance basePath="/rapports-trm/finance" /> },
 
       // Settings (admin-only sub-routes)
       { path: 'settings', element: <Navigate to="/settings/utilisateurs" replace /> },

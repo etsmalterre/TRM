@@ -99,13 +99,23 @@ describe('screen access — effective admin', () => {
 })
 
 describe('screen access — interaction with the action catalog', () => {
-  it('honours a submenu permission gate when one is declared', () => {
-    // No TRM submenu carries a `permission` yet (the one action key so far,
-    // edit_commandes_client, gates buttons inside a screen rather than the
-    // screen itself). The filter must still respect one the day it appears.
-    const gated = { title: 'Finance', href: '/rapports/finance', permission: 'view_rapport_finance' }
-    expect(visibleSubmenus([gated], viewer([]))).toEqual([])
-    expect(visibleSubmenus([gated], viewer(['view_rapport_finance']))).toEqual([gated])
+  it('honours the Finance submenu permission gate', () => {
+    // Rapports > Finance is the first submenu to carry a `permission`: the
+    // balance names the payroll lines, so the menu grant alone is not enough.
+    const rapports = mainNavigation.find((m) => m.id === 'rapports')!
+    expect(visibleSubmenus(rapports.submenus, viewer([]))).toEqual([])
+    expect(visibleSubmenus(rapports.submenus, viewer(['view_rapport_finance']))).toEqual(
+      rapports.submenus,
+    )
+  })
+
+  it('drops the whole Rapports menu from a viewer without the finance key', () => {
+    // Finance is its only screen, so the menu grant on its own leads nowhere —
+    // `visibleMainNavigation` must remove the menu, not render an empty one.
+    const granted = viewer([menuAccessKey('/rapports')])
+    expect(ids(visibleMainNavigation(granted))).toEqual([])
+    const withKey = viewer([menuAccessKey('/rapports'), 'view_rapport_finance'])
+    expect(ids(visibleMainNavigation(withKey))).toEqual(['rapports'])
   })
 
   it('leaves non-nav routes alone (dashboard, paramètres, unknown)', () => {

@@ -231,15 +231,19 @@ export const mainNavigation: MainMenuItem[] = [
     ],
   },
   {
+    // Finance is the whole menu — the Production / Lots de fils / État stock
+    // fil / Analyse entries were never-built placeholders and went with it.
+    // Gated on top of the menu's own screen-access grant: the balance names
+    // the payroll lines, so a viewer without the key loses the Rapports menu
+    // entirely (it has no other screen to fall back to). NB: keep notes above
+    // `id` — ETM's check-screen-access-trm.ts parses this file textually and
+    // wants `href` immediately followed by `submenus`.
     id: 'rapports',
     title: 'Rapports',
     icon: FileBarChart,
     href: '/rapports',
     submenus: [
-      { title: 'Production', href: '/rapports/production' },
-      { title: 'Lots de fils', href: '/rapports/lots-de-fils' },
-      { title: 'État stock fil', href: '/rapports/etat-stock-fil' },
-      { title: 'Analyse', href: '/rapports/analyse' },
+      { title: 'Finance', href: '/rapports/finance', permission: 'view_rapport_finance' },
     ],
   },
 ]
@@ -299,10 +303,7 @@ export const routeTitles: Record<string, string> = {
   '/qualite/analyse': 'Analyse',
   // Rapports
   '/rapports': 'Rapports',
-  '/rapports/production': 'Production',
-  '/rapports/lots-de-fils': 'Lots de fils',
-  '/rapports/etat-stock-fil': 'État stock fil',
-  '/rapports/analyse': 'Analyse',
+  '/rapports/finance': 'Finance',
   // Settings
   '/settings': 'Paramètres',
   '/settings/utilisateurs': 'Utilisateurs',
