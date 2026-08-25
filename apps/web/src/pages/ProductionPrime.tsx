@@ -3,7 +3,6 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   AlertCircle,
   BadgeCheck,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Coins,
@@ -31,8 +30,17 @@ import { Badge } from '@/components/ui/badge'
 //
 // Layout: hero navy band on top, then the classic two-column shape — the
 // répartition as a left list panel (zinc body, §43 navy cap), the money story
-// on the right (tiles → analysis → current week). Every section is capped by
-// the §43 navy widget band; the production blocs carry the §7 status colors.
+// on the right (tiles → analysis). Every section is capped by the §43 navy
+// widget band; the production blocs carry the §7 status colors.
+//
+// The CURRENT WEEK is not a section of its own: it used to be a third band
+// duplicating the three production tiles at a smaller size, which cost a full
+// page row to restate the same three labels. It now rides the tiles it belongs
+// to — one "Semaine NN" footer line per tile — and its qualitative half (the
+// defects the visitage logged this week) fills the empty column under the taux
+// block inside the déclassements card. Both only render on the CURRENT
+// semester: the week always describes the running week, which has nothing to
+// do with a browsed historical period.
 
 // ── Types (mirror apps/api/src/routes/prime-trm.ts) ──────
 
@@ -57,6 +65,23 @@ interface DeclassementType {
   pct: number
 }
 
+/** One visitage defect logged this week (mirrors the API's DefautSemaine).
+ *  Both choix on purpose: a defect is not a déclassement — a 1er-choix piece
+ *  carries them too, and this table is "what the visitage saw this week". */
+interface DefautSemaine {
+  id: number
+  IDstock_ecru: number
+  piece: string
+  machine: string
+  type: string
+  description: string
+  taille_cm: number
+  nombre: number
+  /** Weight of the PIECE, not of the defect. */
+  poids: number
+  secondChoix: boolean
+}
+
 interface DeclassementsAnalyse {
   kg: number
   kgTotal: number
@@ -77,7 +102,12 @@ interface PrimePayload {
   }
   taux: { premierChoix: number; secondChoix: number; retourClient: number }
   semestre: PrimeBlocSet
-  semaine: PrimeBlocSet & { numero: number; debut: string; fin: string }
+  semaine: PrimeBlocSet & {
+    numero: number
+    debut: string
+    fin: string
+    defauts: DefautSemaine[]
+  }
   repartition: Array<{
     IDbonnetier: number
     prenom: string
@@ -269,7 +299,15 @@ function Donut({
 
 // ── Taux comparison — two labeled mini-bars, verdict chip ──
 
-function TauxComparison({ data }: { data: DeclassementsAnalyse }) {
+function TauxComparison({
+  data,
+  compact,
+}: {
+  data: DeclassementsAnalyse
+  /** Top-align instead of filling the column — set when the weekly defect
+   *  table shares the column underneath. */
+  compact?: boolean
+}) {
   const { taux, comparaison, kg, kgTotal } = data
   const prevTaux = comparaison.taux
   const deltaPts = taux !== null && prevTaux !== null ? (taux - prevTaux) * 100 : null
@@ -297,7 +335,7 @@ function TauxComparison({ data }: { data: DeclassementsAnalyse }) {
   )
 
   return (
-    <div className="h-full flex flex-col justify-center gap-6">
+    <div className={cn('flex flex-col gap-6', !compact && 'h-full justify-center')}>
       <div>
         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Taux de 2nd choix</p>
         <p className={cn('text-5xl font-heading font-bold tabular-nums leading-tight', verdictClass)}>
@@ -360,9 +398,84 @@ function TauxComparison({ data }: { data: DeclassementsAnalyse }) {
   )
 }
 
+// ── Weekly defect log — fills the column under the taux ──
+
+/** The substance of a defect in one short cell. The visitage stores the size
+ *  qualifier inside `description`, prefixed by the type ("Maille Moins de
+ *  50 cm"), and `taille_cm` is NOT reliably centimetres (25 for "moins de
+ *  50 cm", 1500 for "1m - 3m") — so the description tail is the only honest
+ *  size label. Count-type defects (Trou, Démaillage) carry `nombre` instead. */
+function defautDetail(d: DefautSemaine): string {
+  const tail = d.description.startsWith(d.type)
+    ? d.description.slice(d.type.length).trim()
+    : d.description.trim()
+  if (tail) return tail
+  return d.nombre > 1 ? `×${d.nombre}` : ''
+}
+
+function DefautsSemaine({ numero, defauts }: { numero: number; defauts: DefautSemaine[] }) {
+  return (
+    <div className="flex-1 min-h-0 xl:min-h-[10rem] max-xl:h-64 flex flex-col rounded-lg border overflow-hidden bg-zinc-100/80">
+      <div className="flex-shrink-0 flex items-baseline gap-2 border-b bg-zinc-200/50 px-3 py-2">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          Défauts · semaine {numero}
+        </p>
+        <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">
+          {defauts.length === 0
+            ? '—'
+            : `${fmtNum(defauts.length, 0)} relevé${defauts.length > 1 ? 's' : ''}`}
+        </span>
+      </div>
+      {defauts.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center py-6 text-muted-foreground">
+          <BadgeCheck className="h-7 w-7 mb-1.5 text-green-600/50" />
+          <p className="text-xs">Aucun défaut relevé cette semaine</p>
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 overflow-auto scrollbar-transparent">
+          {defauts.map((d) => (
+            <div
+              key={d.id}
+              /* Amber left edge = the piece was déclassée, the same §7 color the
+                 2nd-choix tile carries. Defects on 1er-choix pieces stay plain. */
+              className={cn(
+                'flex items-center gap-2 border-b border-border/40 px-3 py-1.5 text-xs last:border-b-0 hover:bg-white/70',
+                d.secondChoix && 'border-l-2 border-l-amber-400 bg-amber-500/[0.06]',
+              )}
+              title={`Pièce ${d.piece} · ${fmtNum(d.poids)} kg · métier ${d.machine || '—'} · ${d.description || d.type}${d.secondChoix ? ' · déclassée en 2nd choix' : ''}`}
+            >
+              <span
+                className="h-2 w-2 flex-shrink-0 rounded-sm"
+                style={{ backgroundColor: defautColor(d.type) }}
+              />
+              <span className="w-16 flex-shrink-0 truncate tabular-nums text-muted-foreground">
+                {d.piece || '—'}
+              </span>
+              <span className="w-7 flex-shrink-0 font-medium">{d.machine || '—'}</span>
+              <span className="min-w-0 flex-1 truncate">
+                {d.type || 'Non renseigné'}
+                {defautDetail(d) && (
+                  <span className="text-muted-foreground"> · {defautDetail(d)}</span>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Déclassements analysis card ──────────────────────────
 
-function DeclassementsCard({ data }: { data: DeclassementsAnalyse }) {
+function DeclassementsCard({
+  data,
+  semaine,
+}: {
+  data: DeclassementsAnalyse
+  /** Only passed on the CURRENT semester — see the layout note at the top. */
+  semaine?: { numero: number; defauts: DefautSemaine[] }
+}) {
   const { types, kg } = data
   const totalPerdu = types.reduce((s, t) => s + t.montant, 0)
 
@@ -382,22 +495,28 @@ function DeclassementsCard({ data }: { data: DeclassementsAnalyse }) {
         <span className="font-normal text-white/60 text-sm"> · 2nd choix</span>
       </SectionBand>
 
-      {kg <= 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center py-8 text-muted-foreground">
-          <BadgeCheck className="h-10 w-10 mb-2 text-green-600/50" />
-          <p className="text-sm">Aucun déclassement sur la période</p>
+      <div className="flex-1 min-h-0 p-4 sm:p-5 flex flex-col xl:flex-row gap-6 xl:gap-8">
+        {/* Left column: the semester's taux, then — on the current
+            semester — this week's defect log in the space the taux block
+            used to leave empty. */}
+        <div className="xl:w-80 2xl:w-96 flex-shrink-0 flex flex-col gap-5 min-h-0">
+          <TauxComparison data={data} compact={!!semaine} />
+          {semaine && <DefautsSemaine numero={semaine.numero} defauts={semaine.defauts} />}
         </div>
-      ) : (
-        <div className="flex-1 min-h-0 p-4 sm:p-5 flex flex-col xl:flex-row gap-6 xl:gap-8">
-          <div className="xl:w-80 flex-shrink-0">
-            <TauxComparison data={data} />
-          </div>
-          <div className="hidden xl:block w-px bg-border flex-shrink-0" />
+        <div className="hidden xl:block w-px bg-border flex-shrink-0" />
 
-          {/* Donut + ranked legend (the legend doubles as the data table,
-              strictly sorted by lost money — server-side order). Side by side
-              only when there is real room for both; stacked otherwise. The
-              legend rows spread over the card's full height. */}
+        {kg <= 0 && (
+          <div className="flex-1 flex flex-col items-center justify-center py-8 text-muted-foreground">
+            <BadgeCheck className="h-10 w-10 mb-2 text-green-600/50" />
+            <p className="text-sm">Aucun déclassement sur la période</p>
+          </div>
+        )}
+
+        {/* Donut + ranked legend (the legend doubles as the data table,
+            strictly sorted by lost money — server-side order). Side by side
+            only when there is real room for both; stacked otherwise. The
+            legend rows spread over the card's full height. */}
+        {kg > 0 && (
           <div className="flex-1 min-w-0 flex flex-col 2xl:flex-row items-center 2xl:items-stretch gap-6">
             <div className="flex items-center justify-center 2xl:w-[42%] flex-shrink-0">
               <Donut
@@ -432,8 +551,8 @@ function DeclassementsCard({ data }: { data: DeclassementsAnalyse }) {
               ))}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
@@ -598,6 +717,15 @@ export function ProductionPrime() {
           >
             {fmtEur(semestre.total)}
           </p>
+          {periode.estCourante && (
+            <p
+              className="text-[11px] tabular-nums text-white/60 leading-tight"
+              title={`Semaine ${semaine.numero} · du ${frDate(semaine.debut, false)} au ${frDate(semaine.fin, false)}`}
+            >
+              dont {fmtEur(semaine.total)} en semaine {semaine.numero} · du{' '}
+              {frDate(semaine.debut, false)} au {frDate(semaine.fin, false)}
+            </p>
+          )}
         </div>
         <Button
           variant="ghost"
@@ -615,10 +743,12 @@ export function ProductionPrime() {
         <RepartitionPanel repartition={repartition} joursTotal={joursTotal} total={semestre.total} />
 
         <div className="flex-1 min-w-0 flex flex-col gap-4 lg:min-h-0 lg:overflow-auto scrollbar-transparent">
-          {/* Semester blocs — §7 status-colored cards */}
+          {/* Semester blocs — §7 status-colored cards, each carrying its own
+              "this week" footer on the current semester. */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {BLOCS.map((b) => {
               const bloc = semestre[b.key]
+              const wk = semaine[b.key]
               return (
                 <div
                   key={b.key}
@@ -631,78 +761,47 @@ export function ProductionPrime() {
                     <div className={cn('h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0', b.iconBg)}>
                       <b.icon className={cn('h-4 w-4', b.iconColor)} />
                     </div>
-                    <p className="text-sm font-semibold truncate">{b.label}</p>
+                    <p className="min-w-0 flex-1 text-sm font-semibold truncate">{b.label}</p>
+                    <Badge
+                      variant="outline"
+                      className={cn('flex-shrink-0 text-[10px] tabular-nums', b.badge)}
+                    >
+                      {fmtTaux(tauxOf[b.key])}
+                    </Badge>
                   </div>
-                  <div className="mt-4 flex items-end justify-between gap-2">
-                    <div className="min-w-0">
-                      <Badge variant="outline" className={cn('text-[10px] tabular-nums', b.badge)}>
-                        {fmtTaux(tauxOf[b.key])}
-                      </Badge>
-                      <p className="text-sm font-medium tabular-nums mt-1.5 whitespace-nowrap">{fmtNum(bloc.kg)} kg</p>
-                    </div>
+                  <div className="mt-3 flex items-end justify-between gap-2">
+                    <p className="text-sm font-medium tabular-nums whitespace-nowrap">{fmtNum(bloc.kg)} kg</p>
                     <span className={cn('text-2xl font-heading font-bold tabular-nums whitespace-nowrap', montantClass(bloc.montant))}>
                       {fmtEur(bloc.montant)}
                     </span>
                   </div>
+                  {periode.estCourante && (
+                    <div
+                      className="mt-3 pt-2.5 border-t border-border/60 flex items-baseline gap-2 text-xs"
+                      title={`Semaine ${semaine.numero} · du ${frDate(semaine.debut, false)} au ${frDate(semaine.fin, false)}`}
+                    >
+                      <span className="text-muted-foreground">Cette semaine</span>
+                      <span className="ml-auto tabular-nums text-muted-foreground whitespace-nowrap">
+                        {fmtNum(wk.kg)} kg
+                      </span>
+                      <span className={cn('font-semibold tabular-nums whitespace-nowrap', montantClass(wk.montant))}>
+                        {fmtEur(wk.montant)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
 
-          {/* Current week — only meaningful on the current semester: the block
-              always describes the RUNNING week, which has nothing to do with a
-              browsed historical period. */}
-          {periode.estCourante && (
-            <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
-              <SectionBand
-                icon={CalendarDays}
-                actions={
-                  <>
-                    <Badge className="bg-white/15 text-white border-transparent text-[10px] flex-shrink-0">
-                      Semaine en cours
-                    </Badge>
-                    <span className={cn('text-lg font-heading font-bold tabular-nums', montantOnNavyClass(semaine.total))}>
-                      {fmtEur(semaine.total)}
-                    </span>
-                  </>
-                }
-              >
-                Semaine {semaine.numero}
-                <span className="font-normal text-white/60 text-sm">
-                  {' '}· du {frDate(semaine.debut, false)} au {frDate(semaine.fin, false)}
-                </span>
-              </SectionBand>
-              <div className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {BLOCS.map((b) => {
-                  const bloc = semaine[b.key]
-                  return (
-                    <div
-                      key={b.key}
-                      className={cn(
-                        'flex items-center justify-between gap-2 rounded-lg border-l-4 border border-border/60 bg-zinc-100/80 px-3 py-2.5',
-                        b.edge,
-                      )}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <b.icon className={cn('h-3.5 w-3.5 flex-shrink-0', b.iconColor)} />
-                        <span className="text-xs font-medium truncate">{b.label}</span>
-                      </div>
-                      <div className="flex items-baseline gap-2 flex-shrink-0 tabular-nums">
-                        <span className="text-xs text-muted-foreground">{fmtNum(bloc.kg)} kg</span>
-                        <span className={cn('text-sm font-bold', montantClass(bloc.montant))}>
-                          {fmtEur(bloc.montant)}
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
 
-          {/* Why the 2nd-choix line loses money — defect breakdown + trend.
-              Last, so it takes whatever height remains under the money cards. */}
-          <DeclassementsCard data={data.declassements} />
+          {/* Why the 2nd-choix line loses money — defect breakdown + trend,
+              plus this week's raw visitage log in its left column. Last, so it
+              takes whatever height remains under the money cards. */}
+          <DeclassementsCard
+            data={data.declassements}
+            semaine={periode.estCourante ? { numero: semaine.numero, defauts: semaine.defauts } : undefined}
+          />
         </div>
       </div>
     </div>

@@ -301,17 +301,30 @@ PCS-compressed, but the full WLanguage survives as comments in the generated And
   instead, a deliberate delta from the legacy whose predicate also caught ETM `lot='fictif'`
   manual rows (~0.4% overcount). **Retour client (−0,60 €/Kg) is a dead tile**: the legacy
   hardcodes it to 0 (never wired); keep it displayed at 0 until a real data source exists.
-- **Répartition** = bonnetiers `regleur = 0` (no `archivé` filter — `date_sortie` is what
-  scopes history) whose employment overlaps the period; prorata of days from
+- **Répartition** = every atelier employee — **no `regleur` filter and no `archivé` filter**
+  (`date_sortie` is what scopes history) — whose employment overlaps the period; prorata of days from
   max(début, date_entree) to **min(today, fin, date_sortie)** — the period-end cap is the
   second deliberate delta (the legacy counted to *today* even on past semesters, so
   historical splits drifted). Photos come from `bonnetier.photo` (real JPEG blobs) via
   `/prime-trm/bonnetiers/:id/photo` — **binary needs `queryRaw`**, the normal `query()`
   path UTF-8-mangles blobs; the web falls back to initials on non-200.
-- The **week row always describes the current week** (Monday → open-ended) and therefore
-  renders **only when the current semester is displayed** (screen and PDF both). The PDF
-  (`lib/pdf/PrimePdf.tsx`) rides `MalterreDocument` with `issuer: companyTrm` and renders
-  the same `/prime-trm` payload as the screen.
+- The **week always describes the current week** (Monday → open-ended) and therefore
+  renders **only when the current semester is displayed** (screen and PDF both). On screen
+  it is not a section of its own: it used to be a third navy band restating the same three
+  production tiles at a smaller size, costing a full page row. It now rides the tiles it
+  belongs to — one « Cette semaine · kg · € » footer per tile, the week named once in the
+  hero — and its qualitative half is the defect table below. The PDF
+  (`lib/pdf/PrimePdf.tsx`) still prints the week as a block: it rides `MalterreDocument`
+  with `issuer: companyTrm`, renders the same `/prime-trm` payload as the screen, and
+  deliberately omits the defect table — it is the payout document, not the ops view.
+- **Défauts de la semaine** (`semaine.defauts[]`) fills the column under the taux block
+  inside the déclassements card: every `defaut_qualite` row (`Type_Reference = 2`) on a
+  piece saisie since Monday, **both choix on purpose** — a defect is not a déclassement,
+  and this table answers "what did the visitage see this week". Déclassée pieces carry the
+  §7 amber left edge. ⚠️ **`taille_cm` is NOT centimetres** (25 for « Moins de 50 cm »,
+  1500 for « 1m - 3m »): the units are per-vocabulary and unrecoverable, so never render or
+  sum it as a length — the reliable size label is the `description` tail with the
+  `type_defaut` prefix stripped, and count-shaped defects (Trou, Démaillage) use `nombre`.
 - **Analyse des déclassements** (not in the legacy): taux de 2nd choix (kg-based) compared
   to the **previous semester in full** — always, including while the current one is still
   running. A same-elapsed-days window would be more like-for-like statistically, but it
@@ -323,6 +336,13 @@ PCS-compressed, but the full WLanguage survives as comments in the generated And
   fold into « Autres », defect-less pieces into « Non renseigné ». Defects on 1er-choix
   pieces exist too — this section is about **déclassements**, don't rebrand it « défauts ».
   Donut colors are a fixed type→color map validated with the dataviz six-checks script.
+- ⚠️ **The régleurs take part in the prime, and that changes what everyone gets.** The
+  legacy filtered `regleur = 0`, which silently dropped the only two — Nicolas Antonino
+  (16) and Mickaël Grivelet (15), both still employed. They share the **same pot** at a
+  bonnetier's per-day weight, so the semester total is untouched and every other share
+  shrinks. Applies to **all browsable periods**, past ones included, so historical splits
+  no longer match what was actually paid (user decision, 2026-08-25 — same class of
+  caveat as the rates below).
 - ⚠️ **The rates are module constants in the API and apply to every browsable period**, so
   editing them recomputes the whole history and the screen would display primes that were
   never paid. A barème revision (under discussion with the atelier since 2026-08-24 — the
