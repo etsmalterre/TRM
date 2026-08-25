@@ -6,6 +6,7 @@ import { getActiveMenu } from '@/config/navigation'
 import { cn } from '@/lib/utils'
 import { useUser, canSwitchUser } from '@/contexts/UserContext'
 import { useHeaderActionsSlot } from '@/contexts/HeaderActionsContext'
+import { useSubmenuFilter } from '@/hooks/useSubmenuFilter'
 import { TicketModal } from '@/components/tickets/TicketModal'
 import { useTicketNotifications } from '@/components/tickets/useTicketNotifications'
 import { useDashboardTabs } from '@/components/dashboard/useDashboardLayout'
@@ -25,6 +26,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
   const headerActionsSlot = useHeaderActionsSlot()
+  const filterSubmenus = useSubmenuFilter()
 
   // Tabs under "Tableau de bord" = the user's dashboards ("Principal" plus any
   // they created). Same cache entry as the dashboard screen, so creating or
@@ -35,8 +37,8 @@ export function Header({ onMenuClick }: HeaderProps) {
     if (activeMenu.id === 'dashboard') {
       return dashboards.map((d, i) => ({ title: d.name, href: dashboardHref(d.id, i) }))
     }
-    return activeMenu.submenus.map((s) => ({ title: s.title, href: s.href }))
-  }, [activeMenu, dashboards])
+    return filterSubmenus(activeMenu.submenus).map((s) => ({ title: s.title, href: s.href }))
+  }, [activeMenu, dashboards, filterSubmenus])
 
   // Ticket reporting — the modal opens immediately; the screenshot is captured
   // in the background and excludes dialog portals from the shot (the ticket

@@ -2,12 +2,13 @@ import { useMemo } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { mainNavigation, dashboardItem, settingsItem, type MainMenuItem } from '@/config/navigation'
+import { dashboardItem, settingsItem, type MainMenuItem } from '@/config/navigation'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu'
 import { useUser } from '@/contexts/UserContext'
 import { usePermissions } from '@/contexts/PermissionsContext'
+import { useVisibleMainNavigation } from '@/hooks/useSubmenuFilter'
 
 interface SidebarProps {
   collapsed: boolean
@@ -88,6 +89,9 @@ export function Sidebar({ collapsed, onToggle, className }: SidebarProps) {
   const navigate = useNavigate()
   useUser() // ensures the sidebar re-renders when the user context updates
   const { isEffectiveAdmin } = usePermissions()
+  // Menus the viewer holds the screen-access grant for, each carrying only the
+  // screens they may open (see config/navigation.ts § Screen access).
+  const visibleMain = useVisibleMainNavigation()
 
   const handleNavigate = (href: string) => {
     navigate(href)
@@ -140,7 +144,7 @@ export function Sidebar({ collapsed, onToggle, className }: SidebarProps) {
           <div className="my-2 border-t border-white/10" />
 
           {/* Main navigation */}
-          {mainNavigation.map((item) => (
+          {visibleMain.map((item) => (
             <NavItem
               key={item.id}
               item={item}

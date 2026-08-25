@@ -32,6 +32,11 @@ interface PermissionsContextValue {
   isEffectiveAdmin: boolean
   isLoading: boolean
   has: (key: string) => boolean
+  /** Raw membership in the stored grant list — NO admin bypass. Screen-access
+   *  HIDE keys must be read through this: with the bypass, `has('hide_*')` is
+   *  true for an admin and would hide every screen from them. Use `has` for
+   *  grants, `hasRaw` for hides. */
+  hasRaw: (key: string) => boolean
   refresh: () => Promise<void>
 }
 
@@ -85,9 +90,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     [isEffectiveAdmin, granted],
   )
 
+  const hasRaw = useCallback((key: string): boolean => granted.has(key), [granted])
+
   const value = useMemo<PermissionsContextValue>(
-    () => ({ granted, isAdmin, isEffectiveAdmin, isLoading, has, refresh: fetchPermissions }),
-    [granted, isAdmin, isEffectiveAdmin, isLoading, has, fetchPermissions],
+    () => ({ granted, isAdmin, isEffectiveAdmin, isLoading, has, hasRaw, refresh: fetchPermissions }),
+    [granted, isAdmin, isEffectiveAdmin, isLoading, has, hasRaw, fetchPermissions],
   )
 
   return <PermissionsContext.Provider value={value}>{children}</PermissionsContext.Provider>

@@ -11,10 +11,9 @@
 // neither app's admin screen can strip the other's grants on save.
 //
 // Deliberate deltas vs ETM's screen:
-// - **No Écrans / Notifications tabs and no "Copier les droits" yet** — they
-//   arrive with the features that need them (screen visibility, email
-//   notifications). The permission catalog grows one switch at a time as TRM
-//   features gain gated actions.
+// - **No Notifications tab and no "Copier les droits" yet** — they arrive with
+//   the features that need them (email notifications). The permission catalog
+//   grows one switch at a time as TRM features gain gated actions.
 // - **The list is the TRM staff, not the whole shared `utilisateur` table.**
 //   Auth is shared with ETM (same table, same cookie), so the API list also
 //   carries ETM-side station accounts (Visitage, Regleur, eloise…).
@@ -25,18 +24,20 @@
 // signature per person, whichever app the admin edits it from — TRM's
 // SendEmailDialog reads the same `/user-profiles/me` signature.
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Loader2, AlertCircle, Shield, Check, Mail, Save,
   Image as ImageIcon, PenLine, Trash2, User as UserIcon, ChevronDown,
+  Monitor,
 } from 'lucide-react'
 import { apiFetch, API_URL } from '@/lib/api'
 import { useUser } from '@/contexts/UserContext'
 import { usePermissions } from '@/contexts/PermissionsContext'
 import { MasterDetailLayout } from '@/components/layout/MasterDetailLayout'
 import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst'
+import { mainNavigation, menuAccessKey, screenHideKey } from '@/config/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
@@ -238,6 +239,19 @@ export function SettingsUtilisateurs() {
     return users.find((u) => u.IDutilisateur === selectedId) ?? null
   }, [users, selectedId])
 
+  // Screen access needs to add/remove several keys at once (granting a menu
+  // also clears its screens' hide keys), so it edits the whole set rather than
+  // going through the single-key `onToggle` below.
+  const applyGranted = useCallback(
+    (mutateSet: (s: Set<string>) => void) => {
+      if (!selected) return
+      const next = new Set(selected.granted)
+      mutateSet(next)
+      updateMut.mutate({ id: selected.IDutilisateur, granted: Array.from(next) })
+    },
+    [selected, updateMut],
+  )
+
   // ── Admin guard (belt-and-suspenders) ──────────
   // Sidebar already hides the link, but a direct URL hit needs page-level
   // protection too. Wait until BOTH the user context and the permission fetch
@@ -294,6 +308,7 @@ export function SettingsUtilisateurs() {
             }
             updateMut.mutate({ id: selected.IDutilisateur, granted: Array.from(current) })
           }}
+          onGrantedChange={applyGranted}
         />
       }
     />
@@ -426,18 +441,23 @@ function DetailHeader({ user }: { user: StaffUser | null }) {
   )
 }
 
-// ── Center: Detail Body (Profil / Permissions master tabs) ──────────
-// Écrans / Notifications join the strip when those features exist for TRM.
+// ── Center: Detail Body (Profil / Écrans / Permissions master tabs) ──────────
+// Notifications joins the strip when that feature exists for TRM.
+//
+// Écrans sits before Permissions: which screens exist for this user is the
+// question you answer first — an action permission on a screen they can't open
+// is dead weight.
 
 const MAIN_TABS = [
   { key: 'profil', label: 'Profil', icon: UserIcon },
+  { key: 'ecrans', label: 'Écrans', icon: Monitor },
   { key: 'permissions', label: 'Permissions', icon: Shield },
 ] as const
 type MainTab = (typeof MAIN_TABS)[number]['key']
 
 function DetailBody({
   user, profile, currentEmail, onSaveEmail, isSavingEmail, emailSaveError,
-  keys, isUpdating, onToggle,
+  keys, isUpdating, onToggle, onGrantedChange,
 }: {
   user: StaffUser | null
   profile: UserProfileRow | null
@@ -448,6 +468,7 @@ function DetailBody({
   keys: PermissionKeyDef[]
   isUpdating: boolean
   onToggle: (key: string, nextValue: boolean) => void
+  onGrantedChange: (mutateSet: (s: Set<string>) => void) => void
 }) {
   const [activeTab, setActiveTab] = useState<MainTab>('profil')
 
@@ -525,6 +546,15 @@ function DetailBody({
           </>
         )}
 
+        {activeTab === 'ecrans' && (
+          <EcransTab
+            isVin={isVin}
+            isUpdating={isUpdating}
+            grantedSet={grantedSet}
+            onGrantedChange={onGrantedChange}
+          />
+        )}
+
         {activeTab === 'permissions' && (
           <>
             {isVin && (
@@ -555,6 +585,166 @@ function DetailBody({
         )}
       </div>
     </div>
+  )
+}
+
+// ── Écrans tab: the navigation tree as a checkbox tree ─────────────────
+//
+// Built from `mainNavigation` itself, so it can never drift from the real nav
+// (and the menu icons come for free). Storage runs in two directions — a menu
+// is a grant, a screen is a hide — but the UI shows plain "visible" toggles in
+// both cases, so the admin never has to think about it. See the § Screen access
+// header of config/navigation.ts for why.
+
+function EcransTab({
+  isVin, isUpdating, grantedSet, onGrantedChange,
+}: {
+  isVin: boolean
+  isUpdating: boolean
+  grantedSet: Set<string>
+  onGrantedChange: (mutateSet: (s: Set<string>) => void) => void
+}) {
+  const menuOn = (href: string) => isVin || grantedSet.has(menuAccessKey(href))
+  const screenOn = (href: string) => isVin || !grantedSet.has(screenHideKey(href))
+
+  const grantedMenus = mainNavigation.filter((m) => menuOn(m.href)).length
+
+  // Granting a menu means "the whole menu": any leftover per-screen hides are
+  // cleared, so re-granting never resurrects an invisible exclusion the admin
+  // set months ago. Revoking clears them too — inert keys just clutter the file.
+  const toggleMenu = (href: string, next: boolean) => {
+    const item = mainNavigation.find((m) => m.href === href)
+    onGrantedChange((s) => {
+      if (next) s.add(menuAccessKey(href))
+      else s.delete(menuAccessKey(href))
+      for (const sub of item?.submenus ?? []) s.delete(screenHideKey(sub.href))
+    })
+  }
+
+  const toggleScreen = (href: string, next: boolean) => {
+    onGrantedChange((s) => {
+      if (next) s.delete(screenHideKey(href))
+      else s.add(screenHideKey(href))
+    })
+  }
+
+  const setAllMenus = (next: boolean) => {
+    onGrantedChange((s) => {
+      for (const m of mainNavigation) {
+        if (next) s.add(menuAccessKey(m.href))
+        else s.delete(menuAccessKey(m.href))
+        for (const sub of m.submenus) s.delete(screenHideKey(sub.href))
+      }
+    })
+  }
+
+  return (
+    <>
+      {isVin && (
+        <div className="flex items-start gap-3 p-3 rounded-lg border border-accent/40 bg-accent/[0.06]">
+          <Shield className="h-4 w-4 text-accent flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-primary">Cet utilisateur est administrateur</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Les administrateurs voient tous les menus et tous les écrans, indépendamment des
+              cases ci-dessous.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk row — no card frame: it acts on the cards below rather than
+          being one of them. */}
+      <div className="flex items-center gap-2 px-1">
+        <p className="text-xs text-muted-foreground">
+          {grantedMenus} menu{grantedMenus !== 1 ? 's' : ''} sur {mainNavigation.length}
+        </p>
+        {!isVin && (
+          <div className="flex items-center gap-1 ml-auto">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs text-accent hover:text-accent hover:bg-accent/10"
+              disabled={isUpdating}
+              onClick={() => setAllMenus(true)}
+            >
+              Tout
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs text-muted-foreground"
+              disabled={isUpdating}
+              onClick={() => setAllMenus(false)}
+            >
+              Aucun
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* One card per menu, read like the permission category cards of the
+          neighbouring tab — except the disclosure IS the menu toggle: a menu
+          that isn't granted has no screens to show. */}
+      {mainNavigation.map((item) => {
+        const Icon = item.icon
+        const on = menuOn(item.href)
+        const visibleScreens = on ? item.submenus.filter((s) => screenOn(s.href)).length : 0
+        return (
+          <div key={item.id} className="rounded-lg border border-border/60 bg-white shadow-sm">
+            <label
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-2.5 bg-zinc-100/80 transition-colors',
+                on ? 'border-b border-border/60 rounded-t-lg' : 'rounded-lg',
+                isVin || isUpdating ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-zinc-200/60',
+              )}
+            >
+              <ToggleSwitch
+                checked={on}
+                disabled={isVin || isUpdating}
+                onChange={(next) => toggleMenu(item.href, next)}
+              />
+              <Icon className="h-4 w-4 text-primary flex-shrink-0" />
+              <p className="text-xs font-bold text-primary uppercase tracking-wide">{item.title}</p>
+              <Badge variant="secondary" className="text-xs ml-auto tabular-nums">
+                {visibleScreens}/{item.submenus.length}
+              </Badge>
+            </label>
+            {on && item.submenus.length > 0 && (
+              <div className="divide-y divide-border/60">
+                {item.submenus.map((sub) => (
+                  <label
+                    key={sub.href}
+                    // pl-11 sets the screen toggles in from the menu toggle
+                    // above, so the tree reads as one level of nesting.
+                    className={cn(
+                      'flex items-center gap-3 pl-11 pr-4 py-2.5 transition-colors',
+                      isVin || isUpdating ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-zinc-50',
+                    )}
+                  >
+                    <ToggleSwitch
+                      checked={screenOn(sub.href)}
+                      disabled={isVin || isUpdating}
+                      onChange={(next) => toggleScreen(sub.href, next)}
+                    />
+                    <p className="flex-1 min-w-0 text-sm font-medium text-foreground truncate">
+                      {sub.title}
+                    </p>
+                    {/* An entry with its own permission key stays gated by it
+                        even when the screen is visible here. */}
+                    {sub.permission && (
+                      <Badge variant="outline" className="text-[10px] py-0 flex-shrink-0">
+                        droit dédié
+                      </Badge>
+                    )}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </>
   )
 }
 
