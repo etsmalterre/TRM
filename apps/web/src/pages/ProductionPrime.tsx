@@ -37,10 +37,10 @@ import { Badge } from '@/components/ui/badge'
 // duplicating the three production tiles at a smaller size, which cost a full
 // page row to restate the same three labels. It now rides the tiles it belongs
 // to — one "Semaine NN" footer line per tile — and its qualitative half (the
-// defects the visitage logged this week) fills the empty column under the taux
-// block inside the déclassements card. Both only render on the CURRENT
-// semester: the week always describes the running week, which has nothing to
-// do with a browsed historical period.
+// rolls the visitage déclassa this week, and what each one cost) fills the
+// empty column under the taux block inside the déclassements card. Both only
+// render on the CURRENT semester: the week always describes the running week,
+// which has nothing to do with a browsed historical period.
 
 // ── Types (mirror apps/api/src/routes/prime-trm.ts) ──────
 
@@ -65,21 +65,26 @@ interface DeclassementType {
   pct: number
 }
 
-/** One visitage defect logged this week (mirrors the API's DefautSemaine).
- *  Both choix on purpose: a defect is not a déclassement — a 1er-choix piece
- *  carries them too, and this table is "what the visitage saw this week". */
-interface DefautSemaine {
+interface DefautDeclassement {
   id: number
-  IDstock_ecru: number
-  piece: string
-  machine: string
   type: string
   description: string
   taille_cm: number
   nombre: number
-  /** Weight of the PIECE, not of the defect. */
+}
+
+/** One 2nd-choix roll of the current week (mirrors the API's
+ *  DeclassementSemaine) — the unit that costs money, one row per piece and not
+ *  per defect. Its population is exactly what `semaine.secondChoix` sums, so
+ *  the column's total always equals the tile's, defect-less pieces included. */
+interface DeclassementSemaine {
+  IDstock_ecru: number
+  piece: string
+  machine: string
   poids: number
-  secondChoix: boolean
+  /** Positive "manque à gagner" (poids × 0,20 €) — rendered with a minus. */
+  montant: number
+  defauts: DefautDeclassement[]
 }
 
 interface DeclassementsAnalyse {
@@ -106,7 +111,7 @@ interface PrimePayload {
     numero: number
     debut: string
     fin: string
-    defauts: DefautSemaine[]
+    declassements: DeclassementSemaine[]
   }
   repartition: Array<{
     IDbonnetier: number
@@ -398,66 +403,113 @@ function TauxComparison({
   )
 }
 
-// ── Weekly defect log — fills the column under the taux ──
+// ── Weekly déclassement log — fills the column under the taux ──
 
 /** The substance of a defect in one short cell. The visitage stores the size
  *  qualifier inside `description`, prefixed by the type ("Maille Moins de
  *  50 cm"), and `taille_cm` is NOT reliably centimetres (25 for "moins de
  *  50 cm", 1500 for "1m - 3m") — so the description tail is the only honest
  *  size label. Count-type defects (Trou, Démaillage) carry `nombre` instead. */
-function defautDetail(d: DefautSemaine): string {
-  const tail = d.description.startsWith(d.type)
-    ? d.description.slice(d.type.length).trim()
-    : d.description.trim()
-  if (tail) return tail
-  return d.nombre > 1 ? `×${d.nombre}` : ''
+function defautLabel(d: DefautDeclassement): string {
+  // `description` already reads as "<type> <taille>" ("Maille Moins de 50 cm"),
+  // so it is the label — no separator inside it, which keeps the " · " between
+  // two defects unambiguous. Historical rows carry a double space ("Autre
+  // Barrure  Plus de 3m") and some carry no description at all.
+  const label = d.description.replace(/\s+/g, ' ').trim()
+  return label || d.type.trim() || 'Non renseigné'
 }
 
-function DefautsSemaine({ numero, defauts }: { numero: number; defauts: DefautSemaine[] }) {
+/** The piece's findings as one line. Identical labels are folded into a ×N
+ *  rather than repeated — a piece really does carry four "Démaillage" rows,
+ *  and spelling them out four times drowns the other types on the same line. */
+function defautsSummary(defauts: DefautDeclassement[]): string {
+  const counts = new Map<string, number>()
+  for (const d of defauts) {
+    const label = defautLabel(d)
+    counts.set(label, (counts.get(label) ?? 0) + Math.max(1, d.nombre))
+  }
+  return Array.from(counts, ([label, n]) => (n > 1 ? `${label} ×${n}` : label)).join(' · ')
+}
+
+/** Colour dot = the piece's FIRST defect type, so a row ties visually back to
+ *  the donut slice it feeds. A piece with no structured defect gets the same
+ *  neutral swatch the "Non renseigné" slice carries. */
+function pieceColor(d: DeclassementSemaine): string {
+  return defautColor(d.defauts[0]?.type || 'Non renseigné')
+}
+
+/** This week's 2nd-choix rolls: one row per PIECE (the unit that costs money),
+ *  its defects on the second line, its manque à gagner on the right. Every row
+ *  is a déclassement, so there is no per-row amber flag to raise — the whole
+ *  panel is the amber state, and the money column is what discriminates. */
+function DeclassementsSemaine({
+  numero,
+  declassements,
+}: {
+  numero: number
+  declassements: DeclassementSemaine[]
+}) {
+  const perdu = declassements.reduce((s, d) => s + d.montant, 0)
+  const kg = declassements.reduce((s, d) => s + d.poids, 0)
+
   return (
     <div className="flex-1 min-h-0 xl:min-h-[10rem] max-xl:h-64 flex flex-col rounded-lg border overflow-hidden bg-zinc-100/80">
+      {/* The kg only shows from 2xl up: at xl the column is 320px and the three
+          items would wrap the band onto three lines. */}
       <div className="flex-shrink-0 flex items-baseline gap-2 border-b bg-zinc-200/50 px-3 py-2">
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          Défauts · semaine {numero}
+        <p className="min-w-0 truncate text-[11px] uppercase tracking-wide text-muted-foreground">
+          Déclassements · semaine {numero}
         </p>
-        <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">
-          {defauts.length === 0
-            ? '—'
-            : `${fmtNum(defauts.length, 0)} relevé${defauts.length > 1 ? 's' : ''}`}
-        </span>
+        {declassements.length === 0 ? (
+          <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">—</span>
+        ) : (
+          <>
+            <span className="ml-auto flex-shrink-0 whitespace-nowrap text-[11px] tabular-nums text-muted-foreground">
+              {fmtNum(declassements.length, 0)} pièce{declassements.length > 1 ? 's' : ''}
+              <span className="hidden 2xl:inline"> · {fmtNum(kg)} kg</span>
+            </span>
+            <span className="flex-shrink-0 whitespace-nowrap text-xs font-semibold tabular-nums text-destructive">
+              -{fmtEur(perdu)}
+            </span>
+          </>
+        )}
       </div>
-      {defauts.length === 0 ? (
+      {declassements.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center py-6 text-muted-foreground">
           <BadgeCheck className="h-7 w-7 mb-1.5 text-green-600/50" />
-          <p className="text-xs">Aucun défaut relevé cette semaine</p>
+          <p className="text-xs">Aucun déclassement cette semaine</p>
         </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-auto scrollbar-transparent">
-          {defauts.map((d) => (
+          {declassements.map((d) => (
             <div
-              key={d.id}
-              /* Amber left edge = the piece was déclassée, the same §7 color the
-                 2nd-choix tile carries. Defects on 1er-choix pieces stay plain. */
-              className={cn(
-                'flex items-center gap-2 border-b border-border/40 px-3 py-1.5 text-xs last:border-b-0 hover:bg-white/70',
-                d.secondChoix && 'border-l-2 border-l-amber-400 bg-amber-500/[0.06]',
-              )}
-              title={`Pièce ${d.piece} · ${fmtNum(d.poids)} kg · métier ${d.machine || '—'} · ${d.description || d.type}${d.secondChoix ? ' · déclassée en 2nd choix' : ''}`}
+              key={d.IDstock_ecru}
+              className="border-b border-border/40 px-3 py-1.5 text-xs last:border-b-0 hover:bg-white/70"
+              title={`Pièce ${d.piece} · ${fmtNum(d.poids)} kg · métier ${d.machine || '—'} · -${fmtEur(d.montant)}${
+                d.defauts.length > 0
+                  ? `\n${d.defauts.map((x) => x.description || x.type).join('\n')}`
+                  : '\nAucun défaut relevé'
+              }`}
             >
-              <span
-                className="h-2 w-2 flex-shrink-0 rounded-sm"
-                style={{ backgroundColor: defautColor(d.type) }}
-              />
-              <span className="w-16 flex-shrink-0 truncate tabular-nums text-muted-foreground">
-                {d.piece || '—'}
-              </span>
-              <span className="w-7 flex-shrink-0 font-medium">{d.machine || '—'}</span>
-              <span className="min-w-0 flex-1 truncate">
-                {d.type || 'Non renseigné'}
-                {defautDetail(d) && (
-                  <span className="text-muted-foreground"> · {defautDetail(d)}</span>
-                )}
-              </span>
+              <div className="flex items-center gap-2">
+                <span
+                  className="h-2 w-2 flex-shrink-0 rounded-sm"
+                  style={{ backgroundColor: pieceColor(d) }}
+                />
+                <span className="flex-shrink-0 truncate tabular-nums font-medium">
+                  {d.piece || '—'}
+                </span>
+                <span className="flex-shrink-0 text-muted-foreground">{d.machine || '—'}</span>
+                <span className="ml-auto flex-shrink-0 tabular-nums text-muted-foreground">
+                  {fmtNum(d.poids)} kg
+                </span>
+                <span className="flex-shrink-0 w-14 text-right font-semibold tabular-nums text-destructive">
+                  -{fmtEur(d.montant)}
+                </span>
+              </div>
+              <p className="pl-4 truncate text-[11px] text-muted-foreground">
+                {d.defauts.length === 0 ? 'Aucun défaut relevé' : defautsSummary(d.defauts)}
+              </p>
             </div>
           ))}
         </div>
@@ -474,7 +526,7 @@ function DeclassementsCard({
 }: {
   data: DeclassementsAnalyse
   /** Only passed on the CURRENT semester — see the layout note at the top. */
-  semaine?: { numero: number; defauts: DefautSemaine[] }
+  semaine?: { numero: number; declassements: DeclassementSemaine[] }
 }) {
   const { types, kg } = data
   const totalPerdu = types.reduce((s, t) => s + t.montant, 0)
@@ -497,11 +549,13 @@ function DeclassementsCard({
 
       <div className="flex-1 min-h-0 p-4 sm:p-5 flex flex-col xl:flex-row gap-6 xl:gap-8">
         {/* Left column: the semester's taux, then — on the current
-            semester — this week's defect log in the space the taux block
+            semester — this week's déclassement log in the space the taux block
             used to leave empty. */}
         <div className="xl:w-80 2xl:w-96 flex-shrink-0 flex flex-col gap-5 min-h-0">
           <TauxComparison data={data} compact={!!semaine} />
-          {semaine && <DefautsSemaine numero={semaine.numero} defauts={semaine.defauts} />}
+          {semaine && (
+            <DeclassementsSemaine numero={semaine.numero} declassements={semaine.declassements} />
+          )}
         </div>
         <div className="hidden xl:block w-px bg-border flex-shrink-0" />
 
@@ -796,11 +850,15 @@ export function ProductionPrime() {
 
 
           {/* Why the 2nd-choix line loses money — defect breakdown + trend,
-              plus this week's raw visitage log in its left column. Last, so it
+              plus this week's déclassement log in its left column. Last, so it
               takes whatever height remains under the money cards. */}
           <DeclassementsCard
             data={data.declassements}
-            semaine={periode.estCourante ? { numero: semaine.numero, defauts: semaine.defauts } : undefined}
+            semaine={
+              periode.estCourante
+                ? { numero: semaine.numero, declassements: semaine.declassements }
+                : undefined
+            }
           />
         </div>
       </div>

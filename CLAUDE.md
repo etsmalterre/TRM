@@ -313,18 +313,30 @@ PCS-compressed, but the full WLanguage survives as comments in the generated And
   it is not a section of its own: it used to be a third navy band restating the same three
   production tiles at a smaller size, costing a full page row. It now rides the tiles it
   belongs to — one « Cette semaine · kg · € » footer per tile, the week named once in the
-  hero — and its qualitative half is the defect table below. The PDF
+  hero — and its qualitative half is the déclassement table below. The PDF
   (`lib/pdf/PrimePdf.tsx`) still prints the week as a block: it rides `MalterreDocument`
   with `issuer: companyTrm`, renders the same `/prime-trm` payload as the screen, and
-  deliberately omits the defect table — it is the payout document, not the ops view.
-- **Défauts de la semaine** (`semaine.defauts[]`) fills the column under the taux block
-  inside the déclassements card: every `defaut_qualite` row (`Type_Reference = 2`) on a
-  piece saisie since Monday, **both choix on purpose** — a defect is not a déclassement,
-  and this table answers "what did the visitage see this week". Déclassée pieces carry the
-  §7 amber left edge. ⚠️ **`taille_cm` is NOT centimetres** (25 for « Moins de 50 cm »,
-  1500 for « 1m - 3m »): the units are per-vocabulary and unrecoverable, so never render or
-  sum it as a length — the reliable size label is the `description` tail with the
-  `type_defaut` prefix stripped, and count-shaped defects (Trou, Démaillage) use `nombre`.
+  deliberately omits the déclassement table — it is the payout document, not the ops view.
+- **Déclassements de la semaine** (`semaine.declassements[]`) fills the column under the
+  taux block inside the déclassements card: **one row per 2nd-choix roll** — the unit that
+  costs money — with its métier, its poids, its manque à gagner (`poids × 0,20 €`, the same
+  basis as `DeclassementType.montant` and the tile) and its `defaut_qualite` findings
+  (`Type_Reference = 2`) folded onto a second line. It was the whole visitage log, **both
+  choix**, until 2026-08-25; the user narrowed it to the déclassées, because the table lives
+  inside the déclassements card and answers « qu'est-ce que la semaine a coûté ».
+  - **The population is exactly the one `semaine.secondChoix` sums** (same `periodWhere(1,
+    monday)` predicate), so the column's totals always equal the tile's — including
+    **déclassées carrying no defect row**, which get a « Aucun défaut relevé » line rather
+    than being dropped. Keep that invariant: a "must have a defect" filter would silently
+    make the two disagree.
+  - No per-row amber flag any more: every row is a déclassement, so the §7 colour would
+    stop discriminating. The money column is what ranks the rows.
+  - ⚠️ **`taille_cm` is NOT centimetres** (25 for « Moins de 50 cm », 1500 for « 1m - 3m »):
+    the units are per-vocabulary and unrecoverable, so never render or sum it as a length.
+    `description` already reads « Maille Moins de 50 cm » — render it verbatim (whitespace
+    normalised: historical rows carry « Autre Barrure  Plus de 3m ») and keep « · » free as
+    the separator *between* defects; identical labels fold into a `×N` (a piece really does
+    carry four « Démaillage » rows).
 - **Analyse des déclassements** (not in the legacy): taux de 2nd choix (kg-based) compared
   to the **previous semester in full** — always, including while the current one is still
   running. A same-elapsed-days window would be more like-for-like statistically, but it
