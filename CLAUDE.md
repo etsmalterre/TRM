@@ -403,7 +403,7 @@ screen reads the very same endpoints. Landing it was the two edits
 - `bonnetier` — accented columns `prénom`/`archivé` (HFSQL accent rules apply). Grid rows = `archivé=0 AND regleur=0`; regleurs are excluded (roles in `role_employe`: apprenti/bonnetier/visiteur/regleur).
 - `desiderata` — `DATE` (reserved word → returns uppercased; 8-char YYYYMMDD), `description`, `IDbonnetier`, `justifie`, `declare`. Writes use positional INSERT (max+1 PK) to avoid naming the reserved column. "En cours" = date ≥ today.
 
-## Ticket widget (LIVA issue tracker) — feature version 1.1.1
+## Ticket widget (LIVA issue tracker) — feature version 1.2.0
 
 In-app bug/feature reporting to the LIVA tracker (product **`trm-erp`**), same widget as
 ETM's (spec + upgrade path: the `issue_tracker_integration` skill):
@@ -420,6 +420,21 @@ ETM's (spec + upgrade path: the `issue_tracker_integration` skill):
   per-mount slug is what keeps ETM's and TRM's "Mes tickets" apart.
 - Read state (unread badge) is `localStorage`-only, keyed per user — no HFSQL change.
   Reporters need an email mapped in Paramètres › Utilisateurs, or the proxy 400s.
+- **Suivi par email (v1.2.0)** — « Me tenir informé par email » : une case **décochée par
+  défaut** sur le formulaire, et un interrupteur (§35) dans la fiche du ticket. Le drapeau
+  vit côté tracker (`bugs.follow_up`), pas ici : rien à stocker dans HFSQL. Une fois activé,
+  **chaque changement de statut** du ticket envoie un email au rapporteur, aux couleurs
+  Malterre et en français (la marque du client pilote la langue) — y compris la clôture
+  automatique quand LIVA publie la version corrective. Une réponse du développeur qui ne
+  bouge pas le statut n'envoie rien : elle voyage dans l'email du prochain changement, et
+  la pastille non-lu du widget couvre déjà ce cas.
+  - Route proxy `PATCH /api/tickets-trm/:id/follow` (même contrôle de propriété que le
+    détail : la clé API du tracker est *company*-scoped, pas *reporter*-scoped).
+  - Garde HTTP : `ETM/apps/api/src/scripts/check-tickets-follow.ts`
+    (`TICKETS_MOUNT=tickets-trm` par défaut) — elle crée un vrai ticket `[CHECK]` sur le
+    tracker visé, donc pointer l'API dev sur un tracker local avant de la lancer.
+  - ⚠️ **Le tracker doit être déployé avec la migration `follow_up` avant le web TRM**,
+    sinon la case part avec le POST sans effet et l'interrupteur 404.
 
 ## Shared screens (live cross-repo link with ETM)
 
