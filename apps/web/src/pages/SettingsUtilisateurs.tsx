@@ -104,7 +104,16 @@ interface UserProfileRow {
 // Keyed by lowercase "prenom|nom", the same identity the API's picker dedupe
 // uses. The shared table has no société column, so membership lives here.
 
+// Station accounts have no surname, so their key ends in a bare "|" — that is
+// the shape, not a typo. `Visitage` (IDutilisateur 10, roleHint pc-visitage) is
+// the legacy account the visitage PC logs in as: the visiteuse identifies
+// herself inside the poste, against `bonnetier`, not by logging in. It has to be
+// listed here or no admin can reach its rights, and `saisie_visitage` — closed
+// by default — could never be granted to the machine that needs it.
+// `Regleur` (14) and `eloise` (16) are the two other legacy station accounts;
+// add them the day a TRM screen is meant for them.
 const TRM_STAFF = new Set([
+  'visitage|',
   'vincent|malterre',
   'nicolas|antonino',
   'mickael|grivelet',

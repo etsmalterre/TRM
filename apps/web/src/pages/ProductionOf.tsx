@@ -51,6 +51,7 @@ import { PopoverSelect, SearchableCombobox, type PopoverSelectOption } from '@/c
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { UnsavedChangesDialog } from '@/components/shared/UnsavedChangesDialog'
 import { TmRollIcon } from '@/components/icons/TmRollIcon'
+import { useHasPermission } from '@/contexts/PermissionsContext'
 import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst'
 import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
 import { useElementSize } from '@/hooks/useElementSize'
@@ -502,13 +503,14 @@ function DefautsDonut({ slices }: { slices: Array<{ label: string; value: number
 // ── §29.4 status pill (Attente → En cours → Terminé) ───
 
 function StatutPill({
-  etat, onActiver, onTerminer, isChanging, disabled,
+  etat, onActiver, onTerminer, isChanging, disabled, canEdit,
 }: {
   etat: OfEtat
   onActiver: () => void
   onTerminer: () => void
   isChanging: boolean
   disabled: boolean
+  canEdit: boolean
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -526,11 +528,15 @@ function StatutPill({
 
   // The pill offers only the REACHABLE transitions: a waiting OF can start, a
   // running OF can finish, a finished OF is final.
-  const transitions = etat === 'attente'
-    ? [{ key: 'activer', label: 'Passer en cours', icon: Factory, run: onActiver }]
-    : etat === 'encours'
-      ? [{ key: 'terminer', label: 'Terminer l’OF', icon: CheckCircle2, run: onTerminer }]
-      : []
+  // Without edit_of the pill still states where the OF stands — that is the
+  // read-only half of §29 — it just offers no way to move it.
+  const transitions = !canEdit
+    ? []
+    : etat === 'attente'
+      ? [{ key: 'activer', label: 'Passer en cours', icon: Factory, run: onActiver }]
+      : etat === 'encours'
+        ? [{ key: 'terminer', label: 'Terminer l’OF', icon: CheckCircle2, run: onTerminer }]
+        : []
 
   return (
     <div ref={rootRef} className="flex-shrink-0 relative">
@@ -680,6 +686,12 @@ export function ProductionOf() {
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('encours')
   const [isEditing, setIsEditing] = useState(false)
+  // Read stays open to whoever holds the Production menu — the atelier and
+  // the poste de visitage next door consult the queue, the consigne and the
+  // declared pieces all day. `edit_of` is what turns the screen writable, and
+  // it is the server that enforces it: the nine write routes of /of-trm 403
+  // without it. Hiding the affordances here only spares a dead button.
+  const canEdit = useHasPermission('edit_of')
   const [createOpen, setCreateOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [terminerConfirmOpen, setTerminerConfirmOpen] = useState(false)
@@ -865,6 +877,7 @@ export function ProductionOf() {
             reorderPending={reorderMut.isPending}
             onNew={() => setCreateOpen(true)}
             isEditing={isEditing}
+            canEdit={canEdit}
           />
         }
         detailHeader={detail ? (
@@ -877,6 +890,7 @@ export function ProductionOf() {
             onSave={() => saveMut.mutate()}
             onPrint={() => setPrintOpen(true)}
             onDelete={() => setDeleteConfirmOpen(true)}
+            canEdit={canEdit}
           />
         ) : null}
         detail={
@@ -898,6 +912,7 @@ export function ProductionOf() {
             onActiver={() => activerMut.mutate(detail.id)}
             onTerminer={() => setTerminerConfirmOpen(true)}
             isChanging={activerMut.isPending || terminerMut.isPending}
+            canEdit={canEdit}
           />
         ) : null}
         sidebarTitle="Suivi de l'OF"
@@ -966,7 +981,7 @@ function OfList({
   searchQuery, onSearchChange,
   statusFilter, onStatusFilterChange,
   onReorder, reorderPending,
-  onNew, isEditing,
+  onNew, isEditing, canEdit,
 }: {
   rows: OfListRow[]
   isLoading: boolean
@@ -982,6 +997,7 @@ function OfList({
   reorderPending: boolean
   onNew: () => void
   isEditing: boolean
+  canEdit: boolean
 }) {
   // Attente view groups the queue per métier so the ▲▼ reorder reads naturally.
   const groups = useMemo(() => {
@@ -1062,7 +1078,7 @@ function OfList({
                   row={r}
                   selected={selectedId === r.id}
                   onClick={() => onSelect(r.id)}
-                  reorder={group.length > 1 && !isEditing ? {
+                  reorder={canEdit && group.length > 1 && !isEditing ? {
                     canUp: i > 0,
                     canDown: i < group.length - 1,
                     pending: reorderPending,
@@ -1081,7 +1097,7 @@ function OfList({
 
       <div className="p-3 border-t text-xs text-muted-foreground flex items-center justify-between rounded-b-lg bg-zinc-200/50">
         <span>{rows.length} ordre{rows.length > 1 ? 's' : ''} de fabrication</span>
-        {!isEditing && (
+        {!isEditing && canEdit && (
           <Button size="sm" variant="ghost" className="text-accent hover:text-accent hover:bg-accent/10" onClick={onNew}>
             <Plus className="h-3.5 w-3.5 mr-1" />Nouveau
           </Button>
@@ -1168,7 +1184,7 @@ function OfListCard({
 // ── Detail header ──────────────────────────────────────
 
 function DetailHeader({
-  detail, isEditing, isSaving, onStartEdit, onCancel, onSave, onPrint, onDelete,
+  detail, isEditing, isSaving, onStartEdit, onCancel, onSave, onPrint, onDelete, canEdit,
 }: {
   detail: OfDetail
   isEditing: boolean
@@ -1178,6 +1194,7 @@ function DetailHeader({
   onSave: () => void
   onPrint: () => void
   onDelete: () => void
+  canEdit: boolean
 }) {
   return (
     <div className="flex-shrink-0 pt-0.5">
@@ -1225,7 +1242,7 @@ function DetailHeader({
               <Button variant="outline" size="icon" className="h-9 w-9" title="Imprimer" onClick={onPrint}>
                 <Printer className="h-4 w-4" />
               </Button>
-              {detail.est_termine === 0 && (
+              {detail.est_termine === 0 && canEdit && (
                 <Button variant="gold" size="sm" onClick={onStartEdit}>
                   <Pencil className="h-3.5 w-3.5 mr-1.5" />Modifier
                 </Button>
@@ -1920,7 +1937,7 @@ function CommandeCard({ detail }: { detail: OfDetail }) {
 type SidebarTab = 'observations' | 'production' | 'visitage' | 'qualite' | 'performance'
 
 function OfSidebar({
-  detail, etat, isEditing, onActiver, onTerminer, isChanging,
+  detail, etat, isEditing, onActiver, onTerminer, isChanging, canEdit,
 }: {
   detail: OfDetail
   etat: OfEtat
@@ -1928,6 +1945,7 @@ function OfSidebar({
   onActiver: () => void
   onTerminer: () => void
   isChanging: boolean
+  canEdit: boolean
 }) {
   const [tab, setTab] = useState<SidebarTab>('observations')
   // Selecting another OF resets the tab-local piece/roll focus via key-scoped
@@ -1964,7 +1982,7 @@ function OfSidebar({
           })}
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-transparent">
-          {tab === 'observations' && <ObservationsTab ofId={detail.id} />}
+          {tab === 'observations' && <ObservationsTab ofId={detail.id} canEdit={canEdit} />}
           {tab === 'production' && <ProductionTab ofId={detail.id} />}
           {tab === 'visitage' && <VisitageTab ofId={detail.id} />}
           {tab === 'qualite' && <QualiteTab ofId={detail.id} />}
@@ -1978,6 +1996,7 @@ function OfSidebar({
         onTerminer={onTerminer}
         isChanging={isChanging}
         disabled={isEditing}
+        canEdit={canEdit}
       />
     </div>
   )
@@ -1985,7 +2004,7 @@ function OfSidebar({
 
 // Tab 1 — Observations (message_of)
 
-function ObservationsTab({ ofId }: { ofId: number }) {
+function ObservationsTab({ ofId, canEdit }: { ofId: number; canEdit: boolean }) {
   const queryClient = useQueryClient()
   const [text, setText] = useState('')
   const { data, isLoading } = useQuery<ObservationRow[]>({
@@ -2027,7 +2046,10 @@ function ObservationsTab({ ofId }: { ofId: number }) {
         </div>
       ))}
       {/* The workshop writes from its terminals; the bureau adds here without
-          needing edit mode (deliberate delta vs the legacy edit-gated Ajouter). */}
+          needing edit mode (deliberate delta vs the legacy edit-gated Ajouter).
+          Reading the thread stays open without edit_of — an observation is how
+          the atelier is told what to watch for. */}
+      {canEdit && (
       <div className="pt-1 space-y-1.5">
         <textarea
           rows={2}
@@ -2045,6 +2067,7 @@ function ObservationsTab({ ofId }: { ofId: number }) {
           Ajouter
         </Button>
       </div>
+      )}
     </>
   )
 }
