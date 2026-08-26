@@ -476,7 +476,10 @@ tout futur portage TRM.
   valeurs « Rouloir dans N Kgs » lisibles sur une capture du legacy (2026-08-26) —
   **14/14, écart maximal 0 Kg**. `probe-maintenance-trm.ts` rejoue cette réconciliation ;
   s'il casse, la constante est fausse. ⚠️ C'est une constante de module qui s'applique à
-  tout l'historique, même classe de mise en garde que les barèmes de Prime.
+  tout l'historique — la mise en garde que Prime portait avant de dater ses barèmes. Si ce
+  seuil doit changer un jour, **faire ce qu'a fait Prime** : une table datée
+  (`BAREMES_PRIME` dans `lib/bareme-prime-trm.ts`), jamais une édition du chiffre en place,
+  sinon tout l'historique du rouloir se recalcule sur un seuil qui n'était pas le sien.
 - **Couleurs de la liste (§41)** : rouge ≥ 100 % du seuil, amber ≥ 66,7 %. Reproduit la
   capture 30/30, mais la frontière amber/vert n'est contrainte que dans `]4 650 ; 5 170]`
   — ⚠️ approximation assumée.
@@ -748,8 +751,10 @@ PCS-compressed, but the full WLanguage survives as comments in the generated And
 - **Period** = semester bounded by **15/06 and 15/12** (S1 = 15/12/(Y−1)→15/06/Y, labelled
   by the *fin* year; S2 = 15/06→15/12, labelled by the *début* year). Précédent/Suivant
   move a reference date ±6 months; Suivant is blocked on the current period.
-- **Sums** = `SUM(stock_ecru.poids)` over `date_saisie` (a DATETIME) × rate: 1er choix
-  (`second_choix = 0`) +0,05 €/Kg, 2nd choix (`second_choix = 1`) −0,20 €/Kg. **No
+- **Sums** = `SUM(stock_ecru.poids)` over `date_saisie` (a DATETIME) × the rate **du barème
+  applicable au semestre** (voir le ⚠️ plus bas) : jusqu'à S1 2026, 1er choix
+  (`second_choix = 0`) +0,05 €/Kg et 2nd choix (`second_choix = 1`) −0,20 €/Kg ; à partir de
+  S2 2026, **+0,055 / −0,40 €/Kg**. **No
   IDsociete filter** (the ETM handover flips delivered pieces to société 1 — filtering
   would empty the semester); TRM production is scoped by **`IDordre_fabrication > 0`**
   instead, a deliberate delta from the legacy whose predicate also caught ETM `lot='fictif'`
@@ -773,7 +778,8 @@ PCS-compressed, but the full WLanguage survives as comments in the generated And
   deliberately omits the déclassement table — it is the payout document, not the ops view.
 - **Déclassements de la semaine** (`semaine.declassements[]`) fills the column under the
   taux block inside the déclassements card: **one row per 2nd-choix roll** — the unit that
-  costs money — with its métier, its poids, its manque à gagner (`poids × 0,20 €`, the same
+  costs money — with its métier, its poids, its manque à gagner (`poids × le taux 2nd choix
+  du barème en vigueur`, the same
   basis as `DeclassementType.montant` and the tile) and its `defaut_qualite` findings
   (`Type_Reference = 2`) folded onto a second line. It was the whole visitage log, **both
   choix**, until 2026-08-25; the user narrowed it to the déclassées, because the table lives
@@ -809,11 +815,27 @@ PCS-compressed, but the full WLanguage survives as comments in the generated And
   shrinks. Applies to **all browsable periods**, past ones included, so historical splits
   no longer match what was actually paid (user decision, 2026-08-25 — same class of
   caveat as the rates below).
-- ⚠️ **The rates are module constants in the API and apply to every browsable period**, so
-  editing them recomputes the whole history and the screen would display primes that were
-  never paid. A barème revision (under discussion with the atelier since 2026-08-24 — the
-  scenario studied is +0,055 / −0,40 €/Kg) must therefore ship **date-effective rates**
-  (barème applicable per semester) *before* the new values go in.
+- ⚠️ **Les taux sont datés — `ETM/apps/api/src/lib/bareme-prime-trm.ts`, `BAREMES_PRIME`.**
+  C'étaient trois constantes de module appliquées à *toute* période navigable : les réviser
+  recalculait l'historique entier et l'écran affichait des primes jamais versées. Une
+  révision s'ajoute donc en **ligne datée**, et **on ne touche jamais une ligne passée**.
+  La révision du 2026-08-26 (+0,055 / −0,40 €/Kg, décidée avec l'atelier) s'applique **dès
+  le semestre en cours, S2 2026** (`from: '2026-06-15'`) ; S1 2026 et avant gardent
+  +0,05 / −0,20. `retour client` reste à −0,60 : la tuile est morte de toute façon.
+  - Le `from` **doit être une frontière de semestre** (15/06 ou 15/12). La prime est *une*
+    somme sur toute la période × *un* taux, donc un barème qui démarrerait en cours de
+    semestre ne serait pas calculable sans découper chaque somme de kg à la date de bascule
+    (`sumPoids`, les montants de déclassement, le donut). Si l'atelier veut ça un jour,
+    **c'est ce découpage le travail**, pas une ligne de plus dans la table.
+  - Le semestre affiché est prixé au barème de *son* `debut` ; **la semaine** l'est au barème
+    en vigueur *aujourd'hui*, puisqu'elle décrit toujours la semaine courante quelle que
+    soit la période consultée. Les deux coïncident dès que le semestre courant est affiché,
+    seul cas où l'écran rend la semaine.
+  - Garde : `bareme-prime-trm.test.ts` épingle la bascule au jour près et vérifie que la
+    table reste triée et sur des frontières de semestre — `baremePour` sort de sa boucle au
+    premier `from` futur, donc une table désordonnée résoudrait faux en silence.
+  - Le barème vit dans `lib/` (et pas dans `routes/prime-trm.ts`) pour être testable sans
+    charger le driver HFSQL, à côté de `lib/pricing-trm.ts` où vivent déjà les règles de prix TRM.
 
 ### Rapports › Finance (`/rapports/finance`) — ETM's screen, TRM's partition
 
