@@ -2,7 +2,7 @@
  * Deploy gate: does the PRODUCTION shared API actually serve every route this
  * web bundle calls?
  *
- *   node scripts/check-api-routes.mjs [--base https://mpstrm.malterre/api] [--verbose]
+ *   node scripts/check-api-routes.mjs [--base https://trm.malterre/api] [--verbose]
  *
  * TRM is a frontend-only repo: its `/api/` is proxied to the shared ETM API,
  * which deploys from the ETM checkout via `/etm_deploy`. A TRM feature whose
@@ -32,8 +32,8 @@ const args = process.argv.slice(2)
 const verbose = args.includes('--verbose')
 const baseArg = args.indexOf('--base')
 // Probe through TRM's OWN proxy by default: that validates the API *and*
-// mpstrm's nginx, which is the path a TRM user's request actually takes.
-const BASE = baseArg !== -1 ? args[baseArg + 1] : 'https://mpstrm.malterre/api'
+// trm.malterre's nginx, which is the path a TRM user's request actually takes.
+const BASE = baseArg !== -1 ? args[baseArg + 1] : 'https://trm.malterre/api'
 
 /** Roots that are infrastructure rather than a feature's backend. Probing them
  *  adds noise, not signal — they have shipped for as long as the app has. */
@@ -127,7 +127,7 @@ function collectTargets() {
   return { targets, blindSpots }
 }
 
-/** GET a URL, following redirects (mpstrm answers 308 http->https).
+/** GET a URL, following redirects (trm.malterre answers 308 http->https).
  *  Resolves to a status number, or rejects if the API cannot be reached. */
 function probe(url, redirects = 0) {
   return new Promise((resolve, reject) => {

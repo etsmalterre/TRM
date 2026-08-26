@@ -3,8 +3,10 @@
 > **Note**: this project was called `MPS-TRM` until 2026-07-30, when the repo and
 > folder were renamed to **TRM** (alongside its sister `MPS_NG` → **ETM**).
 > Deliberately unchanged because they are deployed infrastructure, not the project
-> identity: the production hostname `mpstrm.malterre`, the server dist path
-> `/home/debian/mps_trm`, and the workspace package name `@mps-trm/web`.
+> identity: the server dist path `/home/debian/mps_trm` and the workspace package
+> name `@mps-trm/web`. The production **hostname did follow**, on 2026-08-26:
+> `mpstrm.malterre` → **`trm.malterre`** (the DNS moved first; the old name no longer
+> resolves, though nginx still answers to it as an alias).
 
 ## Project Overview
 
@@ -30,7 +32,7 @@ When implementing a feature here you will therefore usually touch **two repos**:
 
 ## Production / deploy
 
-- **Host**: `http://mpstrm.malterre` — nginx on `mfprod-erp` (`10.10.2.165`), dist at `/home/debian/mps_trm/dist`, `/api/` proxied to the shared ETM API (`10.10.2.163:8081`).
+- **Host**: `http://trm.malterre` — nginx on `mfprod-erp` (`10.10.2.165`), dist at `/home/debian/mps_trm/dist`, `/api/` proxied to the shared ETM API (`10.10.2.163:8081`).
 - **Deploy ownership**: this repo's `/trm_deploy` skill ships the **TRM web bundle only**. The shared API (and `mpsng.malterre`) is deployed exclusively from the ETM checkout with its `/etm_deploy`. If a TRM feature needed API changes, the API deploy (from ETM) must happen **before or with** the TRM web deploy.
 
 ## Branding

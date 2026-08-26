@@ -3,11 +3,11 @@
 ## When to use
 
 Invoke with `/trm_deploy` **from the TRM main checkout** to deploy the TRM webapp
-to production (`http://mpstrm.malterre`).
+to production (`http://trm.malterre`).
 
 ## Scope — web only. NEVER deploy the API from here.
 
-**TRM is a frontend-only repo.** Production `mpstrm.malterre` proxies `/api/` to the
+**TRM is a frontend-only repo.** Production `trm.malterre` proxies `/api/` to the
 **shared ETM API** (`10.10.2.163:8081`), which is owned and deployed by the **ETM**
 deploy workflow (`/etm_deploy` in `C:\dev\etsmalterre\ETM`). This skill only builds and
 uploads the TRM web bundle.
@@ -68,11 +68,11 @@ are off the factory LAN/VPN it will say so rather than wave the deploy through.
 
 | Component | Server | IP | User | Notes |
 |-----------|--------|-----|------|-------|
-| **Web** | mfprod-erp | `10.10.2.165` | `debian` | nginx site `mpstrm.malterre` |
+| **Web** | mfprod-erp | `10.10.2.165` | `debian` | nginx site `trm.malterre` |
 | **API (shared, not deployed from here)** | mfprod-api | `10.10.2.163` | `debian` | `mps-api.service`, owned by ETM |
 
 - **Dist directory**: `/home/debian/mps_trm/dist/`
-- **Nginx config**: `/etc/nginx/sites-enabled/mpstrm.malterre` — serves the dist, proxies
+- **Nginx config**: `/etc/nginx/sites-enabled/trm.malterre` — serves the dist, proxies
   `/api/` → `http://10.10.2.163:8081`, SPA fallback to `/index.html`, `index.html`/`sw.js`
   never cached, hashed assets cached 1y, `client_max_body_size 25m`.
 - Same physical servers as ETM (`mpsng.malterre` lives in `/home/debian/mps_erp/dist/`
@@ -141,18 +141,18 @@ Test with `hostname` first; if the identity file is missing at one path, try the
 
 4. **No restart needed** — nginx serves static files. Verify:
    ```bash
-   curl -s -o /dev/null -w "%{http_code}" http://mpstrm.malterre/          # 200
-   curl -s http://mpstrm.malterre/api/auth/users | head -c 100             # JSON through the proxy
+   curl -s -o /dev/null -w "%{http_code}" http://trm.malterre/          # 200
+   curl -s http://trm.malterre/api/auth/users | head -c 100             # JSON through the proxy
    ```
 
 ## Verification Checklist
 
-- [ ] `curl http://mpstrm.malterre/` returns HTML
-- [ ] `curl http://mpstrm.malterre/api/auth/users` returns JSON (proxy → shared API)
+- [ ] `curl http://trm.malterre/` returns HTML
+- [ ] `curl http://trm.malterre/api/auth/users` returns JSON (proxy → shared API)
 - [ ] The served bundle has the right API base:
-      `curl -s http://mpstrm.malterre/$(curl -s http://mpstrm.malterre/ | grep -oE 'assets/index-[^"]+\.js')`
+      `curl -s http://trm.malterre/$(curl -s http://trm.malterre/ | grep -oE 'assets/index-[^"]+\.js')`
       then check for `="/api"` (and absence of `localhost:8080` / `Program Files`)
-- [ ] Navigate to `http://mpstrm.malterre/atelier/planning` in a browser
+- [ ] Navigate to `http://trm.malterre/atelier/planning` in a browser
 
 ## Known issues (inherited from ETM — same infra)
 
