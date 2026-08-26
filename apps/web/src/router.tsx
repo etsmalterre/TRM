@@ -9,7 +9,6 @@ import { Dashboard } from '@etm/pages/Dashboard'
 import {
   Layers,
   ClipboardList,
-  Eye,
   Gauge,
   HardHat,
   AlertTriangle,
@@ -73,7 +72,9 @@ import { TombeMetierStock } from '@/pages/TombeMetierStock'
 // (ETM/apps/api/src/routes/of-trm.ts, mounted at /api/of-trm).
 import { ProductionOf } from '@/pages/ProductionOf'
 import { QualiteRetourClient } from '@/pages/QualiteRetourClient'
-const ProductionVisitagePage = createPlaceholder('Visitage', 'Visitage des pièces produites', Eye)
+// Visitage — real screen. Poste layout (plein écran atelier); creates the
+// stock_ecru rolls and decrements the yarn stock via /api/visitage-trm.
+import { ProductionVisitage } from '@/pages/ProductionVisitage'
 // Prime — real screen (port of the legacy FI_Prime window). TRM-only: reads
 // TRM knitted production (stock_ecru via OF) through `/prime-trm` on the ETM API.
 import { ProductionPrime } from '@/pages/ProductionPrime'
@@ -142,7 +143,7 @@ export const router = createBrowserRouter([
       // Production
       { path: 'production', element: <Navigate to="/production/of" replace /> },
       { path: 'production/of', element: <ProductionOf /> },
-      { path: 'production/visitage', element: <ProductionVisitagePage /> },
+      { path: 'production/visitage', element: <ProductionVisitage /> },
       { path: 'production/prime', element: <ProductionPrime /> },
       { path: 'production/trs', element: <ProductionTrsPage /> },
 

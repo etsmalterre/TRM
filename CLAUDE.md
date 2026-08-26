@@ -69,7 +69,7 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 2. **Clients** — **Commandes** (`/clients/commandes`, implemented — voir "Commandes clients" ci-dessous), **Expéditions** (`/clients/expeditions`, implemented — TRM-specific, NOT shared, see below), **Facturation** (`/clients/facturation`, implemented — TRM-specific, NOT shared, see below), **Gestion** (`/clients/gestion`, implemented — see "Clients › Gestion" below), Planning
 3. **Fils** — **Références** (`/fils/references`, shared verbatim with ETM), **Stock** (`/fils/stock`, implemented — TRM-specific, NOT shared, see "Fils › Stock" below), **Fournisseurs** (`/fils/fournisseurs`, shared verbatim with ETM)
 4. **Tombé Métier** — **Références** (`/tombe-metier/references`, implemented — shared verbatim with ETM, see "Shared screens" below), Échantillons, **Stock** (`/tombe-metier/stock`, implemented — TRM-specific, NOT shared, see below). Menu icon is the custom `TmRollIcon`.
-5. **Production** — **Ordres de fabrication** (`/production/of`, implemented — see "Production › Ordres de fabrication" below), Visitage, **Prime** (`/production/prime`, implemented — see "Production › Prime" below), TRS
+5. **Production** — **Ordres de fabrication** (`/production/of`, implemented — see "Production › Ordres de fabrication" below), **Visitage** (`/production/visitage`, implemented — see "Production › Visitage" below), **Prime** (`/production/prime`, implemented — see "Production › Prime" below), TRS
 6. **Atelier** — **Maintenance** (`/atelier/maintenance`, implemented — see "Atelier › Maintenance" below), Bonnetier, **Planning** (`/atelier/planning`, implemented — weekly bonnetier grid over `planning_bonnetier` + desiderata dialog; API route `ETM/apps/api/src/routes/planning-atelier.ts`)
 7. **Qualité** — Défauts récents, **Retour client** (`/qualite/retour-client`, implemented — the menu’s index redirect, see "Qualité › Retour client" below), Analyse
 8. **Rapports** — **Finance** (`/rapports/finance`, implemented — the menu's only screen, shared verbatim with ETM; see "Rapports › Finance" below). The Production / Lots de fils / État stock fil / Analyse placeholders were removed with it.
@@ -288,6 +288,56 @@ tout futur portage TRM.
   `/etm_deploy`**, c'est le seul test du chemin Linux) et `check-maintenance-trm.ts`
   (garde HTTP : aller-retour PUT avec accents, 409 sur métier archivé, 403 sans le droit,
   reset d'opération, tout restauré).
+### Production › Visitage (`/production/visitage`) — port of `FI_Visitage.wdw`
+
+**Layout « Poste » (`mps_designer` §45)** — the 4th named layout, created for this screen:
+bandes empilées, pas de liste maître, le sélecteur de contexte en barre d'outils. Écran
+`apps/web/src/pages/ProductionVisitage.tsx`; API `ETM/apps/api/src/routes/visitage-trm.ts`
+(monté `/api/visitage-trm`), helpers partagés extraits dans `lib/production-trm.ts` (que
+`of-trm.ts` importe désormais au lieu de les porter). Le `.wdw` est PCS-compressé : la spec
+vient du **cache de compilation WinDev** (`MPS.cpl/<user>/00000000/FI_Visitage.*.wdw.wcw` —
+les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet :
+`~/.claude/plans/visitage-tombe-metier.md`.
+
+- **C'est le seul écrit de la fonctionnalité, et il n'y a pas de transaction.** `POST /valider`
+  crée les `stock_ecru`, convertit les défauts, trace l'événement **et décrémente le fil** ;
+  tout ce qui est vérifiable l'est **avant** la première écriture, et un échec en cours de
+  route renvoie la liste des rouleaux réellement créés plutôt qu'un 500 nu. `?dry_run=1`
+  renvoie le plan exact sans rien écrire — c'est ce que `check-visitage-trm.ts` exerce, pour
+  qu'un passage de garde ne laisse jamais de pièce fantôme en stock.
+- **Deux séquences de numérotation par OF** : 1er choix `num_piece_OF < 1000`, déclassé
+  `1000+` — et le **premier déclassé d'un OF est 1001**, pas 1000 (438 OF vivants contre 167).
+- **La coupe** = un `piece_production` → N `stock_ecru`. Les défauts déclarés au terminal par
+  le bonnetier (`Type_Reference = 1`) sont **convertis sur place** en `Type_Reference = 2`
+  pointant le rouleau, en préservant `DATE` / `Type_Spotteur` / `IDSpotteur` / `description` :
+  c'est ce qui distingue encore, des années après, un défaut terminal d'un défaut visitage.
+  ⚠️ **L'origine se lit sur `Type_Spotteur` seul** — « description NULL = visitage » n'est vrai
+  que depuis 2023. `récuperé` est accentué → réécriture positionnelle (patron `setClientFlag`).
+- **Décrément du fil** = `Σ(poids des rouleaux) × asso_fil_of.pourcentage / 100`, **déclassés
+  compris** (43 lots ouverts sur 75 le reproduisent, 0 en ne comptant que le 1er choix).
+  C'est l'écriture la plus risquée : une mauvaise assiette fait dériver le grand livre du fil
+  en silence, et rien en aval ne le signalerait.
+- **Le worklist remplace la liste des métiers du legacy.** Le legacy interroge les pièces
+  **OF par OF**, et n'envoie jamais que l'OF en tête de file : une pièce dont l'OF a été
+  terminé entre-temps devient **invisible pour toujours** (56 pièces terminées sans rouleau
+  sur 5 mois). On scanne donc **par machine**, et les égarées reviennent en `autres_pieces`.
+  - ⚠️ **Une pièce isolée n'est offerte que 7 jours** (`ORPHAN_MAX_AGE_DAYS`, décision
+    utilisateur du 2026-08-26), constante **dure** : la dérogation dev
+    `VISITAGE_PIECE_MAX_AGE_DAYS` (`.env.development` de l'API, la base locale étant un
+    instantané de mars) n'élargit **que** les pièces de l'OF en tête de file. Rien n'est
+    supprimé en base ; `probe-visitage-trm.ts` §5 compte l'arriéré.
+- **Le bandeau « Pièce à visiter »** : `ouvert_visiteuse = 1` → toutes les pièces, **exact**
+  (18 355/18 362). Sinon une **cadence approximative** (~1 sur 3, parité 71,8 % — sept
+  variantes essayées, aucune meilleure) : le legacy est probablement indicatif, donc l'écran
+  affiche « changer » et laisse la visiteuse trancher. Le choix décide aussi lequel des deux
+  événements est écrit : `Visitage tombé métier` / `Pesage tombé métier`.
+- **Droit `saisie_visitage`** (`permission-keys-trm.ts`, catégorie Production) : il ne garde que
+  le bouton Valider et la route d'écriture — consulter le poste reste ouvert. ⚠️ **Fermé par
+  défaut : à accorder aux visiteuses en prod** (Paramètres › Utilisateurs) après le déploiement.
+- Scripts : `probe-visitage-trm.ts` (règles vs tout l'historique), `check-visitage-trm.ts`
+  (routes, en `dry_run`), `seed-visitage-historique.ts` (**dev only**, refuse de tourner hors
+  localhost — peuple la bande « Aujourd'hui sur <métier> », vide sur l'instantané local).
+
 
 ### Paramètres › Utilisateurs (`/settings/utilisateurs`) — TRM's own permission store
 
