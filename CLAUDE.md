@@ -117,6 +117,9 @@ Le tiroir Progression d'une ligne : on coche les lots de fil à tricoter dans l'
 dialogue de création avec la ligne imposée et les lots affectés aux positions de la
 composition qu'ils peuvent alimenter. Port du bouton legacy en bas à droite du même onglet.
 
+- **Le bouton est sous `edit_of`**, la clé de Production › Gestion des OF — pas
+  `edit_commandes_client`, qui garde la commande et non la production. C'est la même clé que
+  `POST /of-trm` exige, sinon le bouton ouvrirait le dialogue pour finir en 403.
 - **Le bouton n'apparaît que si CHAQUE fil de la composition a un lot coché** (décision
   utilisateur du 2026-08-26) : un OF à qui il manque un de ses fils n'est pas tricotable, et
   le dialogue s'ouvrirait avec un composant sans lot. La couverture se teste contre

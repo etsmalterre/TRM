@@ -1352,6 +1352,11 @@ function ProgressionDrawer({
   // the composition rows they can feed. Port of the legacy tab's button.
   const [selectedLots, setSelectedLots] = useState<Set<number>>(new Set())
   const lastLotIdRef = useRef<number | null>(null)
+  // Launching from here writes an OF, so it needs the SAME key the OF screen
+  // and `POST /of-trm` use — `edit_commandes_client` gates the order, not the
+  // production. Without this the button would open the dialog and dead-end on
+  // a 403 at the last click.
+  const canCreateOf = useHasPermission('edit_of')
   const [createOfOpen, setCreateOfOpen] = useState(false)
   const [createdOfId, setCreatedOfId] = useState<number | null>(null)
 
@@ -1595,7 +1600,7 @@ function ProgressionDrawer({
                 <Button variant="ghost" size="sm" className="h-7 text-[11px]" onClick={clearLots}>
                   Aucun
                 </Button>
-                {composantsManquants.length === 0 ? (
+                {!canCreateOf ? null : composantsManquants.length === 0 ? (
                   <Button size="sm" className="h-7 text-[11px]" onClick={() => setCreateOfOpen(true)}>
                     <Factory className="h-3.5 w-3.5 mr-1.5" />Créer un OF
                   </Button>
