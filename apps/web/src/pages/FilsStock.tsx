@@ -121,6 +121,18 @@ interface BilanOf {
   second_choix: number
 }
 
+/** A lot of this fil dumped into a run through the OF window's « Incorporer un
+ *  fil » — a leftover fed in so it stops sitting in stock. `fil_incorpore`
+ *  carries no percentage: the weight is declared in Kg, once, for the whole OF,
+ *  so `produit` (which weights pieces by `asso_fil_of.pourcentage`) cannot see
+ *  it. It is consumption all the same, and counting it as freinte inflated the
+ *  loss by exactly the declared weight. */
+interface BilanIncorpore {
+  of: number
+  ref_ecru: string
+  poids: number
+}
+
 interface BilanData {
   IDstock_fil: number
   lot: string | null
@@ -129,6 +141,9 @@ interface BilanData {
   observation_freinte: string | null
   ofs: BilanOf[]
   produit: number
+  incorpore: BilanIncorpore[]
+  incorpore_total: number
+  consomme: number
   freinte_kg: number
   freinte_pct: number | null
   poids_total: number
@@ -1959,8 +1974,12 @@ function ArchiverDialog({
   const validQte = !isNaN(qte) && qte >= 0
 
   // Live recomputation off the editable quantity — same formulas as the API.
+  // Consommé = tricoté + incorporé; see BilanIncorpore for why the two stay
+  // separate figures rather than one merged number.
   const produit = bilan?.produit ?? 0
-  const freinteKg = validQte ? qte - produit : null
+  const incorporeTotal = bilan?.incorpore_total ?? 0
+  const consomme = produit + incorporeTotal
+  const freinteKg = validQte ? qte - consomme : null
   const freintePct = validQte && qte > 0 && freinteKg != null ? (freinteKg / qte) * 100 : null
   const secondPct = bilan?.second_choix_pct ?? null
 
@@ -1986,8 +2005,8 @@ function ArchiverDialog({
           of white cards and the footer a zinc-200/50 strip — the app's panel
           composition rather than a bare white sheet. p-0 overrides the
           primitive's p-6; the band carries its own close button. */}
-      <DialogContent className="max-w-2xl p-0 overflow-hidden max-h-[90dvh] flex flex-col">
-        <div className="flex-shrink-0 flex items-center gap-2.5 border-b-2 border-gold bg-primary px-4 py-2.5">
+      <DialogContent className="max-w-2xl p-0 border-0 bg-transparent overflow-hidden max-h-[90dvh] flex flex-col">
+        <div className="flex-shrink-0 flex items-center gap-2.5 rounded-t-lg border-b-2 border-gold bg-primary px-4 py-2.5">
           <div className="h-8 w-8 flex-shrink-0 rounded-lg flex items-center justify-center shadow-sm bg-gold text-gold-foreground">
             <Archive className="h-[18px] w-[18px]" />
           </div>
@@ -2178,6 +2197,47 @@ function ArchiverDialog({
               )}
             </DrawerCard>
 
+            {/* Fil incorporé — shown only when there is any (33 lots out of
+                ~1.7k carry one), because it is the exception, not a fixed
+                section of the bilan. Its own card rather than a line folded
+                into the table above: the weight is DECLARED by the régleur at
+                the OF, not weighed at the visiteuse, and the archivist has to
+                see the figure to judge it before correcting Quantité initiale. */}
+            {bilan.incorpore.length > 0 && (
+              <DrawerCard icon={<Plus className="h-4 w-4 text-accent" />} title="Fil incorporé">
+                <div className="rounded-md border border-border/60 overflow-hidden">
+                  <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+                    <thead className="bg-zinc-200/60 border-b border-border/60">
+                      <tr className="text-xs uppercase tracking-wide text-muted-foreground">
+                        <th className="px-3 py-2 text-left font-semibold w-[15%]">OF</th>
+                        <th className="px-3 py-2 text-left font-semibold w-[53%]">Référence écru</th>
+                        <th className="px-3 py-2 text-right font-semibold w-[32%]">Poids</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bilan.incorpore.map((i, idx) => (
+                        <tr key={`${i.of}-${idx}`} className="border-b border-border/40">
+                          <td className="px-3 py-1.5 tabular-nums font-medium">{i.of}</td>
+                          <td className="px-3 py-1.5 truncate" title={i.ref_ecru || undefined}>{i.ref_ecru || '—'}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(i.poids, 2)} kg</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-zinc-100/80">
+                      <tr className="font-semibold">
+                        <td className="px-3 py-1.5">Somme</td>
+                        <td></td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(incorporeTotal, 2)} kg</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Poids déclaré au lancement de l’OF, compté comme consommé : la freinte en est déduite.
+                </p>
+              </DrawerCard>
+            )}
+
             {/* Observation freinte — written with the archive; gold edge while
                 editable, plain card once archived */}
             <div
@@ -2210,7 +2270,7 @@ function ArchiverDialog({
         )}
         </div>
 
-        <div className="flex-shrink-0 flex items-center gap-3 border-t border-border/60 bg-zinc-200/50 px-4 py-3">
+        <div className="flex-shrink-0 flex items-center gap-3 rounded-b-lg border-t border-border/60 bg-zinc-200/50 px-4 py-3">
           {error && (
             <div className="flex items-center gap-2 text-sm text-destructive min-w-0">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />

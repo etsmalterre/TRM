@@ -52,6 +52,9 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { UnsavedChangesDialog } from '@/components/shared/UnsavedChangesDialog'
 import { TmRollIcon } from '@/components/icons/TmRollIcon'
 import { useHasPermission } from '@/contexts/PermissionsContext'
+import { CreateOfDialog } from '@/components/of/CreateOfDialog'
+import { AddFilButton, AddIncorporeButton, nextDraftKey, type FilPair, type LotLookup } from '@/components/of/FilPickers'
+import { HorsRefBadge } from '@/components/of/HorsRefBadge'
 import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst'
 import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
 import { useElementSize } from '@/hooks/useElementSize'
@@ -97,6 +100,11 @@ interface CompositionRow {
   lot: string
   lot_stock: number
   pair_stock: number
+  /** This yarn is knitted by the run but absent from the reference's own
+   *  `composition_ecru` — a deliberate variation (usually to burn internal
+   *  stock on a run the customer won't notice). The OF froze its composition,
+   *  so the fact survives; this is what makes it visible six months later. */
+  hors_ref: boolean
 }
 
 interface IncorporeRow {
@@ -154,17 +162,6 @@ interface OfDetail {
 
 interface MachineLookup { id: number; nom: string; jauge: number; diametre: number; emplacement: string; archive: number }
 
-interface FilPair {
-  key: string
-  IDref_fil: number
-  IDcolori_fil: number
-  ref_label: string
-  coloris_label: string
-  stock: number
-  lots: number
-}
-
-interface LotLookup { id: number; lot: string; IDref_fil: number; IDcolori_fil: number; stock: number; emplacement: string }
 
 interface ObservationRow { id: number; observation: string; IDbonnetier: number; bonnetier: string; date: string | null }
 
@@ -614,6 +611,10 @@ interface DraftComp {
   coloris_label: string
   lot: string
   pourcentage: string
+  /** Carried through from the detail so the marker survives edit mode. A row
+   *  the user adds here starts `false` and gets its real value on the next
+   *  read: only the API knows the reference's composition. */
+  hors_ref: boolean
 }
 interface DraftInc {
   key: number
@@ -639,7 +640,6 @@ interface Draft {
   incorpore: DraftInc[]
 }
 
-let draftKeySeq = 1
 
 function draftFromDetail(d: OfDetail): Draft {
   return {
@@ -655,7 +655,7 @@ function draftFromDetail(d: OfDetail): Draft {
     auto_activation: d.auto_activation === 1,
     observations: d.observations,
     composition: d.composition.map((c) => ({
-      key: draftKeySeq++,
+      key: nextDraftKey(),
       IDref_fil: c.IDref_fil,
       IDcolori_fil: c.IDcolori_fil,
       IDstock_fil: c.IDstock_fil,
@@ -663,9 +663,10 @@ function draftFromDetail(d: OfDetail): Draft {
       coloris_label: c.coloris_label,
       lot: c.lot,
       pourcentage: String(c.pourcentage),
+      hors_ref: !!c.hors_ref,
     })),
     incorpore: d.incorpore.map((i) => ({
-      key: draftKeySeq++,
+      key: nextDraftKey(),
       IDstock_fil: i.IDstock_fil,
       ref_label: i.ref_label,
       coloris_label: i.coloris_label,
@@ -1536,7 +1537,7 @@ function TricoterCard({
               onAdd={(pair, lot) => set((cur) => ({
                 ...cur,
                 composition: [...cur.composition, {
-                  key: draftKeySeq++,
+                  key: nextDraftKey(),
                   IDref_fil: pair.IDref_fil,
                   IDcolori_fil: pair.IDcolori_fil,
                   IDstock_fil: lot?.id ?? 0,
@@ -1544,6 +1545,7 @@ function TricoterCard({
                   coloris_label: pair.coloris_label,
                   lot: lot?.lot ?? '',
                   pourcentage: cur.composition.length === 0 ? '100' : '',
+                  hors_ref: false,
                 }],
               }))}
             />
@@ -1557,7 +1559,17 @@ function TricoterCard({
             emptyLabel="Aucun fil"
             emptyIcon={Layers}
             columns={[
-              { key: 'fil', label: 'Fil', align: 'left', render: (r) => <span className="font-medium">{r.ref_label}</span> },
+              {
+                key: 'fil',
+                label: 'Fil',
+                align: 'left',
+                render: (r) => (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="font-medium">{r.ref_label}</span>
+                    {!!r.hors_ref && <HorsRefBadge />}
+                  </span>
+                ),
+              },
               { key: 'colori', label: 'Colori', align: 'left', render: (r) => r.coloris_label || '—' },
               { key: 'pct', label: '%', align: 'right', render: (r) => `${fmtNum(r.pourcentage, 2)} %` },
               { key: 'besoin', label: 'Besoin', align: 'right', render: (r) => `${fmtNum(quantite * r.pourcentage / 100, 2)} Kg` },
@@ -1588,16 +1600,24 @@ function CompositionEditRow({
     queryFn: () => apiFetch(`/of-trm/lookups/lots?refFil=${row.IDref_fil}&coloriFil=${row.IDcolori_fil}`),
     staleTime: 60_000,
   })
+  // The weight rides in `description` (popover rows only), not `secondary`,
+  // which would also land on the trigger and leave the closed field reading
+  // "10131 — 168,8 Kg". The field names the lot; the weight is a label right
+  // of it, like the création dialog.
   const lotOptions: PopoverSelectOption[] = useMemo(() => (lots ?? []).map((l) => ({
     id: l.id,
     primary: l.lot || `#${l.id}`,
-    secondary: `${fmtNum(l.stock, 1)} Kg`,
+    description: `${fmtNum(l.stock, 1)} Kg en stock`,
   })), [lots])
+  const chosenLot = (lots ?? []).find((l) => l.id === row.IDstock_fil) ?? null
 
   return (
     <div className="rounded-lg border border-border/60 bg-zinc-100/80 p-2.5 flex flex-wrap items-center gap-2">
       <div className="min-w-0 flex-1 basis-40">
-        <p className="text-sm font-medium truncate">{row.ref_label}</p>
+        <p className="text-sm font-medium truncate">
+          {row.ref_label}
+          {!!row.hors_ref && <HorsRefBadge className="ml-1.5 align-middle" />}
+        </p>
         <p className="text-[11px] text-muted-foreground truncate">{row.coloris_label || '—'}</p>
       </div>
       <div className="flex items-center gap-1.5">
@@ -1610,7 +1630,7 @@ function CompositionEditRow({
         />
         <span className="text-xs text-muted-foreground">%</span>
       </div>
-      <div className="w-44">
+      <div className="w-24">
         {isLoading ? (
           <div className="h-8 bg-muted animate-pulse rounded-md" />
         ) : (
@@ -1621,12 +1641,17 @@ function CompositionEditRow({
               const lot = (lots ?? []).find((l) => l.id === id)
               onChange({ ...row, IDstock_fil: id, lot: lot?.lot ?? '' })
             }}
-            emptyLabel="— sans lot —"
+            emptyLabel="Sans lot"
             size="sm"
             widthClass="w-full"
           />
         )}
       </div>
+      {chosenLot && (
+        <span className="text-[11px] text-muted-foreground whitespace-nowrap" title="Stock de ce lot">
+          stock <span className="tabular-nums font-semibold">{fmtNum(chosenLot.stock, 1)} Kg</span>
+        </span>
+      )}
       <Button
         variant="ghost" size="icon"
         className="h-7 w-7 text-destructive hover:text-destructive"
@@ -1639,65 +1664,6 @@ function CompositionEditRow({
   )
 }
 
-/** §7.1 dashed add-row affordance — opens an inline fil+lot picker. */
-function AddFilButton({
-  label, onAdd,
-}: {
-  label: string
-  onAdd: (pair: FilPair, lot: LotLookup | null) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [pairKey, setPairKey] = useState(0)
-  const { data: pairs, isLoading } = useQuery<FilPair[]>({
-    queryKey: ['of-trm-fils'],
-    queryFn: () => apiFetch('/of-trm/lookups/fils'),
-    staleTime: 5 * 60_000,
-    enabled: open,
-  })
-  const selected = (pairs ?? []).find((_, i) => i + 1 === pairKey) ?? null
-
-  if (!open) {
-    return (
-      <Button
-        variant="ghost" size="sm"
-        onClick={() => setOpen(true)}
-        className="w-full text-muted-foreground hover:text-accent hover:bg-accent/5 border border-dashed border-border/60 hover:border-accent/40"
-      >
-        <Plus className="h-3.5 w-3.5 mr-1.5" />{label}
-      </Button>
-    )
-  }
-  return (
-    <div className="rounded-lg border border-accent/25 bg-accent/[0.03] p-3 space-y-2">
-      <p className="text-xs font-semibold text-accent uppercase tracking-wide">{label}</p>
-      <SearchableCombobox
-        options={(pairs ?? []).map((p, i) => ({ ...p, _idx: i + 1 }))}
-        value={pairKey}
-        onChange={(id) => setPairKey(id)}
-        getId={(p: FilPair & { _idx: number }) => p._idx}
-        getPrimary={(p) => p.ref_label}
-        getSecondary={(p) => `${p.coloris_label || 'ecru'} · ${fmtNum(p.stock, 1)} Kg`}
-        loading={isLoading}
-        placeholder="Choisir un fil en stock…"
-      />
-      <div className="flex justify-end gap-2 pt-1">
-        <Button variant="outline" size="sm" onClick={() => { setOpen(false); setPairKey(0) }}>Annuler</Button>
-        <Button
-          size="sm"
-          disabled={!selected}
-          onClick={() => {
-            if (!selected) return
-            onAdd(selected, null)
-            setOpen(false)
-            setPairKey(0)
-          }}
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />Ajouter
-        </Button>
-      </div>
-    </div>
-  )
-}
 
 // ── Incorporer (fil_incorpore) ─────────────────────────
 
@@ -1743,7 +1709,7 @@ function IncorporerCard({
               onAdd={(lot, pair) => set((cur) => ({
                 ...cur,
                 incorpore: [...cur.incorpore, {
-                  key: draftKeySeq++,
+                  key: nextDraftKey(),
                   IDstock_fil: lot.id,
                   ref_label: pair.ref_label,
                   coloris_label: pair.coloris_label,
@@ -1809,78 +1775,6 @@ function IncorporeEditRow({
   )
 }
 
-function AddIncorporeButton({ onAdd }: { onAdd: (lot: LotLookup, pair: FilPair) => void }) {
-  const [open, setOpen] = useState(false)
-  const [pairIdx, setPairIdx] = useState(0)
-  const [lotId, setLotId] = useState(0)
-  const { data: pairs, isLoading } = useQuery<FilPair[]>({
-    queryKey: ['of-trm-fils'],
-    queryFn: () => apiFetch('/of-trm/lookups/fils'),
-    staleTime: 5 * 60_000,
-    enabled: open,
-  })
-  const selectedPair = (pairs ?? [])[pairIdx - 1] ?? null
-  const { data: lots } = useQuery<LotLookup[]>({
-    queryKey: ['of-trm-lots', selectedPair?.IDref_fil ?? 0, selectedPair?.IDcolori_fil ?? 0],
-    queryFn: () => apiFetch(`/of-trm/lookups/lots?refFil=${selectedPair!.IDref_fil}&coloriFil=${selectedPair!.IDcolori_fil}`),
-    enabled: selectedPair !== null,
-    staleTime: 60_000,
-  })
-
-  if (!open) {
-    return (
-      <Button
-        variant="ghost" size="sm"
-        onClick={() => setOpen(true)}
-        className="w-full text-muted-foreground hover:text-accent hover:bg-accent/5 border border-dashed border-border/60 hover:border-accent/40"
-      >
-        <Plus className="h-3.5 w-3.5 mr-1.5" />Ajouter un lot
-      </Button>
-    )
-  }
-  return (
-    <div className="rounded-lg border border-accent/25 bg-accent/[0.03] p-3 space-y-2">
-      <p className="text-xs font-semibold text-accent uppercase tracking-wide">Ajouter un lot</p>
-      <SearchableCombobox
-        options={(pairs ?? []).map((p, i) => ({ ...p, _idx: i + 1 }))}
-        value={pairIdx}
-        onChange={(id) => { setPairIdx(id); setLotId(0) }}
-        getId={(p: FilPair & { _idx: number }) => p._idx}
-        getPrimary={(p) => p.ref_label}
-        getSecondary={(p) => `${p.coloris_label || 'ecru'} · ${fmtNum(p.stock, 1)} Kg`}
-        loading={isLoading}
-        placeholder="Choisir un fil en stock…"
-      />
-      {selectedPair && (
-        <PopoverSelect
-          options={(lots ?? []).map((l) => ({ id: l.id, primary: l.lot || `#${l.id}`, secondary: `${fmtNum(l.stock, 1)} Kg` }))}
-          value={lotId}
-          onChange={setLotId}
-          emptyLabel="— choisir un lot —"
-          size="sm"
-          widthClass="w-full"
-        />
-      )}
-      <div className="flex justify-end gap-2 pt-1">
-        <Button variant="outline" size="sm" onClick={() => { setOpen(false); setPairIdx(0); setLotId(0) }}>Annuler</Button>
-        <Button
-          size="sm"
-          disabled={!selectedPair || lotId === 0}
-          onClick={() => {
-            const lot = (lots ?? []).find((l) => l.id === lotId)
-            if (!selectedPair || !lot) return
-            onAdd(lot, selectedPair)
-            setOpen(false)
-            setPairIdx(0)
-            setLotId(0)
-          }}
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />Ajouter
-        </Button>
-      </div>
-    </div>
-  )
-}
 
 // ── Commande liée + Réalisable ─────────────────────────
 
@@ -2316,200 +2210,3 @@ function PerformanceTab({ ofId }: { ofId: number }) {
   )
 }
 
-// ── Création (legacy FEN_Lancement_OF) ─────────────────
-
-function CreateOfDialog({
-  open, onClose, onCreated,
-}: {
-  open: boolean
-  onClose: () => void
-  onCreated: (id: number) => void
-}) {
-  const [ligneId, setLigneId] = useState(0)
-  const [machineId, setMachineId] = useState(0)
-  const [quantite, setQuantite] = useState('')
-  const [poidsPiece, setPoidsPiece] = useState('')
-  const [autoActivation, setAutoActivation] = useState(false)
-  const [lotByComponent, setLotByComponent] = useState<Record<string, number>>({})
-  const [error, setError] = useState<string | null>(null)
-
-  const { data: lignes, isLoading: lignesLoading } = useQuery<LigneLookup[]>({
-    queryKey: ['of-trm-lignes-commande'],
-    queryFn: () => apiFetch('/of-trm/lookups/lignes-commande'),
-    enabled: open,
-    staleTime: 60_000,
-  })
-  const { data: machines } = useQuery<MachineLookup[]>({
-    queryKey: ['of-trm-machines'],
-    queryFn: () => apiFetch('/of-trm/lookups/machines'),
-    enabled: open,
-    staleTime: 5 * 60_000,
-  })
-  const { data: seed, isLoading: seedLoading } = useQuery<CompositionSeed>({
-    queryKey: ['of-trm-composition-seed', ligneId],
-    queryFn: () => apiFetch(`/of-trm/lookups/composition?ligne=${ligneId}`),
-    enabled: open && ligneId > 0,
-  })
-
-  const ligne = (lignes ?? []).find((l) => l.id === ligneId) ?? null
-
-  // Reset per open; prefill quantité/poids when the line changes.
-  useEffect(() => {
-    if (!open) {
-      setLigneId(0); setMachineId(0); setQuantite(''); setPoidsPiece('')
-      setAutoActivation(false); setLotByComponent({}); setError(null)
-    }
-  }, [open])
-  useEffect(() => {
-    if (!ligne) return
-    setQuantite(ligne.restant > 0 ? String(ligne.restant) : String(ligne.quantite))
-    setPoidsPiece(ligne.poids_piece_defaut > 0 ? String(ligne.poids_piece_defaut) : '20')
-    setMachineId(0)
-    setLotByComponent({})
-  }, [ligne])
-  useEffect(() => {
-    if (!seed) return
-    const next: Record<string, number> = {}
-    for (const c of seed.components) next[`${c.IDref_fil}:${c.IDcolori_fil}`] = c.defaultLot
-    setLotByComponent(next)
-  }, [seed])
-
-  // Compatible machines first in the picker.
-  const machineOptions: PopoverSelectOption[] = useMemo(() => {
-    const compat = new Set((seed?.compatibles ?? []).map((c) => c.id))
-    return [...(machines ?? [])]
-      .sort((a, b) => (compat.has(b.id) ? 1 : 0) - (compat.has(a.id) ? 1 : 0) || a.nom.localeCompare(b.nom, 'fr'))
-      .map((m) => ({ id: m.id, primary: m.nom, secondary: compat.has(m.id) ? 'compatible' : undefined }))
-  }, [machines, seed])
-
-  const createMut = useMutation({
-    mutationFn: async () => {
-      const body = {
-        IDligne_commande_client: ligneId,
-        IDmachine: machineId,
-        quantite: parseNum(quantite),
-        poids_piece: parseNum(poidsPiece) || undefined,
-        auto_activation: autoActivation ? 1 : 0,
-        composition: (seed?.components ?? []).map((c) => ({
-          IDref_fil: c.IDref_fil,
-          IDcolori_fil: c.IDcolori_fil,
-          IDstock_fil: lotByComponent[`${c.IDref_fil}:${c.IDcolori_fil}`] ?? 0,
-          pourcentage: c.pourcentage,
-        })),
-      }
-      return apiFetch<{ id: number }>('/of-trm', { method: 'POST', body: JSON.stringify(body) })
-    },
-    onSuccess: (r) => onCreated(r.id),
-    onError: () => setError('Création refusée — vérifiez la ligne de commande et la composition.'),
-  })
-
-  const canCreate = ligneId > 0 && machineId > 0 && parseNum(quantite) > 0 && (seed?.components.length ?? 0) > 0
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="sm:max-w-lg" onClose={onClose}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Factory className="h-5 w-5 text-accent" />Nouvel ordre de fabrication
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Ligne de commande client</Label>
-            <SearchableCombobox
-              options={lignes ?? []}
-              value={ligneId}
-              onChange={setLigneId}
-              getId={(l: LigneLookup) => l.id}
-              getPrimary={(l) => `N° ${fmtNum(l.commande_numero)} · ${l.ref_label}${l.coloris_label ? ` - ${l.coloris_label}` : ''}`}
-              getSecondary={(l) => `${l.client_nom} · reste ${fmtNum(l.restant, 1)} / ${fmtNum(l.quantite, 1)} Kg`}
-              loading={lignesLoading}
-              placeholder="Choisir une ligne de commande…"
-            />
-          </div>
-
-          {ligne && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Métier</Label>
-                  <PopoverSelect
-                    options={machineOptions}
-                    value={machineId}
-                    onChange={setMachineId}
-                    emptyLabel="— choisir —"
-                    size="sm"
-                    widthClass="w-full"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Quantité (Kg)</Label>
-                    <input className={inputClass} value={quantite} onChange={(e) => setQuantite(e.target.value)} inputMode="decimal" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Poids pièce</Label>
-                    <input className={inputClass} value={poidsPiece} onChange={(e) => setPoidsPiece(e.target.value)} inputMode="decimal" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs">Composition (fils à tricoter)</Label>
-                {seedLoading ? (
-                  <div className="h-16 bg-muted animate-pulse rounded-md" />
-                ) : (seed?.components.length ?? 0) === 0 ? (
-                  <p className="text-xs text-amber-700">
-                    Aucune composition connue pour cette référence — l'OF sera créé sans fil ; ajoutez-les ensuite dans Tricoter.
-                  </p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {seed!.components.map((c) => {
-                      const key = `${c.IDref_fil}:${c.IDcolori_fil}`
-                      return (
-                        <div key={key} className="rounded-lg border border-border/60 bg-zinc-100/80 p-2 flex items-center gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm truncate">
-                              <span className="font-medium">{c.ref_label}</span>
-                              <span className="text-muted-foreground"> {c.coloris_label}</span>
-                            </p>
-                          </div>
-                          <span className="text-xs tabular-nums text-muted-foreground flex-shrink-0">{fmtNum(c.pourcentage, 1)} %</span>
-                          <div className="w-40 flex-shrink-0">
-                            <PopoverSelect
-                              options={c.lots.map((l) => ({ id: l.id, primary: l.lot || `#${l.id}`, secondary: `${fmtNum(l.stock, 1)} Kg` }))}
-                              value={lotByComponent[key] ?? 0}
-                              onChange={(id) => setLotByComponent((cur) => ({ ...cur, [key]: id }))}
-                              emptyLabel="— sans lot —"
-                              size="sm"
-                              widthClass="w-full"
-                            />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox checked={autoActivation} onCheckedChange={(v) => setAutoActivation(v === true)} />
-                Activation automatique (démarre quand l'OF précédent du métier se termine)
-              </label>
-            </>
-          )}
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={onClose}>Annuler</Button>
-            <Button size="sm" disabled={!canCreate || createMut.isPending} onClick={() => createMut.mutate()}>
-              {createMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1.5" />}
-              Créer l'OF
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}

@@ -48,6 +48,8 @@ import {
   ClipboardList,
   Factory,
   AlertTriangle,
+  Printer,
+  AtSign,
 } from 'lucide-react'
 import { TmRollIcon } from '@/components/icons/TmRollIcon'
 import { BobineIcon } from '@/components/icons/BobineIcon'
@@ -59,7 +61,11 @@ import { MasterDetailLayout } from '@/components/layout/MasterDetailLayout'
 import { cn } from '@/lib/utils'
 import { formatHfsqlDate, hfsqlDateToInput, inputDateToHfsql } from '@/lib/dates'
 import { fmtNum } from '@/lib/format'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, API_URL } from '@/lib/api'
+import { SendEmailDialog } from '@/components/email/SendEmailDialog'
+import { CreateOfDialog } from '@/components/of/CreateOfDialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { postEmail } from '@/lib/email'
 import { useHasPermission } from '@/contexts/PermissionsContext'
 
 // ── Types ──────────────────────────────────────────────
@@ -191,6 +197,9 @@ interface PiecesPayload {
 
 interface StockFilLot {
   id: number
+  /** The (fil, coloris) pair — what maps a ticked lot onto a composition row. */
+  IDref_fil: number
+  IDcolori_fil: number
   lot: string | null
   reference: string
   coloris: string
@@ -202,11 +211,27 @@ interface StockFilLot {
   pourcentage: number
 }
 
+/** One (fil, coloris) of the reference's composition — every one of them, even
+ *  those this client holds no lot of. `lots` cannot express that case, and it
+ *  is exactly the one where an OF must not be launchable. */
+interface StockFilComposant {
+  IDref_fil: number
+  IDcolori_fil: number
+  pourcentage: number
+  ref_label: string
+  coloris_label: string
+}
+
 interface StockFilPayload {
   lots: StockFilLot[]
+  composants: StockFilComposant[]
   potentiel_kg: number
   ecru_ref_label: string
   ecru_coloris_label: string
+  /** The order's client. TRM knits à façon — the client supplies the yarn, so
+   *  this tab only lists lots THIS client owns, and an empty list has to say
+   *  whose yarn is missing rather than read as a broken screen. */
+  client_nom: string
 }
 
 interface OrdreFabrication {
@@ -324,6 +349,7 @@ export function ClientsCommandes() {
   const [autoEditForId, setAutoEditForId] = useState<number | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [writeError, setWriteError] = useState<string | null>(null)
+  const [emailOpen, setEmailOpen] = useState(false)
 
   // Edit-mode header draft.
   const [editDateCommande, setEditDateCommande] = useState('')
@@ -534,6 +560,8 @@ export function ClientsCommandes() {
             onSave={() => saveHeaderMut.mutate()}
             isSaving={saveHeaderMut.isPending}
             onDelete={() => setDeleteConfirmOpen(true)}
+            onPrint={() => { if (selectedId !== null) window.open(`${API_URL}/commandes-trm/${selectedId}/pdf`, '_blank') }}
+            onEmail={() => setEmailOpen(true)}
           />
         }
         detail={
@@ -607,6 +635,22 @@ export function ClientsCommandes() {
         onCancel={() => setWriteError(null)}
         onConfirm={() => setWriteError(null)}
       />
+
+      {/* Confirmation de commande — the PDF is the attachment AND the preview
+          pane. No CGV rides along, unlike ETM's confirmation: those are ETS
+          Malterre's terms, and TRM has none of its own to attach. */}
+      {selectedId !== null && (
+        <SendEmailDialog
+          open={emailOpen}
+          onClose={() => setEmailOpen(false)}
+          contextLabel={detail?.client_nom ?? undefined}
+          queryKey={['trm-commande-email-defaults', selectedId]}
+          loadDefaults={() => apiFetch(`/commandes-trm/${selectedId}/email-defaults`)}
+          pdfUrl={`${API_URL}/commandes-trm/${selectedId}/pdf`}
+          pdfAttachmentLabel={`confirmation-commande-${detail?.numero ?? selectedId}.pdf`}
+          onSend={(p) => postEmail(`${API_URL}/commandes-trm/${selectedId}/email`, p, { includeAttachPdf: true })}
+        />
+      )}
     </>
   )
 }
@@ -769,6 +813,7 @@ function CommandeList({
 function DetailHeader({
   commande, isLoading, isEditing, canEdit,
   onStartEdit, onCancelEdit, onSave, isSaving, onDelete,
+  onPrint, onEmail,
 }: {
   commande: CommandeDetail | null
   isLoading: boolean
@@ -779,6 +824,8 @@ function DetailHeader({
   onSave: () => void
   isSaving: boolean
   onDelete: () => void
+  onPrint: () => void
+  onEmail: () => void
 }) {
   if (!commande && !isLoading) return null
   const isMirror = commande?.is_mirror === true
@@ -834,11 +881,24 @@ function DetailHeader({
                   {isSaving ? 'Enregistrement...' : 'Enregistrer'}
                 </Button>
               </>
-            ) : !isMirror && canEdit ? (
-              <Button variant="gold" size="sm" onClick={onStartEdit}>
-                <Pencil className="h-3.5 w-3.5 mr-1.5" />Modifier
-              </Button>
-            ) : null}
+            ) : (
+              <>
+                {/* Confirmation de commande — printable and sendable on every
+                    order, mirrored ones included: it reads the commande, it
+                    never writes it (see the API's PDF section). */}
+                <Button variant="outline" size="icon" className="h-9 w-9" title="Imprimer la confirmation de commande" onClick={onPrint}>
+                  <Printer className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="h-9 w-9" title="Envoyer la confirmation par email" onClick={onEmail}>
+                  <AtSign className="h-4 w-4" />
+                </Button>
+                {!isMirror && canEdit && (
+                  <Button variant="gold" size="sm" onClick={onStartEdit}>
+                    <Pencil className="h-3.5 w-3.5 mr-1.5" />Modifier
+                  </Button>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -1212,14 +1272,19 @@ type ProgressionTab = 'affectation' | 'fil' | 'of' | 'expedition'
  *  so both apps' sub-tables read identically. */
 function PanelTable<T extends { id: number }>({
   loading, rows, columns, emptyLabel, emptyIcon: EmptyIcon, onRowClick, selectedId, rowClassName,
+  selectedIds,
 }: {
   loading: boolean
   rows: T[]
   columns: { key: string; label: string; align: 'left' | 'right'; render: (r: T) => ReactNode }[]
   emptyLabel: string
   emptyIcon: ComponentType<{ className?: string }>
-  onRowClick?: (r: T) => void
+  /** The event is forwarded so callers can read `shiftKey` (mps_designer §44). */
+  onRowClick?: (r: T, e: React.MouseEvent) => void
   selectedId?: number | null
+  /** Multi-select variant: highlights every ticked row and turns off text
+   *  selection so Shift+click extends the range instead of painting it. */
+  selectedIds?: Set<number>
   rowClassName?: (r: T) => string | undefined
 }) {
   if (loading) {
@@ -1249,11 +1314,12 @@ function PanelTable<T extends { id: number }>({
           {rows.map((r) => (
             <tr
               key={r.id}
-              onClick={onRowClick ? () => onRowClick(r) : undefined}
+              onClick={onRowClick ? (e) => onRowClick(r, e) : undefined}
               className={cn(
                 'border-b border-border/40 last:border-0',
                 onRowClick ? 'cursor-pointer hover:bg-accent/10' : 'hover:bg-accent/5',
-                selectedId === r.id && 'bg-accent/10',
+                selectedIds && 'select-none',
+                (selectedId === r.id || selectedIds?.has(r.id)) && 'bg-accent/10',
                 rowClassName?.(r),
               )}
             >
@@ -1279,6 +1345,15 @@ function ProgressionDrawer({
 }) {
   const [tab, setTab] = useState<ProgressionTab>('affectation')
   const lineId = ligne.IDligne_commande_client
+  const queryClient = useQueryClient()
+
+  // Stock de fil → "Créer un OF": the user ticks the lots to knit from, and
+  // the creation dialog opens with the line imposed and those lots assigned to
+  // the composition rows they can feed. Port of the legacy tab's button.
+  const [selectedLots, setSelectedLots] = useState<Set<number>>(new Set())
+  const lastLotIdRef = useRef<number | null>(null)
+  const [createOfOpen, setCreateOfOpen] = useState(false)
+  const [createdOfId, setCreatedOfId] = useState<number | null>(null)
 
   const { data: pieces, isLoading: piecesLoading } = useQuery<PiecesPayload>({
     queryKey: ['commande-trm-pieces', commandeId, lineId],
@@ -1300,6 +1375,57 @@ function ProgressionDrawer({
     queryFn: () => apiFetch(`/commandes-trm/${commandeId}/expeditions`),
     enabled: tab === 'expedition',
   })
+
+  // §44 range selection over the rendered lot order. Plain click toggles and
+  // re-anchors; Shift+click applies the inclusive range, adding or removing
+  // depending on the clicked row's state.
+  const lotRows = stockFil?.lots ?? []
+
+  // « Créer un OF » requires a ticked lot for EVERY yarn of the composition,
+  // not just one tick: a run missing one of its yarns cannot be knitted, and
+  // the dialog would otherwise open with a component that has no lot behind it
+  // (user decision, 2026-08-26). A composant with no lot at all in this
+  // client's stock can never be covered — which is the honest answer, and the
+  // footer names it rather than leaving the button mysteriously absent.
+  const composants = stockFil?.composants ?? []
+  const composantsManquants = useMemo(() => {
+    if (composants.length === 0) return []
+    const couverts = new Set(
+      lotRows.filter((l) => selectedLots.has(l.id)).map((l) => `${l.IDref_fil}:${l.IDcolori_fil}`),
+    )
+    return composants.filter((c) => !couverts.has(`${c.IDref_fil}:${c.IDcolori_fil}`))
+  }, [composants, lotRows, selectedLots])
+  const toggleLot = useCallback((id: number, shiftKey: boolean) => {
+    const ids = lotRows.map((l) => l.id)
+    const anchor = lastLotIdRef.current
+    if (shiftKey && anchor !== null && anchor !== id) {
+      const a = ids.indexOf(anchor)
+      const b = ids.indexOf(id)
+      if (a >= 0 && b >= 0) {
+        const [lo, hi] = a < b ? [a, b] : [b, a]
+        setSelectedLots((prev) => {
+          const next = new Set(prev)
+          const deselect = prev.has(id)
+          for (let i = lo; i <= hi; i++) {
+            if (deselect) next.delete(ids[i]); else next.add(ids[i])
+          }
+          return next
+        })
+        return
+      }
+    }
+    setSelectedLots((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+    lastLotIdRef.current = id
+  }, [lotRows])
+
+  const clearLots = useCallback(() => {
+    setSelectedLots(new Set())
+    lastLotIdRef.current = null
+  }, [])
 
   const tabs: { key: ProgressionTab; label: string; icon: React.ElementType }[] = [
     { key: 'affectation', label: 'Affectation', icon: Link2 },
@@ -1405,14 +1531,35 @@ function ProgressionDrawer({
         <div className="flex-1 min-h-0 flex flex-col">
           <div className="flex-1 overflow-y-auto p-3 scrollbar-transparent">
             <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">
-              Fils en stock
+              Fils en stock{stockFil?.client_nom ? <span className="normal-case font-normal"> · {stockFil.client_nom}</span> : null}
             </h3>
             <PanelTable<StockFilLot>
               loading={filLoading}
-              rows={stockFil?.lots ?? []}
-              emptyLabel="Aucun lot de fil en stock"
+              rows={lotRows}
+              // TRM knits à façon: only this client's yarn can run this order,
+              // so "aucun lot" almost always means "aucun lot DE CE CLIENT" —
+              // the same yarn may well sit in the warehouse under another
+              // owner. Naming the client is what keeps the empty tab readable
+              // instead of looking broken.
+              emptyLabel={
+                stockFil?.client_nom
+                  ? `Aucun lot de fil de ${stockFil.client_nom} pour cette composition`
+                  : 'Aucun lot de fil en stock'
+              }
               emptyIcon={BobineIcon}
+              onRowClick={(l, e) => toggleLot(l.id, e.shiftKey)}
+              selectedIds={selectedLots}
               columns={[
+                {
+                  key: 'sel', label: '', align: 'left',
+                  render: (l) => (
+                    <Checkbox
+                      checked={selectedLots.has(l.id)}
+                      onClick={(e) => { e.stopPropagation(); toggleLot(l.id, (e as React.MouseEvent).shiftKey) }}
+                      title="Sélectionner ce lot (MAJ + clic pour une plage)"
+                    />
+                  ),
+                },
                 { key: 'lot', label: 'Lot', align: 'left', render: (l) => <span className="font-medium tabular-nums">{l.lot || '—'}</span> },
                 { key: 'ref', label: 'Référence', align: 'left', render: (l) => l.reference },
                 { key: 'col', label: 'Coloris', align: 'left', render: (l) => l.coloris || '—' },
@@ -1425,7 +1572,7 @@ function ProgressionDrawer({
               ]}
             />
           </div>
-          <div className="flex-shrink-0 px-3 py-2 border-t bg-zinc-200/50 flex items-center gap-2 text-[11px] text-muted-foreground">
+          <div className="flex-shrink-0 px-3 py-2 border-t bg-zinc-200/50 flex items-center gap-3 text-[11px] text-muted-foreground">
             <span>
               Potentiel de{' '}
               <span className="font-semibold text-foreground tabular-nums">{fmtNum(stockFil?.potentiel_kg ?? 0, 0)} Kgs</span>
@@ -1433,6 +1580,32 @@ function ProgressionDrawer({
                 <> de {stockFil.ecru_ref_label}{stockFil.ecru_coloris_label ? ` - ${stockFil.ecru_coloris_label}` : ''}</>
               ) : null}
             </span>
+            {/* The legacy's bottom-right "Créer OF" — it only appears once lots
+                are ticked, which is what tells the user the tick meant
+                something. Cleared selection = no button. It also waits for the
+                composition to be COVERED: with one yarn of two ticked the OF
+                is not knittable, so the footer says which yarn is still
+                missing instead of offering a button that would open a broken
+                dialog. */}
+            {selectedLots.size > 0 && (
+              <div className="ml-auto flex items-center gap-2 min-w-0">
+                <span className="tabular-nums">
+                  {selectedLots.size} lot{selectedLots.size > 1 ? 's' : ''} sélectionné{selectedLots.size > 1 ? 's' : ''}
+                </span>
+                <Button variant="ghost" size="sm" className="h-7 text-[11px]" onClick={clearLots}>
+                  Aucun
+                </Button>
+                {composantsManquants.length === 0 ? (
+                  <Button size="sm" className="h-7 text-[11px]" onClick={() => setCreateOfOpen(true)}>
+                    <Factory className="h-3.5 w-3.5 mr-1.5" />Créer un OF
+                  </Button>
+                ) : (
+                  <span className="truncate text-amber-700" title={composantsManquants.map((c) => `${c.ref_label}${c.coloris_label ? ` ${c.coloris_label}` : ''} (${fmtNum(c.pourcentage)} %)`).join(' · ')}>
+                    Il manque un lot pour {composantsManquants.map((c) => c.ref_label).join(', ')}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1495,6 +1668,33 @@ function ProgressionDrawer({
       {tab === 'expedition' && (
         <ExpeditionTab loading={expLoading} expeditions={expeditions?.expeditions ?? []} />
       )}
+
+      <CreateOfDialog
+        open={createOfOpen}
+        onClose={() => setCreateOfOpen(false)}
+        presetLigneId={lineId}
+        presetLotIds={Array.from(selectedLots)}
+        onCreated={(id) => {
+          setCreateOfOpen(false)
+          clearLots()
+          setCreatedOfId(id)
+          // The new OF changes this line's coverage and shows up in its tab.
+          queryClient.invalidateQueries({ queryKey: ['commande-trm-ordres'] })
+          queryClient.invalidateQueries({ queryKey: ['commande-trm', commandeId] })
+          queryClient.invalidateQueries({ queryKey: ['commandes-trm'] })
+          setTab('of')
+        }}
+      />
+
+      <ConfirmDialog
+        open={createdOfId !== null}
+        variant="default"
+        title="Ordre de fabrication créé"
+        description={`L'OF n° ${createdOfId ?? ''} a été créé en attente, en fin de file du métier. Activez-le depuis Production › Gestion des OF.`}
+        confirmLabel="Fermer"
+        onCancel={() => setCreatedOfId(null)}
+        onConfirm={() => setCreatedOfId(null)}
+      />
     </div>
   )
 }
@@ -1735,39 +1935,71 @@ function LineFormDialog({
                 onChange={(e) => setForm((f) => ({ ...f, prix: e.target.value }))}
                 className={inputClass}
               />
-              {priceHint?.priceable && (
-                <button
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, prix: String(priceHint.prix) }))}
-                  className="text-[11px] text-accent hover:underline"
-                  title="Cliquer pour appliquer ce tarif"
-                >
-                  Tarif suggéré : {fmtNum(priceHint.prix, 2)} €
-                </button>
-              )}
             </div>
           </div>
-          {/* Where the suggested price comes from. Always shown, never colour-
-              coded: neither assiette is an alarm, and the legacy window
-              proposes the bare base (ref_ecru.prix) — so without this line the
-              two apps quote different numbers with no explanation. */}
+          {/* Where the suggested price comes from. A small read-only panel and
+              not a sentence: it is a two-assiette comparison plus a rate, and
+              the prose version ("Prix de revient 2,02 € + 30 % de marge — base
+              fiche 2,01 €, plus basse") made the reader work out which number
+              won. Rows are never colour-coded as an alarm — neither assiette is
+              a problem; the gold dot only marks the one carrying the margin.
+              The legacy window proposes the bare base (ref_ecru.prix), so
+              without this the two apps quote different numbers with no
+              explanation. */}
           {!!priceHint?.priceable && (
-            <p className="text-[11px] text-muted-foreground">
-              {priceHint.retenu === 'base' ? (
-                <>
-                  Base fiche <span className="tabular-nums">{fmtNum(priceHint.base, 2)} €</span> + 30 % de marge
-                  {' — '}
-                  {priceHint.cout > 0
-                    ? <>prix de revient <span className="tabular-nums">{fmtNum(priceHint.cout, 2)} €</span>, plus bas</>
-                    : <>prix de revient indisponible (aucune donnée machine)</>}
-                </>
-              ) : (
-                <>
-                  Prix de revient <span className="tabular-nums">{fmtNum(priceHint.cout, 2)} €</span> + 30 % de marge
-                  {' — '}base fiche <span className="tabular-nums">{fmtNum(priceHint.base, 2)} €</span>, plus basse
-                </>
-              )}
-            </p>
+            <div className="rounded-md border border-border/60 bg-zinc-100/70 px-3 py-2.5 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Tarif suggéré
+                  </p>
+                  <p className="text-base font-semibold leading-tight tabular-nums">
+                    {fmtNum(priceHint.prix, 2)}{' '}
+                    <span className="text-xs font-normal text-muted-foreground">€/Kg</span>
+                  </p>
+                </div>
+                <Button
+                  type="button" variant="outline" size="sm"
+                  className="h-7 shrink-0 px-2.5 text-[11px]"
+                  onClick={() => setForm((f) => ({ ...f, prix: String(priceHint.prix) }))}
+                >
+                  Appliquer
+                </Button>
+              </div>
+              <div className="space-y-1 border-t border-border/60 pt-2">
+                {([
+                  // Wording is the user's (2026-08-26). The `key`s stay as they
+                  // are — they match the API's `retenu` discriminant.
+                  { key: 'revient', label: 'Prix calculé', value: priceHint.cout },
+                  { key: 'base', label: 'Prix de base', value: priceHint.base },
+                ] as const).map((row) => {
+                  const retenu = priceHint.retenu === row.key
+                  return (
+                    <div
+                      key={row.key}
+                      className={cn(
+                        'flex items-center gap-2 text-[11px]',
+                        retenu ? 'text-foreground' : 'text-muted-foreground',
+                      )}
+                    >
+                      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', retenu ? 'bg-gold' : 'bg-border')} />
+                      <span className={cn('flex-1 truncate', retenu && 'font-medium')}>{row.label}</span>
+                      {row.value > 0
+                        ? <span className="tabular-nums">{fmtNum(row.value, 2)} €</span>
+                        : <span className="italic">aucune donnée machine</span>}
+                      {retenu && (
+                        <span className="rounded bg-gold/20 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-gold-foreground">
+                          Retenu
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-[10px] leading-snug text-muted-foreground">
+                La plus haute des deux assiettes porte les 30 % de marge.
+              </p>
+            </div>
           )}
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Date de livraison</label>
@@ -1779,10 +2011,13 @@ function LineFormDialog({
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Commentaire</label>
+            {/* bg-white, not the design-system default bg-background: on a white
+                dialog that warm off-white reads grey next to the other fields,
+                which all use inputClass (bg-white). */}
             <textarea
               rows={2} value={form.commentaire}
               onChange={(e) => setForm((f) => ({ ...f, commentaire: e.target.value }))}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+              className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-y"
             />
           </div>
         </div>

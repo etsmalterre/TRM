@@ -90,6 +90,200 @@ All other screens are `PagePlaceholder`s for now. Legacy references for each dom
   - ⚠️ **Le legacy, lui, ne calcule rien sur cet écran** : l'événement « sélection d'une ligne » de `COMBO_Reference` dans `FEN_Gestion_d_une_référence_de_commande_client` lit `ref_ecru.prix` et s'arrête là (récupéré du cache de compilation WinDev). D'où un tarif proposé visiblement plus bas côté legacy — c'est attendu, pas une régression. Les lignes natives historiques sont de toute façon négociées : sur 491 lignes type 1 avec prix, 315 sont *sous* le prix catalogue et 158 au-dessus.
 - `ligne_commande_client.prix` est un **réel 4 octets** : un prix enregistré à 2,88 se relit 2.880000114440918. Tout champ de saisie qui le réaffiche doit arrondir le bruit flottant (4 décimales suffisent — les lignes miroir ETM portent de vrais prix à 4 décimales).
 - Autres sources du tiroir Progression : `composition_ecru` → `stock_fil` (onglet Stock de fil ; le « potentiel » est borné par le composant le plus rare du mélange) et `ref_ecru_machine` → `machine.nom` (le « Compatible sur : 1H, 3F… » du pied de page).
+- ⚠️ **L'onglet Stock de fil est scopé au CLIENT DE LA COMMANDE.** TRM tricote **à façon** :
+  le fil est fourni par le client, donc une commande ne peut tourner que sur les lots que
+  *son* client possède. `stock_fil` n'est pas partitionné par société — `IDclient` est la
+  seule chose qui dit à qui appartient un lot. Les trois filtres sont ceux de la requête
+  legacy, verbatim : `IDclient = <client de la commande>`, `IDMagasin = 1` (le magasin
+  TRM), `terminé = 0`. Sans eux, l'onglet proposait le lot 10131 (Ets Malterre) sur la
+  commande 2799 (Bonneterie Gautier) — et l'inverse aussi, des lots Gant Maille ou La
+  Gentle Factory sur des commandes Ets Malterre (remonté par l'utilisateur le 2026-08-26,
+  garde `ETM/apps/api/src/scripts/check-stock-fil-commande-trm.ts` : 5 lots retirés sur
+  4 des 15 lignes ouvertes, tous appartenant à un autre client).
+  - ⚠️ **`stock > 0` n'équivaut PAS à `terminé = 0`** : 3 lots sont archivés avec du stock
+    dessus. Les deux filtres sont nécessaires.
+  - `terminé` est accentué, donc lecture **scindée par plateforme** (`archivedLotIds`) :
+    Windows accepte l'identifiant dans un WHERE mais rend zéro ligne sur `SELECT *` (colonnes
+    memo-binaires), le pont Linux est l'exact inverse. Aucune forme ne marche des deux côtés.
+  - Conséquence assumée : sur ces 4 lignes l'onglet est désormais **vide**, et c'est la
+    vérité (le client n'a pas fourni de fil pour cette référence). L'état vide nomme donc le
+    client — « Aucun lot de fil de Bonneterie Gautier pour cette composition » — sinon il se
+    lit comme un écran cassé, le fil étant bien au magasin mais sous un autre propriétaire.
+
+#### « Créer un OF » depuis l'onglet Stock de fil
+
+Le tiroir Progression d'une ligne : on coche les lots de fil à tricoter dans l'onglet
+**Stock de fil**, un bouton **Créer un OF** apparaît dans le pied de l'onglet, et il ouvre le
+dialogue de création avec la ligne imposée et les lots affectés aux positions de la
+composition qu'ils peuvent alimenter. Port du bouton legacy en bas à droite du même onglet.
+
+- **Le bouton n'apparaît que si CHAQUE fil de la composition a un lot coché** (décision
+  utilisateur du 2026-08-26) : un OF à qui il manque un de ses fils n'est pas tricotable, et
+  le dialogue s'ouvrirait avec un composant sans lot. La couverture se teste contre
+  `composants` — la liste complète des couples (fil, coloris) de la référence renvoyée par
+  `/stock-fil`, **y compris ceux dont ce client n'a aucun lot**, cas que `lots` ne sait pas
+  exprimer. Tant que ce n'est pas couvert, le pied de l'onglet nomme le fil manquant au lieu
+  de laisser le bouton mystérieusement absent.
+- **Le dialogue est partagé, pas dupliqué** : `apps/web/src/components/of/CreateOfDialog.tsx`,
+  ouvert aussi par Production › Gestion des OF (« Nouveau », où l'utilisateur choisit la
+  ligne). La différence entre les deux entrées est une prop (`presetLigneId` +
+  `presetLotIds`), jamais une copie. Il a été sorti de `ProductionOf.tsx` pour ça et porte
+  toute la fenêtre legacy : visitage, nettoyage, finir le fil, ouvert au large, maille
+  d'ouverture, sonneter, consigne, **Ajouter un fil** et **Incorporer un fil**. Les deux
+  sélecteurs de fil vivent dans `components/of/FilPickers.tsx`, partagés avec la fiche OF.
+- **Écran scindé, comme la fenêtre legacy** (`mps_designer` §18.C, `max-w-5xl`) : à gauche
+  **l'OF lui-même** — ses réglages (métier, poids/pièce, quantité, nb pièces, visitage,
+  nettoyage, options) et ses fils ; à droite **ce que le régleur lit puis écrit** — les
+  « Commentaires historiques » de la référence, la consigne au bonnetier et l'activation
+  automatique. La consigne est juste sous les commentaires : elle s'écrit le plus souvent
+  en réponse à eux. Sous `lg`, les colonnes s'empilent et le corps défile d'un bloc.
+- **Trois niveaux de fond, tous chauds** (décision utilisateur du 2026-08-26, après deux
+  essais refusés — corps zinc « nulle part dans les logiciels Malterre », puis blanc pur
+  « agressif ») : feuille de gauche `bg-secondary` (38 12% 96 %), panneau de droite
+  `bg-sand` (38 20% 93 %, un cran plus foncé pour qu'il se lise comme un panneau), et
+  **blanc pur par-dessus** — les cartes, les champs, les tableaux. Les bandeaux d'en-tête
+  et de total des tableaux sont en `bg-sand`, jamais en zinc : le gris froid est le langage
+  des tiroirs et des panneaux d'écran, il vire boueux sur une feuille chaude.
+- **Chaque section est une `Card` `card-premium` de l'app**, pas une mise en page maison :
+  même surface blanche arrondie, même ombre bleutée, même en-tête (icône dorée 4×4 +
+  `CardTitle text-sm font-semibold`), mêmes libellés de champ que le `KV` de la fiche OF.
+  Une version intermédiaire regroupait par « titre + filet », ce qui organisait la même
+  chose correctement mais dans un vocabulaire que l'app n'emploie nulle part — c'est ce qui
+  faisait que le dialogue ne ressemblait pas au reste. Les deux déclencheurs « Ajouter »
+  vivent dans l'en-tête de leur carte (`action`), à la manière de la barre d'outils legacy.
+- **Le sélecteur de métier ne liste que les métiers compatibles** (`ref_ecru_machine`, la
+  même source que le « Compatible sur : … » du tiroir). Sur les 11 références des commandes
+  ouvertes, aucune n'est sans fiche machine et 8 en listent 1 à 3 — contre 37 métiers au
+  parc : proposer le parc entier revenait à faire chercher 3 lignes dans 37. Repli s'il
+  n'existe aucune fiche pour la référence : le parc complet, et le champ dit pourquoi
+  (sinon l'OF serait tout simplement impossible à créer).
+- **La composition est un brouillon éditable, pas le seed relu.** % modifiable, ligne
+  retirable, fil ajoutable hors fiche écru — et c'est nécessaire : `POST /of-trm` exige au
+  moins une ligne, donc une référence sans `composition_ecru` ne serait **pas lançable** si
+  le dialogue ne servait que le seed. Le total des pourcentages passe en ambre dès qu'il
+  s'écarte de 100 (le legacy affiche le même total).
+- **Les fils incorporés se posent à la création** : `POST /of-trm` accepte un tableau
+  `incorpore` (mêmes lignes que `PUT /:id/incorpore`), sinon il aurait fallu créer l'OF
+  puis le modifier dans la foulée.
+- **« Observations Régleur » = `obs_ref_ecru`, PAS `message_of`.** Ce sont les consignes
+  durables portées par la **référence écru** (« Attention risque de trous », « Faire
+  impérativement des pièces de 21 kgs minimum »), écrites dans l'onglet « Obs OF » de la
+  fiche référence du legacy, et **portées par métier et par coloris** — `IDmachine = 0` vaut
+  « Toutes », `IDcolori_ecru = 0` vaut « Tout coloris ». Le lancement est le moment où elles
+  comptent : le régleur voit l'historique de cette référence sur ce métier et le répercute
+  aux bonnetiers. Endpoint `GET /of-trm/lookups/observations?ligne=&machine=`, dont le
+  prédicat est celui du legacy récupéré **verbatim dans le cache de compilation WinDev**
+  (`FEN_Gestion_d_un_OF` / `FI_Gestion_OF`) :
+  `IDref_ecru = :ref AND (IDmachine = :machine OR IDmachine = 0) AND (IDcolori_ecru = :colori
+  OR IDcolori_ecru = 0) ORDER BY date DESC`. Tant qu'aucun métier n'est choisi, `machine = 0`
+  ne fait donc remonter que les observations « Toutes » — le dialogue le dit au lieu de
+  laisser croire qu'il n'y en a aucune. `date` est un mot réservé (aliasé au SELECT), et les
+  libellés sont résolus à plat, jamais par le JOIN du legacy (le pont Linux mange les accents
+  en jointure).
+  - ⚠️ **La saisie n'est pas portée** : ces observations ne se créent aujourd'hui que dans
+    l'app legacy (Tombé Métier › Références, onglet « Obs OF »). L'écran Références de TRM
+    est le fichier **partagé** d'ETM (`@etm/pages/TombeMetierReferences`), donc y ajouter
+    l'onglet le ferait apparaître aussi côté ETM, où `obs_ref_ecru` n'a pas de sens — à
+    trancher avant de l'implémenter.
+- ⚠️ **« Ajouter un fil » sert à DEUX choses**, confirmées par le régleur puis dans le
+  registre (2026-08-26) — la seconde avait été ratée au premier port :
+  1. **Tricoter un fil absent de la fiche écru**, comme variation volontaire de la
+     référence (souvent pour écouler du stock interne sans impact client). 271 OF sur
+     3 175 en portent un ; par année 37 % en 2020, puis 2,8 / 4,7 / 1,6 / 5,5 % de 2023 à
+     2026 — le pic ancien est surtout de la dérive de composition, le résidu récent est du
+     vrai écart. La traçabilité que ça demande **existe déjà** : l'OF fige sa propre
+     `asso_fil_of` et ne relit jamais `composition_ecru`.
+  2. **Servir une même part du mélange depuis PLUSIEURS lots.** Sur 105 groupes
+     (OF, fil, coloris) à 2 lignes ou plus dans `asso_fil_of`, **83 sont sur le même lot**
+     (vraies positions d'alimentation dupliquées, cf. la règle ci-dessous) et **22 sur des
+     lots différents**, dont 18 portent plus de lignes que la référence n'en déclare, le
+     pourcentage étant **éclaté** et non dupliqué : réf 97 % → OF 70 + 27 ; réf 95 % →
+     47,5 + 47,5 ; réf 31 % → 15,5 + 15,5. Le dialogue le permet déjà (ajouter deux fois
+     le même fil, un lot par ligne).
+  Ne pas confondre le cas 2 avec la règle des positions d'alimentation plus bas : les deux
+  produisent des lignes en double sur le même couple (fil, coloris), et c'est **le lot**
+  qui les distingue.
+- **Les deux usages ont chacun leur affordance** (livrés le 2026-08-26, à la demande de
+  l'utilisateur après retour du régleur) :
+  - **« compléter » sur une ligne courte** (icône `Split`, le vocabulaire de « Diviser »
+    de Fils › Stock) : quand le lot choisi ne couvre pas le besoin, le bouton éclate la
+    ligne en deux — la première garde ce que le lot couvre (`stock / quantité × 100`,
+    arrondi au centième), la seconde reçoit le reste sans lot, et **hérite de la liste de
+    lots de sa source** pour que son sélecteur soit prêt sans second appel. La sœur
+    s'insère juste sous sa source, pas en fin de tableau. N'existe **que dans le dialogue
+    de création** : la ligne d'édition de la fiche OF ne connaît pas la quantité, donc ni
+    le besoin ni « court ».
+  - ⚠️ **Le test de manque est par LOT, jamais par ligne.** Deux lignes peuvent
+    légitimement tirer du même lot (positions d'alimentation : 83 des 105 groupes en
+    double du registre), donc « ce lot est-il pris deux fois ? » est la mauvaise question ;
+    la bonne est « les lignes lui demandent-elles ensemble plus qu'il ne contient ? ».
+    Tant que le test était par ligne, un « compléter » repointé sur son propre lot source
+    s'affichait au vert alors que les deux moitiés tiraient sur le même stock — 54,2 +
+    45,8 Kg pris à un lot de 54,2 Kg (remonté par l'utilisateur le 2026-08-26). D'où
+    `besoinParLot` / `besoinAilleursParRow` dans le dialogue : une ligne dont le lot est
+    partagé affiche **« reste X Kg »** (ce qu'il lui laisse) au lieu de « stock X Kg », et
+    le sélecteur annonce « déjà N Kg pris par une autre ligne » sur les lots concernés.
+    **Ne jamais “corriger” ça en interdisant le doublon** : ça casserait les positions
+    d'alimentation.
+  - Reste ouvert : la même surconsommation reste possible depuis l'onglet composition de
+    la **fiche OF** (`CompositionEditRow`), qui n'a aujourd'hui aucun contrôle de stock —
+    lacune préexistante, pas une régression.
+  - **badge « hors réf »** (`components/of/HorsRefBadge.tsx`, partagé par le dialogue et
+    la fiche) sur tout fil absent de `composition_ecru`. Sans lui l'information n'existait
+    que dans la base : l'OF fige bien sa composition, mais rien ne la montrait, ni au
+    lancement ni six mois après — or c'est précisément l'intérêt de tracer une variation.
+    Côté fiche c'est l'API qui décide (`composition[].hors_ref` dans `GET /of-trm/:id`,
+    porté dans le brouillon d'édition) ; côté dialogue c'est calculé sur le seed, parce
+    qu'une ligne peut devenir hors réf et le redevenir pendant la saisie.
+    - **Neutre (`bg-accent/10`), jamais ambre** : une variation est une décision normale,
+      pas une anomalie — et sur les OF d'avant 2022 le marqueur attrape surtout de la
+      dérive de composition (la fiche de la référence a changé depuis), donc l'ambre
+      crierait au loup sur l'historique.
+    - **`false`, jamais `null`, quand la référence ne déclare aucune composition** :
+      « tout est hors réf » serait du bruit, pas de l'information.
+    - Garde : `ETM/apps/api/src/scripts/check-hors-ref-trm.ts` — 316 lignes marquées sur
+      5 064, 271 OF sur 3 175, et par année 37 % en 2020 → 1,6 / 5,5 % en 2025-2026.
+- **Le champ Lot ne porte que le numéro de lot ; son poids est un libellé à droite du
+  champ** (« stock 168,8 Kg », en rouge + ⚠ « · manque » quand le lot ne couvre pas le
+  besoin). Décision utilisateur du 2026-08-26 : on choisit un lot, et *ensuite* on lit son
+  poids comme une information. Concrètement le poids voyage en **`description`** de
+  `PopoverSelect` (rendu dans les lignes du popover seulement), **jamais en `secondary`**
+  — `secondary` est aussi concaténé sur le bouton, ce qui donnait un champ fermé lisant
+  « 10131 — 168,8 Kg ». Même règle dans les trois endroits qui listent des lots :
+  `CreateOfDialog`, `FilPickers.LotPickerPanel` et le `CompositionEditRow` de la fiche OF.
+- Sélection multi-lignes = **`mps_designer` §44** (ancre en `useRef`, MAJ+clic pour une
+  plage, `select-none` sur la ligne). `PanelTable` a gagné `selectedIds` + l'événement
+  transmis à `onRowClick` pour ça.
+- L'OF naît **en attente, en fin de file du métier** (c'est `POST /of-trm` qui le décide,
+  comme le flux legacy) : la création ne démarre rien, l'activation reste un acte distinct.
+- Un lot coché qui n'entre dans aucune position de la composition est **annoncé et ignoré**
+  (le cas normal : la sélection couvre deux écrus différents).
+
+#### Confirmation de commande (Imprimer · Envoyer par email)
+
+Les deux boutons de l'entête de la fiche, sur `GET /commandes-trm/:id/pdf`,
+`GET /:id/email-defaults`, `POST /:id/email`.
+
+- **Le PDF n'est PAS un template TRM** : les deux sociétés confirment une commande de la
+  même façon, donc c'est `ETM/apps/api/src/lib/pdf/CommandeClientPdf.tsx` — celui de l'écran
+  ETM — rendu avec **`company: companyTrm`** (obligation légale : TRM signe, donc pied de
+  page au SIRET / TVA / capital de Tricotage Malterre). Le composant a gagné pour ça deux
+  champs optionnels, `company` et la `designation` par ligne : améliorer ce fichier dans ETM,
+  ne jamais en forker une copie TRM. Précédent identique : `FacturePdf.data.company`.
+- **Deux écarts assumés avec le legacy** (ce sont les choix du document ETM) : le tableau
+  porte une colonne montant et un bloc de totaux (HT · remise · TVA · TTC) que le legacy
+  n'imprime pas, et la désignation écru s'affiche sous la référence à la place de la ligne
+  « V/ref ». La TVA vient de la fiche client (`loadClientTvaRate`) — un client export à 0 %
+  doit être confirmé à 0 %.
+- **Disponible aussi sur les commandes miroir.** La règle du miroir porte sur les
+  *écritures* : lire ce qu'ETM a commandé à TRM et le lui confirmer, c'est exactement ce
+  qu'est une confirmation de sous-traitance, et le legacy les imprime aussi. Les trois
+  routes 404 en revanche sur un id de société 1 — `commande_client` est un seul espace d'ids,
+  donc c'est le seul garde-fou de partition (script `check-commande-trm-pdf.ts`).
+- **Pas de CGV en pièce jointe**, contrairement à la confirmation ETM : ce sont les
+  conditions d'ETS Malterre, TRM n'a pas les siennes. L'envoi journalise dans `envoi_email`
+  avec `IDtype_doc = 7` (`notes` vide, comme la confirmation ETM) — aucun écran TRM ne le
+  relit aujourd'hui, c'est de la traçabilité.
 
 ### Clients › Expéditions data model — why it is NOT a shared screen
 
@@ -230,6 +424,19 @@ event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell
 - **Flagged approximations** (legacy formulas unrecoverable): per-piece % =
   trs_10kg_chute/nb_chutes × poids/10 ÷ vitesse (fallback orf → machine → ref_ecru);
   faux-arrêts filter = 120 s. Imprimer (ETAT_OF work sheet) is still the §18 placeholder.
+- ⚠️ **Une composition est une liste de POSITIONS D'ALIMENTATION, pas de fils.** Un mélange
+  peut alimenter deux fois le même couple (fil, coloris) : la réf. 119/ecru, c'est
+  71 % + 14,5 % + 14,5 % de deux fils seulement, et il faut les trois lignes pour faire les
+  100 % que la fenêtre legacy contrôle. `composition_ecru` porte donc des lignes en double
+  (70 groupes sur 2 859), et les OF que le legacy écrit portent bien la ligne `asso_fil_of`
+  dupliquée (vérifié 4/4 sur la réf. 189). **Ne jamais regrouper par couple** : le seed
+  `/of-trm/lookups/composition` le faisait (`SELECT DISTINCT` + dédup) jusqu'au 2026-08-26
+  et déclarait 85,5 % du fil sur tout OF créé pour une telle référence — erreur silencieuse
+  et définitive, puisque le mouvement de stock à la déclaration de pièce comme la freinte à
+  l'archivage sont `poids × pourcentage/100`. Les lignes sont donc clés par
+  `IDcomposition_ecru`, et le pourcentage n'est sommé par couple que là où c'est la bonne
+  question (colonne % et « Potentiel » de l'onglet Stock de fil : ce lot couvre 29 % du
+  mélange, pas 14,5). Garde : `check-of-creation-trm.ts`.
 
 ### Atelier › Maintenance (`/atelier/maintenance`) — port de `FI_Maintenance.wdw`
 
@@ -480,14 +687,40 @@ shared screen: TRM adds the lifecycle actions ETM's screen doesn't have.
   trust the runtime `SELECT *` key order, NOT the `.xdd` analysis listing (they differ;
   this bit once).
 - **Archivage** (`GET /fil-trm/:id/bilan` + `POST /fil-trm/:id/archiver`): freinte =
-  `stock_initial − Σ(OF pieces poids × pourcentage/100)` — the **pourcentage weighting is
-  load-bearing** on blended yarns (verified vs legacy annotations). Defects verdict =
+  `stock_initial − Σ(OF pieces poids × pourcentage/100) − Σ fil_incorpore.poids` — the
+  **pourcentage weighting is load-bearing** on blended yarns (verified vs legacy
+  annotations). Defects verdict =
   `defaut_qualite` `Type_Reference = 2` over the OFs' `stock_ecru` ids (« Aucun Défaut »
   smiley when empty). Writes corrected `stock_initial`, `observation_freinte`,
   `stock = 0`, `terminé = 1`. Thresholds (user-confirmed): freinte green ≤ 10 %, red
   above or negative; second choix green 0 / amber ≤ 5 % / red. PDFs: Dymo 89×36
   étiquette (`StockFilLabelPdf`) + A4 rapport de freinte (`RapportFreintePdf`,
   **`issuer: companyTrm`**).
+- ⚠️ **Le fil incorporé est de la consommation, pas de la freinte** (décision utilisateur
+  du 2026-08-26, après vérification auprès du régleur). « Incorporer un fil » verse un
+  reliquat de lot dans un OF pour s'en débarrasser ; le poids est déclaré en Kg sur l'OF
+  (`fil_incorpore`), **jamais en pourcentage**, donc `Σ(pièces × pourcentage/100)` ne peut
+  pas le voir. Tant qu'il n'était pas déduit, la freinte était gonflée du poids exact :
+  sur ~10 des 32 lots concernés, la freinte calculée **était** le poids incorporé au kilo
+  près (lot 9479 : 50,5 pour 50 ; lot 10065 : 20,6 pour 20). Correction vérifiée par
+  `ETM/apps/api/src/scripts/check-freinte-incorpore-trm.ts` : |freinte| médiane 4,58 % →
+  1,46 %, 27 lots rapprochés de zéro, 5 éloignés.
+  - **Affiché comme sa propre ligne, jamais fondu dans `produit`** : le poids est
+    *déclaré* par le régleur, pas pesé à la visiteuse — les consignes disent souvent
+    « incorporer le lot X **si possible** » — et une poignée de lots ne réconcilient pas
+    (le lot 10106 déclare 8 Kg incorporés sur un lot de 8 Kg dont 6,6 Kg déjà tricotés).
+    L'archiviste doit voir le chiffre pour le juger, et il peut toujours corriger
+    Quantité initiale, qui est là pour ça. La carte « Fil incorporé » et le tableau du
+    PDF ne s'affichent que s'il y en a (33 lots sur ~1 700).
+  - `fil_incorpore` n'a que **quatre colonnes** (`IDfil_incorpore`, `IDordre_fabrication`,
+    `IDstock_fil`, `poids`) : ni date, ni lien vers une pièce, ni pourcentage. **Le
+    *moment* de la consommation n'est donc enregistré nulle part** — il vit dans la
+    consigne au bonnetier, et les trois cas coexistent : réparti (« incorporer l'ancien
+    lot 1 sur 2 », « en bordure »), en fin d'OF (« solder le lot 10373 à la fin de la
+    prod »), au début (« solder le guipé 9847 avant de prendre le 10187 »). Décision du
+    2026-08-26 : **on laisse ça en consigne**, pas de colonne en plus.
+  - Dossier complet (34 incorporations, 32 lots, qui incorpore quoi et quand) :
+    `ETM/apps/api/src/scripts/probe-fil-incorpore-trm{,2,3,4}.ts`, en lecture seule.
 - **`controlé` is a dead pre-2023 flag** (1 065 rows, always with `terminé=1`, unrelated
   to the 2-row `controle_titrage`) — never write it, never render it editable.
 - **Windows driver footgun (this feature's discovery)**: any SELECT naming a
