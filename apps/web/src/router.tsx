@@ -72,6 +72,7 @@ import { TombeMetierStock } from '@/pages/TombeMetierStock'
 // Malterre. Own screen (port of FEN_Gestion_des_OF.wdw), own endpoints
 // (ETM/apps/api/src/routes/of-trm.ts, mounted at /api/of-trm).
 import { ProductionOf } from '@/pages/ProductionOf'
+import { QualiteRetourClient } from '@/pages/QualiteRetourClient'
 const ProductionVisitagePage = createPlaceholder('Visitage', 'Visitage des pièces produites', Eye)
 // Prime — real screen (port of the legacy FI_Prime window). TRM-only: reads
 // TRM knitted production (stock_ecru via OF) through `/prime-trm` on the ETM API.
@@ -91,7 +92,6 @@ import { AtelierPlanning } from '@/pages/AtelierPlanning'
 
 // Qualité
 const QualiteDefautsPage = createPlaceholder('Défauts récents', 'Défauts détectés sur les dernières heures de production', AlertTriangle)
-const QualiteRetourClientPage = createPlaceholder('Retour client', 'Retours et réclamations clients', Undo2)
 const QualiteAnalysePage = createPlaceholder('Analyse', 'Analyse qualité', BarChart3)
 
 // Rapports
@@ -153,9 +153,9 @@ export const router = createBrowserRouter([
       { path: 'atelier/planning', element: <AtelierPlanning /> },
 
       // Qualité
-      { path: 'qualite', element: <Navigate to="/qualite/defauts-recents" replace /> },
+      { path: 'qualite', element: <Navigate to="/qualite/retour-client" replace /> },
       { path: 'qualite/defauts-recents', element: <QualiteDefautsPage /> },
-      { path: 'qualite/retour-client', element: <QualiteRetourClientPage /> },
+      { path: 'qualite/retour-client', element: <QualiteRetourClient /> },
       { path: 'qualite/analyse', element: <QualiteAnalysePage /> },
 
       // Rapports

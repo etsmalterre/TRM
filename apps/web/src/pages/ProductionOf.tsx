@@ -31,9 +31,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Activity, AlertCircle, Award, Bell, Brush, CheckCircle2, ChevronDown, ChevronUp, Circle,
-  Clock, Eye, Factory, Flag, Info, Layers, Loader2, MessageSquare, Pause, Pencil, Play, Plus,
-  Printer, RefreshCw, Save, Scale, Search, Trash2, X,
+  Activity, AlertCircle, Award, Bell, CheckCircle2, ChevronDown, ChevronUp,
+  Clock, Eye, Factory, Info, Layers, Loader2, MessageSquare, Pencil, Plus,
+  Printer, RefreshCw, Save, Search, Trash2, X,
 } from 'lucide-react'
 import { MasterDetailLayout } from '@/components/layout/MasterDetailLayout'
 import { Badge } from '@/components/ui/badge'
@@ -42,7 +42,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Avatar } from '@/components/ui/avatar'
+import {
+  BonnetierAvatar,
+  EventTimeline,
+  fmtEventDateTime as fmtDateTime,
+} from '@/components/shared/PieceEvents'
 import { PopoverSelect, SearchableCombobox, type PopoverSelectOption } from '@/components/ui/popover-select'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { UnsavedChangesDialog } from '@/components/shared/UnsavedChangesDialog'
@@ -275,16 +279,6 @@ const ETAT_META: Record<OfEtat, {
   termine: { label: 'Terminé', icon: CheckCircle2, solid: 'bg-success border-success', cardBorder: 'border-l-border' },
 }
 
-/** Datetime rendering for event timelines / saisies — HFSQL DATETIME or the
- *  8-char date, to `31/07/2026 08:16`. */
-function fmtDateTime(raw: string | null): string {
-  if (!raw) return '—'
-  if (/^\d{8}$/.test(raw)) return formatHfsqlDate(raw)
-  const d = new Date(raw.replace(' ', 'T'))
-  if (isNaN(d.getTime())) return raw
-  return `${d.toLocaleDateString('fr-FR')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
 function parseNum(v: string): number {
   const x = parseFloat(v.replace(',', '.'))
   return Number.isFinite(x) ? x : 0
@@ -348,67 +342,6 @@ function PanelTable<T extends { id: number }>({
           ))}
         </tbody>
       </table>
-    </div>
-  )
-}
-
-// ── Bonnetier avatar (photo blob with initials fallback) ──
-
-function BonnetierAvatar({ id, name, className }: { id: number; name: string; className?: string }) {
-  const initials = name
-    ? name.split(/\s+/).filter(Boolean).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
-    : 'B'
-  return (
-    <Avatar
-      className={cn('h-8 w-8 border border-border/60', className)}
-      src={id > 0 ? `${API_URL}/of-trm/bonnetiers/${id}/photo` : undefined}
-      alt={name || 'Bureau'}
-      fallback={initials}
-    />
-  )
-}
-
-// ── Event timeline (Production / Visitage tabs) ────────
-
-const EVENT_ICONS: Record<string, ComponentType<{ className?: string }>> = {
-  'Début du tricotage': Play,
-  'Fin du tricotage': Flag,
-  'Fin de tricotage': Flag, // legacy spelling
-  'Nettoyage': Brush,
-  'Visitage tombé métier': Eye,
-  'Visitage Tombé de métier': Eye, // legacy spelling
-  'Pesage tombé métier': Scale,
-  'Interruption OF': Pause,
-  'Reprise OF': Play,
-}
-
-function EventTimeline({ events, loading }: { events: PieceEvent[] | undefined; loading: boolean }) {
-  if (loading) {
-    return <div className="space-y-2">{[1, 2].map((i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}</div>
-  }
-  if (!events || events.length === 0) {
-    return <p className="text-sm text-muted-foreground italic text-center py-3">Aucun évènement</p>
-  }
-  return (
-    <div className="space-y-1.5">
-      {events.map((e) => {
-        const Icon = EVENT_ICONS[e.evenement] ?? Circle
-        return (
-          <div key={e.id} className="p-2 rounded-lg border bg-card shadow-sm flex items-center gap-2.5">
-            <BonnetierAvatar id={e.IDbonnetier} name={e.bonnetier} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium truncate">{e.bonnetier || 'Bureau'}</p>
-                <p className="text-[10px] text-muted-foreground tabular-nums flex-shrink-0">{fmtDateTime(e.date)}</p>
-              </div>
-              <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
-                <Icon className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate">{e.evenement}{e.observation ? ` — ${e.observation}` : ''}</span>
-              </p>
-            </div>
-          </div>
-        )
-      })}
     </div>
   )
 }
