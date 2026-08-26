@@ -1631,7 +1631,11 @@ function LineFormDialog({
       IDreference: line.IDreference,
       IDcolori: line.IDcolori,
       quantite: line.quantite ? String(line.quantite) : '',
-      prix: line.prix ? String(line.prix) : '',
+      // `prix` is a 4-byte real in HFSQL, so a price saved as 2,88 reads back
+      // 2.880000114440918 and the field showed all 16 digits. Round the float
+      // noise away at 4 decimals — enough to keep a genuine 4-decimal price
+      // (the ETM-mirrored lines carry them) while collapsing the artefact.
+      prix: line.prix ? String(Math.round(line.prix * 1e4) / 1e4) : '',
       date_livraison: hfsqlDateToInput(line.date_livraison),
       commentaire: line.commentaire ?? '',
     } : emptyLineForm)
@@ -1648,11 +1652,16 @@ function LineFormDialog({
     enabled: open && form.IDreference > 0,
   })
 
-  // Suggested price — max(PrixDeRevientTRM, ref_ecru.prix), the same floor the
-  // ETM bridge applies when it creates a knit order. Advisory only: the field
-  // stays editable and is never overwritten once the user has typed a price.
+  // Suggested price — max(prix de revient, ref_ecru.prix) / 0.7: the base is a
+  // floor on the *cost*, so the higher of the two assiettes carries TRM's 30 %
+  // margin. NOT the rule the ETM bridge uses for its mirrored lines (there the
+  // base is a floor on the price and wins flat) — see the endpoint's comment.
+  // Advisory only: the field stays editable and is never overwritten once the
+  // user has typed a price.
   const qteNum = Number(form.quantite) || 0
-  const { data: priceHint } = useQuery<{ priceable: boolean; prix: number; cout: number }>({
+  const { data: priceHint } = useQuery<{
+    priceable: boolean; prix: number; cout: number; base: number; retenu: 'revient' | 'base'
+  }>({
     queryKey: ['trm-line-price', form.IDreference, qteNum],
     queryFn: () => apiFetch(`/commandes-trm/lookups/line-price?ref=${form.IDreference}&quantite=${qteNum}`),
     enabled: open && form.IDreference > 0 && qteNum > 0,
@@ -1731,13 +1740,35 @@ function LineFormDialog({
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, prix: String(priceHint.prix) }))}
                   className="text-[11px] text-accent hover:underline"
-                  title={`Prix de revient TRM : ${fmtNum(priceHint.cout, 2)} €/kg`}
+                  title="Cliquer pour appliquer ce tarif"
                 >
                   Tarif suggéré : {fmtNum(priceHint.prix, 2)} €
                 </button>
               )}
             </div>
           </div>
+          {/* Where the suggested price comes from. Always shown, never colour-
+              coded: neither assiette is an alarm, and the legacy window
+              proposes the bare base (ref_ecru.prix) — so without this line the
+              two apps quote different numbers with no explanation. */}
+          {!!priceHint?.priceable && (
+            <p className="text-[11px] text-muted-foreground">
+              {priceHint.retenu === 'base' ? (
+                <>
+                  Base fiche <span className="tabular-nums">{fmtNum(priceHint.base, 2)} €</span> + 30 % de marge
+                  {' — '}
+                  {priceHint.cout > 0
+                    ? <>prix de revient <span className="tabular-nums">{fmtNum(priceHint.cout, 2)} €</span>, plus bas</>
+                    : <>prix de revient indisponible (aucune donnée machine)</>}
+                </>
+              ) : (
+                <>
+                  Prix de revient <span className="tabular-nums">{fmtNum(priceHint.cout, 2)} €</span> + 30 % de marge
+                  {' — '}base fiche <span className="tabular-nums">{fmtNum(priceHint.base, 2)} €</span>, plus basse
+                </>
+              )}
+            </p>
+          )}
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Date de livraison</label>
             <input
