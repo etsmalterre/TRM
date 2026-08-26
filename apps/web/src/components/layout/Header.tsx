@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useLocation, NavLink } from 'react-router-dom'
-import { Menu, Maximize2, Minimize2, LogOut, MessageSquarePlus } from 'lucide-react'
+import { Menu, Maximize2, Minimize2, LogOut, MessageSquarePlus, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getActiveMenu } from '@/config/navigation'
 import { cn } from '@/lib/utils'
+import { updateServiceWorkerAndWait } from '@/lib/sw-refresh'
 import { useUser, canSwitchUser } from '@/contexts/UserContext'
 import { useHeaderActionsSlot } from '@/contexts/HeaderActionsContext'
 import { useSubmenuFilter } from '@/hooks/useSubmenuFilter'
@@ -25,6 +26,23 @@ export function Header({ onMenuClick }: HeaderProps) {
   const allowSwitch = canSwitchUser(user)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
+
+  // Force-refresh the app: ask the service worker to fetch the latest build and
+  // WAIT until that new worker has taken over before reloading — the SW answers
+  // navigations from its own precache, so reloading while the old worker is
+  // still active just re-serves the old build (that was the "click twice to get
+  // the new version" bug). See lib/sw-refresh.ts. Users on the PWA can pick up a
+  // deploy without closing the app.
+  const [refreshing, setRefreshing] = useState(false)
+  const refreshApp = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await updateServiceWorkerAndWait()
+    } catch {
+      // SW update failure must not block the reload.
+    }
+    window.location.reload()
+  }, [])
   const headerActionsSlot = useHeaderActionsSlot()
   const filterSubmenus = useSubmenuFilter()
 
@@ -253,6 +271,23 @@ export function Header({ onMenuClick }: HeaderProps) {
                   Changer d'utilisateur
                 </button>
               )}
+              <button
+                onClick={() => void refreshApp()}
+                disabled={refreshing}
+                className={cn(
+                  'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-accent/10 hover:text-accent transition-colors disabled:opacity-60',
+                  // Carry the separator when no "Changer d'utilisateur" precedes us.
+                  !allowSwitch && 'mt-3 border-t border-border/60 pt-3'
+                )}
+              >
+                <RefreshCw className={cn('h-3 w-3', refreshing && 'animate-spin')} />
+                Actualiser l'application
+              </button>
+              <div className="mt-2 pt-2 border-t border-border/60 px-2">
+                <p className="text-[10px] text-muted-foreground text-center">
+                  Version {__APP_VERSION__}
+                </p>
+              </div>
             </div>
           )}
         </div>

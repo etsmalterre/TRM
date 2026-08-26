@@ -5,6 +5,16 @@
 Invoke with `/trm_deploy` **from the TRM main checkout** to deploy the TRM webapp
 to production (`http://trm.malterre`).
 
+**Optional version argument — `/trm_deploy v0.0.2`.** A version means "release this
+version", so **before** building: set `version` in the **root** `package.json` (the single
+source of truth — see CLAUDE.md §Versioning), commit it as `chore(release): X.Y.Z`, and
+push. The web build bakes it in as `__APP_VERSION__` and the header profile menu shows it,
+so bumping *after* the build ships the old number. Deploy the pushed commit, not the
+pre-bump one. With no argument, deploy `origin/master` as-is and change no version.
+Do NOT touch the per-package `apps/*/package.json` versions; they are displayed nowhere.
+**TRM's version is its own** — it started at 0.0.1 on 2026-08-26 and has no relation to
+ETM's number; never "align" them.
+
 ## Scope — web only. NEVER deploy the API from here.
 
 **TRM is a frontend-only repo.** Production `trm.malterre` proxies `/api/` to the

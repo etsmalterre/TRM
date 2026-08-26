@@ -2,6 +2,15 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
+import { readFileSync } from 'fs'
+
+// App version single source of truth: the monorepo root package.json.
+// Injected as __APP_VERSION__ and shown in the header profile menu.
+// Mirrors ETM (see CLAUDE.md §Versioning) — TRM has no vitest.config.ts, so
+// this `define` covers the test run too.
+const rootPkg = JSON.parse(
+  readFileSync(path.resolve(__dirname, '../../package.json'), 'utf-8')
+)
 
 // Screens shared verbatim with ETM are imported straight from the sister
 // repo (single source of truth — editing the file updates both apps). The
@@ -14,6 +23,7 @@ import path from 'path'
 // screen is being changed there and hasn't landed on ETM master yet. Pair it
 // with `tsconfig.local.json` for `tsc`. Never commit a value: the default is
 // what production builds from. See CLAUDE.md § Shared screens.
+
 const DEFAULT_ETM_SRC = '../../../ETM/apps/web/src'
 
 export default defineConfig(({ mode }) => {
@@ -23,6 +33,7 @@ export default defineConfig(({ mode }) => {
 
   return {
   define: {
+    __APP_VERSION__: JSON.stringify(rootPkg.version),
     // react-draggable (inside react-grid-layout) gates its debug logging on
     // process.env.DRAGGABLE_DEBUG — Vite only substitutes NODE_ENV in deps, so
     // without this define the browser throws "process is not defined" the

@@ -1012,6 +1012,29 @@ Key invariants (full detail in the skill):
 - HFSQL booleans are `0`/`1` — always `!!value &&` in JSX to avoid rendering `0`.
 - **`<Badge className="badge-warning">` renders navy, not amber.** The `.badge-*` helpers live in `@layer components` while the Badge's own `bg-primary` is a plain utility, and utilities beat components — the helper silently loses. For a coloured badge, pass `variant="outline"` plus explicit utilities (`bg-amber-500/15 text-amber-800 border-amber-500/30`). Applies to ETM's copy of `badge.tsx` too.
 
+## Versioning
+
+Mirrors ETM exactly (`ETM/CLAUDE.md` §Versioning) — same mechanism, **separate version
+numbers**: the two apps ship independently, so TRM started its own count at **0.0.1** on
+2026-08-26 (ETM was at 0.2.4). Do not try to keep them in step.
+
+- **Single source of truth**: `version` in the **root** `package.json`. The web build
+  injects it as `__APP_VERSION__` (`define` in `apps/web/vite.config.ts`, declared in
+  `apps/web/src/vite-env.d.ts`) and the header profile menu displays it under the
+  « Actualiser l'application » button.
+- Unlike ETM there is **no `vitest.config.ts`** here — vitest reads `vite.config.ts`, so
+  the one `define` covers the test run too. If a vitest config is ever added, the define
+  must be duplicated into it or every test touching the Header fails on an undefined global.
+- The per-package `apps/*/package.json` versions are displayed **nowhere** — leave them
+  alone, don't keep them in sync.
+- To release: bump the root version, commit `chore(release): X.Y.Z`, then `/trm_deploy`.
+  The skill takes an optional version argument (`/trm_deploy v0.0.2`) that does this for you.
+- **« Actualiser l'application »** (`lib/sw-refresh.ts`, a verbatim mirror of ETM's — improve
+  it in ETM and re-copy) waits for the new service worker to *take over* before reloading.
+  A plain `registration.update()` + reload races the install and re-serves the old build —
+  that was ETM's « click twice to get the new version » bug. This matters more here than in
+  ETM: the bonnetiers' shop-floor devices run the installed PWA and rarely get closed.
+
 ## Conventions
 
 - **Code**: English. **UI**: French. **Comments**: English.
