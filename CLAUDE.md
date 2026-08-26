@@ -496,6 +496,10 @@ Everything société-dependent, *including which permission store answers*, live
   Finance screen, landed 2026-08-25). Neither key is the other's parent — holding one does
   not imply the other, and **removing `dashboard_charges` from that list would silently
   blank this card** for anyone granted only the widget.
+- ⚠️ **Pas de BFR possible ici non plus, et le constat vaut pour les deux partitions** :
+  `compte_compta` ne contient **aucun compte sous 600000**, ni pour la société 1 ni pour la
+  société 2 — ce que dépose l'expert-comptable est un compte de résultat, pas un bilan.
+  Détail, preuves et sorties possibles dans `ETM/CLAUDE.md` § « BFR / bilan — hors de portée ».
 - **Verified against société 2 before shipping** (probe
   `ETM/apps/api/src/scripts/probe-finance-trm.ts`, re-run it after an `/etm_deploy`):
   the compte-level sums reproduce `upload_compta`'s `frais_fixe` / `frais_variable`
@@ -508,11 +512,24 @@ Everything société-dependent, *including which permission store answers*, live
   variables) and the marge brute runs at ~90 % of CA, because TRM knits **à façon** — the
   client supplies the fil, so there is almost no variable purchase. EBE 54 429 € on a CA of
   111 625 € at 2026-03-23.
-- ⚠️ **The Charges pills compare a partial year against a *full* N-1** early in an
-  exercise ("19 %" in March). That is the legacy rule — amount for a year = the last
-  upload *falling in that calendar year* — and ETM's report reads the same way. Do not
-  "fix" it on one side only: the two apps would then quote different figures for the same
-  compte.
+- ⚠️ **The Charges card compares a partial year against a *full* N-1, and that is the
+  POINT since 2026-08-26** — it no longer shows the raw ratio as its verdict. Amount for a
+  year = the last upload *falling in that calendar year* (the legacy rule, which ETM's
+  report reads the same way), so a « 23 % » in March is a partial-vs-full figure and means
+  nothing on its own. The card therefore subtracts the **share of the year elapsed at the
+  arrêté date** and shows the écart in points: a gauge whose fill is the consumed share of
+  the N-1 envelope and whose navy tick is the repère. Charges *fixes* carry an alert ladder
+  (±3 pts « au rythme », +10 amber, beyond red), charges *variables* carry none — more
+  variable charge means TRM knitted more. Full rationale in ETM's `CLAUDE.md` § Charges
+  widget and in the file header; the two apps must keep the same reading.
+- **Trois autres réglages du 2026-08-26, communs aux deux applications** (faits dans ETM et
+  re-copiés) : « Chiffre d'affaires » ouvre sur **Même période** au lieu d'Année complète ;
+  « Évolution du CA » donne à l'**année en cours** le style 0 (bleu accent, plein, trait
+  épais, dessiné au-dessus) au lieu de ce que la liste croissante laissait — et remplace sa
+  **légende** par une infobulle au survol, classée par CA, les pastilles d'année restant la
+  clé des couleurs ; « Analyse financière » ne porte plus la mention « Variation de stock
+  estimée à … et intégrée » sous ses tuiles (le calcul, lui, est intact — et de toute façon
+  côté TRM il n'a jamais existé : l'estimation est ETM-seulement, `scope.societe === 1`).
 
 ### Widget « Poids des pièces » — port of `FI_Mauvais_Compteur.wdw` + `FEN_Graphe_Compteur.wdw`
 
