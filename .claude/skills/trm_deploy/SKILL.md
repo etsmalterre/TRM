@@ -135,11 +135,17 @@ Test with `hostname` first; if the identity file is missing at one path, try the
 
 2. **Verify the built bundle BEFORE upload — negative AND positive checks:**
    ```bash
-   B=$(ls apps/web/dist/assets/index-*.js)
-   grep -oc 'localhost:8080'        "$B"   # must be 0  (Footgun B — TRM's dev fallback)
-   grep -oc 'Program Files/Git/api' "$B"   # must be 0  (Footgun A)
-   grep -oE '="/api"'               "$B" | head -1   # MUST match — API base is literally /api
+   cd apps/web/dist/assets
+   grep -l 'localhost:8080'        index-*.js   # must print NOTHING (Footgun B — dev fallback)
+   grep -l 'Program Files/Git/api' index-*.js   # must print NOTHING (Footgun A)
+   grep -l '="/api"'               index-*.js   # MUST print the main chunk
+   grep -ohE 'Version ","[0-9.]+'  index-*.js   # the injected __APP_VERSION__
    ```
+   ⚠️ **Glob every chunk, never a single `$B`.** The build emits more than one
+   `index-*.js` (a small ~14 KB chunk beside the ~1.2 MB main one), so the old
+   `B=$(ls ...)` form expanded to two paths and every grep died with
+   `No such file or directory` — which reads like a clean '0' pass if you only
+   check the exit code. Only the main chunk carries `="/api"`; that is expected.
    If the positive `="/api"` assertion doesn't match, do NOT deploy.
 
 3. **Upload** (tar for speed; adjust ssh/scp invocation per the SSH Access block):
