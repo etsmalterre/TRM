@@ -201,7 +201,7 @@ export const mainNavigation: MainMenuItem[] = [
     icon: Factory,
     href: '/production',
     submenus: [
-      { title: 'Gestion des OF', href: '/production/of' },
+      { title: 'Ordres de fabrication', href: '/production/of' },
       { title: 'Visitage', href: '/production/visitage' },
       { title: 'Prime', href: '/production/prime' },
       { title: 'TRS', href: '/production/trs' },
@@ -214,7 +214,6 @@ export const mainNavigation: MainMenuItem[] = [
     href: '/atelier',
     submenus: [
       { title: 'Maintenance', href: '/atelier/maintenance' },
-      { title: 'Productivité', href: '/atelier/productivite' },
       { title: 'Bonnetier', href: '/atelier/bonnetier' },
       { title: 'Planning', href: '/atelier/planning' },
     ],
@@ -286,14 +285,13 @@ export const routeTitles: Record<string, string> = {
   '/tombe-metier/stock': 'Stock',
   // Production
   '/production': 'Production',
-  '/production/of': 'Gestion des OF',
+  '/production/of': 'Ordres de fabrication',
   '/production/visitage': 'Visitage',
   '/production/prime': 'Prime',
   '/production/trs': 'TRS',
   // Atelier
   '/atelier': 'Atelier',
   '/atelier/maintenance': 'Maintenance',
-  '/atelier/productivite': 'Productivité',
   '/atelier/bonnetier': 'Bonnetier',
   '/atelier/planning': 'Planning',
   // Qualité

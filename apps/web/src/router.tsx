@@ -11,8 +11,6 @@ import {
   ClipboardList,
   Eye,
   Gauge,
-  Wrench,
-  TrendingUp,
   HardHat,
   AlertTriangle,
   Undo2,
@@ -81,8 +79,12 @@ import { ProductionPrime } from '@/pages/ProductionPrime'
 const ProductionTrsPage = createPlaceholder('TRS', 'Taux de rendement synthétique', Gauge)
 
 // Atelier
-const AtelierMaintenancePage = createPlaceholder('Maintenance', 'Maintenance des métiers : rouloir, garniture, nettoyages', Wrench)
-const AtelierProductivitePage = createPlaceholder('Productivité', 'Productivité de l\'atelier', TrendingUp)
+// Maintenance — real screen (port of the legacy FI_Maintenance.wdw). TRM-only
+// by nature: `machine` / `operation_maintenance` have no IDsociete column, the
+// knitting machines ARE Tricotage Malterre. API: /api/maintenance-trm.
+// (Productivité was removed from the Atelier menu on 2026-08-26 — it had never
+// been more than a placeholder.)
+import { AtelierMaintenance } from '@/pages/AtelierMaintenance'
 const AtelierBonnetierPage = createPlaceholder('Bonnetier', 'Suivi bonnetier', HardHat)
 // Planning — real screen
 import { AtelierPlanning } from '@/pages/AtelierPlanning'
@@ -146,8 +148,7 @@ export const router = createBrowserRouter([
 
       // Atelier
       { path: 'atelier', element: <Navigate to="/atelier/maintenance" replace /> },
-      { path: 'atelier/maintenance', element: <AtelierMaintenancePage /> },
-      { path: 'atelier/productivite', element: <AtelierProductivitePage /> },
+      { path: 'atelier/maintenance', element: <AtelierMaintenance /> },
       { path: 'atelier/bonnetier', element: <AtelierBonnetierPage /> },
       { path: 'atelier/planning', element: <AtelierPlanning /> },
 
