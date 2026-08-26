@@ -117,11 +117,24 @@ function collectTargets() {
 
   // Prefer a fully-literal path (a real endpoint that will answer 200/401);
   // shortest wins, as that is typically the collection endpoint.
+  //
+  // `alts` carries every OTHER known path for the root, used only to RESCUE a
+  // 404 — never to condemn one. The chosen path can be method-mismatched: we
+  // probe with GET, and a POST-only endpoint answers 404 on GET exactly like an
+  // unmounted router. That is not hypothetical — on 2026-08-26 the gate picked
+  // `/visitage-trm/valider` (POST-only; its GET siblings all carry `${...}` and
+  // so rank as truncated) and reported a fully-deployed router as missing,
+  // blocking a deploy. A false positive is corrosive: it teaches you to argue
+  // with the gate, which is exactly what the gate exists to prevent.
   const targets = []
   for (const [root, { candidates, files }] of byRoot) {
     const literal = candidates.filter((c) => !c.truncated).sort((a, b) => a.path.length - b.path.length)
     const chosen = (literal[0] ?? candidates.sort((a, b) => b.path.length - a.path.length)[0]).path
-    targets.push({ root, path: chosen, files: [...files] })
+    // Distinct, literal-first, chosen removed — probed only if `chosen` 404s.
+    const alts = [...new Set(
+      [...literal.map((c) => c.path), ...candidates.map((c) => c.path)],
+    )].filter((x) => x !== chosen).slice(0, 4)
+    targets.push({ root, path: chosen, alts, files: [...files] })
   }
   targets.sort((a, b) => a.root.localeCompare(b.root))
   return { targets, blindSpots }
@@ -168,7 +181,7 @@ console.log(`Probing ${targets.length} mount root(s) against ${BASE}\n`)
 const missing = []
 const unreachable = []
 
-for (const { root, path, files } of targets) {
+for (const { root, path, alts, files } of targets) {
   let status
   try {
     status = await probe(`${BASE}${path}`)
@@ -178,8 +191,28 @@ for (const { root, path, files } of targets) {
     continue
   }
   if (status === 404) {
-    missing.push({ root, path, files })
-    console.log(`  ✗  ${path} — 404 NOT ON PROD`)
+    // Rescue pass: any non-404 sibling proves the router IS mounted, so the
+    // 404 was a method mismatch (GET on a POST-only route), not a missing
+    // deploy. Unreachable siblings are ignored — the primary probe already
+    // reached the host, so this can only ever turn red into green.
+    let rescuedBy = null
+    for (const alt of alts) {
+      let altStatus
+      try {
+        altStatus = await probe(`${BASE}${alt}`)
+      } catch {
+        continue
+      }
+      if (altStatus !== 404) { rescuedBy = { alt, altStatus }; break }
+    }
+    if (rescuedBy) {
+      console.log(
+        `  ✓  ${root} — mounted (${path} 404s on GET; ${rescuedBy.alt} → ${rescuedBy.altStatus})`,
+      )
+    } else {
+      missing.push({ root, path, files })
+      console.log(`  ✗  ${path} — 404 NOT ON PROD`)
+    }
   } else if (verbose) {
     console.log(`  ✓  ${path} — ${status}`)
   }
