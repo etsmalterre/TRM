@@ -19,8 +19,8 @@ ETM's number; never "align" them.
 
 **TRM is a frontend-only repo.** Production `trm.malterre` proxies `/api/` to the
 **shared ETM API** (`10.10.2.163:8081`), which is deployed by the **ETM** workflow
-(`/etm_deploy` in `C:\dev\etsmalterre\ETM`). Steps 1–4 of §Deploy Steps build and upload
-the TRM web bundle and nothing else — never hand-roll an API deploy out of them.
+(`/etm_deploy` in `C:\dev\etsmalterre\ETM`). §Deploy Steps below builds and uploads the
+TRM web bundle and nothing else — never hand-roll an API deploy out of it.
 
 ⚠️ **That is a constraint on *mechanism*, not on *agency*. `/trm_deploy` is a request to
 get TRM live, and you own the whole chain — including the ETM half.** If a gate below shows
@@ -137,8 +137,10 @@ Test with `hostname` first; if the identity file is missing at one path, try the
    ```bash
    cd /c/dev/etsmalterre/TRM && node scripts/check-api-routes.mjs
    ```
-   Exit 1 → stop and read §Scope's coordination rule. Deploying past a red gate ships
-   screens whose backend is not on the server. Use `--verbose` to see every probe, and
+   Exit 1 → do **not** build; go deploy the API yourself per §Scope (run `/etm_deploy` in
+   the ETM checkout), then come back to this step. This gate is the weaker of the two —
+   run the step-2 SHA diff and step 4's owed-script check too. Deploying past a red gate
+   ships screens whose backend is not on the server. Use `--verbose` to see every probe, and
    `--base <url>` to point at another API (e.g. `https://mpsng.malterre/api` to test the
    API directly rather than through TRM's nginx).
 
