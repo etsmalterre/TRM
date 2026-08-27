@@ -2027,7 +2027,7 @@ function OfSidebar({
           })}
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-transparent">
-          {tab === 'observations' && <ObservationsTab detail={detail} canEdit={canEdit} />}
+          {tab === 'observations' && <ObservationsTab detail={detail} canEdit={canEdit} isEditing={isEditing} />}
           {tab === 'production' && <ProductionTab ofId={detail.id} />}
           {tab === 'visitage' && <VisitageTab ofId={detail.id} />}
           {tab === 'qualite' && <QualiteTab ofId={detail.id} />}
@@ -2065,20 +2065,40 @@ function OfSidebar({
 // do I need to know before touching this run », and a 6th tab icon would crowd
 // the bar for a thread that is often empty.
 
-function ObservationsTab({ detail, canEdit }: { detail: OfDetail; canEdit: boolean }) {
+function ObservationsTab({
+  detail,
+  canEdit,
+  isEditing,
+}: { detail: OfDetail; canEdit: boolean; isEditing: boolean }) {
+  // Writing needs the `edit_of` key AND the fiche's edit mode — the §8/§9
+  // standard ("Add button, bottom of tab, edit mode only"), which both blocks
+  // now follow with the same ghost trigger. The bureau used to be able to post
+  // an observation without entering edit mode; that delta is retired (user
+  // decision, 2026-08-27) — two différently-shaped add controls sitting one
+  // above the other read as two unrelated features.
+  const canWrite = canEdit && isEditing
+  const [obsCount, setObsCount] = useState<number | null>(null)
   return (
     <>
-      <SectionLabel icon={ClipboardList} title="Observations régleur" />
+      {/* « Commentaires historiques » is the name CreateOfDialog already gives
+          this block, count aside included — same object, same label, so the
+          régleur meets it twice and recognises it. */}
+      <SectionLabel
+        icon={MessageSquare}
+        title="Commentaires historiques"
+        aside={obsCount ? `${obsCount} observation${obsCount > 1 ? 's' : ''}` : null}
+      />
       <OfObservationsRegleur
         ofId={detail.id}
         refId={detail.IDref_ecru}
         refLabel={detail.ref_label}
         machineId={detail.IDmachine}
         coloriId={detail.IDcolori_ecru}
-        canEdit={canEdit}
+        canEdit={canWrite}
+        onCount={setObsCount}
       />
-      <SectionLabel icon={MessageSquare} title="Messages de l'atelier" className="pt-3" />
-      <MessagesAtelier ofId={detail.id} canEdit={canEdit} />
+      <SectionLabel icon={Factory} title="Messages de l'atelier" className="pt-3" />
+      <MessagesAtelier ofId={detail.id} canEdit={canWrite} />
     </>
   )
 }
@@ -2086,19 +2106,24 @@ function ObservationsTab({ detail, canEdit }: { detail: OfDetail; canEdit: boole
 function SectionLabel({
   icon: Icon,
   title,
+  aside,
   className,
-}: { icon: typeof MessageSquare; title: string; className?: string }) {
+}: { icon: typeof MessageSquare; title: string; aside?: string | null; className?: string }) {
   return (
-    <p className={cn('text-xs font-semibold text-muted-foreground flex items-center gap-1.5', className)}>
-      <Icon className="h-3.5 w-3.5 text-accent" />
-      {title}
-    </p>
+    <div className={cn('flex items-center justify-between gap-2', className)}>
+      <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+        <Icon className="h-3.5 w-3.5 text-accent" />
+        {title}
+      </p>
+      {!!aside && <span className="text-[11px] text-muted-foreground flex-shrink-0">{aside}</span>}
+    </div>
   )
 }
 
 function MessagesAtelier({ ofId, canEdit }: { ofId: number; canEdit: boolean }) {
   const queryClient = useQueryClient()
   const [text, setText] = useState('')
+  const [composing, setComposing] = useState(false)
   const { data, isLoading } = useQuery<ObservationRow[]>({
     queryKey: ['of-trm-observations', ofId],
     queryFn: () => apiFetch(`/of-trm/${ofId}/observations`),
@@ -2110,9 +2135,13 @@ function MessagesAtelier({ ofId, canEdit }: { ofId: number; canEdit: boolean }) 
     }),
     onSuccess: () => {
       setText('')
+      setComposing(false)
       queryClient.invalidateQueries({ queryKey: ['of-trm-observations', ofId] })
     },
   })
+  // Leaving edit mode drops a half-written message rather than leaving an
+  // orphan composer behind the next time the tab opens.
+  useEffect(() => { if (!canEdit) { setComposing(false); setText('') } }, [canEdit])
 
   return (
     <>
@@ -2137,28 +2166,50 @@ function MessagesAtelier({ ofId, canEdit }: { ofId: number; canEdit: boolean }) 
           <p className="text-sm text-muted-foreground whitespace-pre-line mt-1.5">{o.observation}</p>
         </div>
       ))}
-      {/* The workshop writes from its terminals; the bureau adds here without
-          needing edit mode (deliberate delta vs the legacy edit-gated Ajouter).
-          Reading the thread stays open without edit_of — an observation is how
-          the atelier is told what to watch for. */}
-      {canEdit && (
-      <div className="pt-1 space-y-1.5">
-        <textarea
-          rows={2}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-y"
-          placeholder="Ajouter une observation…"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
+      {/* Same ghost trigger as « Observations régleur » above — one add
+          affordance, one shape. The composer only appears once asked for
+          (§9 InlineForm), so at rest the two blocks end identically. Reading
+          the thread stays open to everyone: it is how the atelier says what to
+          watch for. */}
+      {canEdit && !composing && (
         <Button
-          variant="outline" size="sm" className="w-full"
-          disabled={text.trim() === '' || addMut.isPending}
-          onClick={() => addMut.mutate()}
+          variant="ghost"
+          size="sm"
+          className="w-full text-muted-foreground hover:text-foreground"
+          onClick={() => setComposing(true)}
         >
-          {addMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1.5" />}
-          Ajouter
+          <Plus className="h-4 w-4 mr-1.5" />
+          Ajouter un message
         </Button>
-      </div>
+      )}
+      {canEdit && composing && (
+        <div className="p-3 rounded-lg border bg-card shadow-sm border-l-4 border-l-accent/70 bg-accent/[0.03] space-y-2">
+          <textarea
+            rows={3}
+            autoFocus
+            className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+            placeholder="Ce que l'atelier doit savoir sur cet OF…"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button
+              variant="outline" size="sm" className="flex-1"
+              disabled={addMut.isPending}
+              onClick={() => { setComposing(false); setText('') }}
+            >
+              Annuler
+            </Button>
+            <Button
+              size="sm" className="flex-1"
+              disabled={text.trim() === '' || addMut.isPending}
+              onClick={() => addMut.mutate()}
+            >
+              {addMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+              Ajouter
+            </Button>
+          </div>
+        </div>
       )}
     </>
   )

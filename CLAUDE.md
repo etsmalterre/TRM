@@ -449,9 +449,20 @@ confirmation de suppression), CRUD `ETM/apps/api/src/routes/of-trm.ts`
   propres `IDref_ecru` / `IDcolori_ecru`, et ils divergent de la ligne sur **848 OF sur
   3 178**. La fiche affiche ceux de l'OF (`GET /:id`), donc l'onglet aussi.
 - **Les deux populations sont empilées dans le même onglet** (décision utilisateur du
-  2026-08-27) : « Observations régleur » puis « Messages de l'atelier ». Le fil `message_of`
-  est conservé parce que **la PWA est le seul endroit côté bureau où on peut le lire** —
-  113 messages, toujours alimentés depuis le poste.
+  2026-08-27) : « Commentaires historiques » puis « Messages de l'atelier ». Le fil
+  `message_of` est conservé parce que **la PWA est le seul endroit côté bureau où on peut
+  le lire** — 113 messages, toujours alimentés depuis le poste.
+- **Le bloc porte le nom ET l'habillage que `CreateOfDialog` lui donne déjà** :
+  « Commentaires historiques », le compte en aside, et la carte or
+  (`border-gold/30 border-l-4 border-l-gold bg-gold-light/60`). C'est une **exception
+  assumée au §8.1** (qui veut une carte blanche dans un onglet de sidebar) : le régleur
+  croise ces notes deux fois — au lancement puis sur la fiche — et deux habillages
+  différents en faisaient deux choses sans rapport.
+- **Les deux blocs finissent par le MÊME déclencheur** : le bouton fantôme `+ Ajouter…`
+  du §8, **en mode édition seulement**. `message_of` ouvrait auparavant un textarea
+  permanent hors mode édition (delta assumé, retiré le 2026-08-27) : deux contrôles
+  d'ajout de formes différentes empilés se lisaient comme deux fonctionnalités
+  étrangères. Le composeur de message n'apparaît qu'une fois demandé (§9 InlineForm).
 - **La saisie est ouverte sur les deux écrans**, comme le legacy (même table, même dialogue
   `FEN_Editer_Observation`, même confirmation « Voulez-vous vraiment supprimer cette
   observation ? ») : la fiche OF, où le nouveau billet est **pré-ciblé sur le métier et le
@@ -464,6 +475,8 @@ confirmation de suppression), CRUD `ETM/apps/api/src/routes/of-trm.ts`
   ETM, ne jamais en forker une copie TRM.
 - **Droit `edit_of`** sur les trois routes d'écriture — pas de nouvelle clé : ces notes
   existent pour être lues au lancement, c'est le même acte. La lecture reste ouverte.
+  Côté écran, il faut **la clé ET le mode édition** de l'écran hôte : c'est pour ça que
+  `ObsOfEditorProps` porte `isEditing`.
 - Écriture HFSQL : `DATE` est réservé → **INSERT positionnel** (ordre physique vérifié sur
   le `SELECT *` runtime : `IDobs_ref_ecru, IDref_ecru, IDmachine, IDcolori_ecru,
   observation, DATE`), UPDATE nommé pour le reste. ⚠️ **Une modification ne re-date pas la

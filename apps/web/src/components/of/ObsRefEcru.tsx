@@ -70,8 +70,13 @@ function ObsCard({
   return (
     <div
       className={cn(
-        'group p-3 rounded-lg border bg-card shadow-sm transition-colors',
-        canEdit && 'cursor-pointer hover:border-accent/40',
+        // The card of « Commentaires historiques » in CreateOfDialog, verbatim
+        // (user decision, 2026-08-27). Same object, same clothes: the régleur
+        // reads these notes at lancement and again on the fiche, and a white
+        // §8.1 sidebar card made them look like two unrelated things. The gold
+        // tint is the deliberate exception to §8.1 here.
+        'group rounded-lg border border-gold/30 border-l-4 border-l-gold bg-gold-light/60 px-3 py-2 transition-colors',
+        canEdit && 'cursor-pointer hover:border-accent/60',
       )}
       onClick={canEdit ? onEdit : undefined}
     >
@@ -90,7 +95,7 @@ function ObsCard({
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+            className="h-6 w-6 -mr-1 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
             title="Supprimer cette observation"
             onClick={(e) => { e.stopPropagation(); onDelete() }}
           >
@@ -98,7 +103,7 @@ function ObsCard({
           </Button>
         )}
       </div>
-      <p className="text-sm whitespace-pre-line mt-1.5">{obs.observation}</p>
+      <p className="text-sm whitespace-pre-line mt-1">{obs.observation}</p>
     </div>
   )
 }
@@ -255,8 +260,8 @@ export function ObsRefEcruPanel({
   isLoading = false,
   defaultMachine = 0,
   defaultColoris = 0,
-  emptyLabel = 'Aucune observation sur cette référence.',
-  emptyHint,
+  emptyLabel = 'Aucun commentaire sur cette référence.',
+  hint,
   onChanged,
 }: {
   refId: number
@@ -267,7 +272,8 @@ export function ObsRefEcruPanel({
   defaultMachine?: number
   defaultColoris?: number
   emptyLabel?: string
-  emptyHint?: string
+  /** Footnote under the list — shown whether or not the list is empty. */
+  hint?: string
   onChanged: () => void
 }) {
   const [editing, setEditing] = useState<ObsRefRow | null>(null)
@@ -283,10 +289,7 @@ export function ObsRefEcruPanel({
     <div className="space-y-2">
       {isLoading && <div className="h-14 bg-muted animate-pulse rounded-md" />}
       {!isLoading && rows.length === 0 && (
-        <p className="text-sm text-muted-foreground italic">
-          {emptyLabel}
-          {!!emptyHint && <span className="block not-italic text-xs mt-1">{emptyHint}</span>}
-        </p>
+        <p className="text-sm text-muted-foreground italic">{emptyLabel}</p>
       )}
       {rows.map((o) => (
         <ObsCard
@@ -297,6 +300,9 @@ export function ObsRefEcruPanel({
           onDelete={() => setPendingDelete(o)}
         />
       ))}
+      {!isLoading && !!hint && (
+        <p className="text-[11px] text-muted-foreground">{hint}</p>
+      )}
       {canEdit && refId > 0 && (
         <Button
           variant="ghost"
@@ -305,7 +311,7 @@ export function ObsRefEcruPanel({
           onClick={() => { setEditing(null); setDialogOpen(true) }}
         >
           <Plus className="h-4 w-4 mr-1.5" />
-          Ajouter une observation
+          Ajouter un commentaire
         </Button>
       )}
 
@@ -354,16 +360,20 @@ export function ObsOfEditor({
   refId,
   refLabel,
   rows,
+  isEditing,
   onChanged,
 }: {
   refId: number
   refLabel: string
   rows: ObsOfRowFromRefScreen[]
+  isEditing: boolean
   onChanged: () => void
 }) {
   // Read the key here rather than take it as a prop: the shared screen passes
   // exactly `ObsOfEditorProps` and must not learn about TRM's permissions.
-  const canEdit = useHasPermission('edit_of')
+  // Writing needs BOTH the key and the screen's edit mode (§8 « Add button,
+  // edit mode only ») — same rule as the OF fiche.
+  const canEdit = useHasPermission('edit_of') && isEditing
   const mapped: ObsRefRow[] = rows.map((r) => {
     const m = r.IDmachine || 0
     const c = r.IDcolori_ecru || 0
@@ -405,6 +415,7 @@ export function OfObservationsRegleur({
   machineId,
   coloriId,
   canEdit,
+  onCount,
 }: {
   ofId: number
   refId: number
@@ -412,12 +423,16 @@ export function OfObservationsRegleur({
   machineId: number
   coloriId: number
   canEdit: boolean
+  /** Reports the row count up so the section header can show it (the aside
+   *  CreateOfDialog's « Commentaires historiques » carries). */
+  onCount?: (n: number | null) => void
 }) {
   const queryClient = useQueryClient()
   const { data, isLoading } = useQuery<ObsRefRow[]>({
     queryKey: ['of-trm-observations-ref', ofId],
     queryFn: () => apiFetch(`/of-trm/${ofId}/observations-ref`),
   })
+  useEffect(() => { onCount?.(isLoading ? null : (data ?? []).length) }, [data, isLoading, onCount])
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['of-trm-observations-ref', ofId] })
     // The création dialog reads the same table through its own lookup.
@@ -432,11 +447,14 @@ export function OfObservationsRegleur({
       canEdit={canEdit}
       defaultMachine={machineId}
       defaultColoris={coloriId}
-      emptyLabel="Aucune observation sur cette référence."
-      emptyHint={
+      emptyLabel="Aucun commentaire sur cette référence."
+      // The dialog's own footnote, for the same reason: with no métier the
+      // legacy predicate only lets the « Toutes » notes through, and an empty
+      // list would otherwise read as « cette référence n'a rien ».
+      hint={
         machineId > 0
           ? undefined
-          : "Cet OF n'a pas de métier : seules les observations valables sur toutes les machines peuvent apparaître ici."
+          : "Cet OF n'a pas de métier : seuls les commentaires valables sur toutes les machines apparaissent ici."
       }
       onChanged={refresh}
     />
