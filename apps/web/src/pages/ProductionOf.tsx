@@ -1034,7 +1034,7 @@ function OfList({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder={statusFilter === 'termine' ? 'Rechercher (n° OF)' : 'Rechercher (n°, réf, client...)'}
+            placeholder="Rechercher (n°, réf, client...)"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             autoComplete="off"
@@ -1221,21 +1221,23 @@ function DetailHeader({
         <div className={cn('h-11 w-11 rounded-lg flex items-center justify-center', isEditing ? 'bg-accent/15' : 'icon-box-gold')}>
           <TmRollIcon className="h-5 w-5" />
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-heading font-bold tracking-tight truncate">OF N° {detail.id}</h1>
-            {isEditing && (
-              <Badge className="bg-accent text-accent-foreground flex-shrink-0 gap-1 shadow-sm">
-                <Pencil className="h-3 w-3" />Mode edition
-              </Badge>
-            )}
-          </div>
-          {/* État lives in the §29 sidebar pill — the header shows only the
-              computed context (métier / date), never the user-controlled state. */}
-          <div className="flex gap-1.5 mt-1 flex-wrap items-center">
-            {detail.machine && <Badge variant="secondary" className="text-xs font-mono">{detail.machine.nom}</Badge>}
-            <span className="text-xs text-muted-foreground">Créé le {formatHfsqlDate(detail.date_creation ?? '')}</span>
-          </div>
+        {/* ONE row, title and context side by side (user decision,
+            2026-08-27): the creation date fits in a few characters, so a
+            second line under the title bought nothing and cost ~30 px of the
+            fiche's height on every OF — and this fiche is read at the métier,
+            where every row that survives the fold counts.
+            No métier pill here: it is the first field of Paramètres de
+            tricotage just below, and it is on the list card that led here.
+            État stays in the §29 sidebar pill — the header carries computed
+            context only, never user-controlled state. */}
+        <div className="min-w-0 flex-1 flex items-baseline gap-3 flex-wrap">
+          <h1 className="text-2xl font-heading font-bold tracking-tight truncate">OF N° {detail.id}</h1>
+          <span className="text-xs text-muted-foreground">Créé le {formatHfsqlDate(detail.date_creation ?? '')}</span>
+          {isEditing && (
+            <Badge className="bg-accent text-accent-foreground flex-shrink-0 gap-1 shadow-sm self-center">
+              <Pencil className="h-3 w-3" />Mode edition
+            </Badge>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {isEditing ? (
@@ -1270,7 +1272,7 @@ function DetailHeader({
           )}
         </div>
       </div>
-      <div className={cn('h-1 w-24 mt-3 rounded-full', isEditing ? 'bg-accent' : 'bg-gradient-to-r from-accent via-accent to-accent/30')} />
+      <div className={cn('h-1 w-24 mt-2 rounded-full', isEditing ? 'bg-accent' : 'bg-gradient-to-r from-accent via-accent to-accent/30')} />
     </div>
   )
 }

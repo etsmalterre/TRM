@@ -408,6 +408,18 @@ scope goes through the commande chain). The legacy windows are PCS-compressed: t
 model was recovered from `MPS.xdd` + a live DB probe — the full dossier (column semantics,
 event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell.md`.
 
+- **La recherche marche pareil dans les trois onglets** (2026-08-27) : n° d'OF, référence,
+  coloris, client, n° de commande, métier. En cours / Attente filtrent la liste déjà
+  chargée côté web ; **Terminés passe par `?q=`**, dont le `searchTermineIds` d'`of-trm.ts`
+  fait le travail **en JS sur des projections étroites** — le LIKE de HFSQL ne replie pas
+  les accents (les libellés en portent, la boîte de recherche non), et l'axe client
+  demanderait sinon un `IN` de tous les `IDligne_commande_client` d'Ets Malterre. Mesuré
+  ~0,6 s au pire sur le pilote, pour une liste qu'on n'atteint qu'en tapant. Le `TOP 200`
+  borne désormais les **résultats**, plus le corpus : une recherche lit tout le registre.
+  - ⚠️ **Un nombre est À LA FOIS un n° d'OF et une référence plausible** — 249, 027, 161
+    sont de vraies étiquettes écru. La requête numérique ne court-circuite donc pas le
+    balayage des libellés (ce qu'elle faisait avant, en ne rendant que l'OF du même
+    numéro) : elle place son OF exact en tête, puis les correspondances de libellé.
 - **Queue**: `priorite` ranks OFs per métier (1 = running, 0 = terminé), one `est_actif`
   max per métier; Terminer re-ranks and flips the new head active if `auto_activation=1`
   (our endpoint owns that flip — the legacy trigger is unreadable).
@@ -509,6 +521,12 @@ confirmation de suppression), CRUD `ETM/apps/api/src/routes/of-trm.ts`
   de tenir sur un écran 1080p — la fiche se lit au métier, le régleur ne doit pas défiler
   pour savoir quels lots alimentent la production qu'il lance. La carte Paramètres est
   `h-full` pour finir sur la même ligne que Commande client.
+- **L'en-tête tient sur UNE ligne** (décision utilisateur du 2026-08-27) : « OF N° 3426 »,
+  « Créé le … » et le badge Mode édition côte à côte, au lieu du titre puis d'une seconde
+  ligne de contexte. Même raison que les paddings resserrés ci-dessus : la date tient en
+  quelques caractères et la seconde ligne coûtait ~30 px de hauteur sur chaque OF. **La
+  pastille métier n'y est plus** : c'est le premier champ de Paramètres de tricotage juste
+  en dessous, et elle est déjà sur la carte de liste qui a mené ici.
 - **La consigne porte le même bandeau rouge qu'au poste de visitage**
   (`components/of/ConsigneCallout.tsx`, `mps_designer` §46) : c'est le même
   `ordre_fabrication.observations`, et le montrer en carte calme d'un côté et en alerte de
