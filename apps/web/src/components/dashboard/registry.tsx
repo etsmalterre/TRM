@@ -11,12 +11,13 @@
 // that widget from every layout that mentions it (it degrades gracefully: the
 // widget reappears at the end with its defaults).
 
-import { LineChart, TrendingUp, Wallet, Weight } from 'lucide-react'
+import { LineChart, ScanEye, TrendingUp, Wallet, Weight } from 'lucide-react'
 import type { DashboardApp, WidgetDef } from './types'
 import { AnalyseFinanciereWidget } from './AnalyseFinanciereWidget'
 import { ChargesWidget } from './ChargesWidget'
 import { ChiffreAffairesWidget } from './ChiffreAffairesWidget'
 import { EvolutionCaWidget } from './EvolutionCaWidget'
+import { PiecesAVisiterWidget } from './PiecesAVisiterWidget'
 import { PoidsPiecesWidget } from './PoidsPiecesWidget'
 
 export type { WidgetDef }
@@ -40,6 +41,21 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     // default exactly and is stored as null rather than as a frozen copy.
     defaultHeightPx: 416,
     Component: PoidsPiecesWidget,
+  },
+  {
+    key: 'pieces_a_visiter',
+    permission: 'dashboard_pieces_a_visiter',
+    title: 'Pièces à visiter',
+    icon: ScanEye,
+    defaultWidth: 6,
+    // Five columns (métier, n° pièce, fin du tricotage, attente, équipe) —
+    // below 4 grid columns the datetime and the header labels start wrapping.
+    minWidth: 4,
+    // Same 24 px quantum as its neighbour « Poids des pièces », and the same
+    // height: the two sit side by side on the default dashboard and a mismatch
+    // would leave a step in the first row.
+    defaultHeightPx: 416,
+    Component: PiecesAVisiterWidget,
   },
   // Finance — the four widgets are mirrors of ETM's, over TRM's own partition
   // of the same books (/api/rapports-trm, société 2). Improve the components in

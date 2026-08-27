@@ -67,7 +67,7 @@ The `public/logo-*.png` files are currently the ETM logos as placeholders — re
 
 Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 
-1. **Tableau de bord** (`/`, `/tableau-de-bord/:id`) — implemented, the ETM widget grid shared verbatim (see "Tableau de bord" below). First widget: **Poids des pièces**.
+1. **Tableau de bord** (`/`, `/tableau-de-bord/:id`) — implemented, the ETM widget grid shared verbatim (see "Tableau de bord" below). Widgets propres à TRM : **Poids des pièces** et **Pièces à visiter**, plus les quatre widgets financiers d'ETM sur la partition société 2.
 2. **Clients** — **Commandes** (`/clients/commandes`, implemented — voir "Commandes clients" ci-dessous), **Expéditions** (`/clients/expeditions`, implemented — TRM-specific, NOT shared, see below), **Facturation** (`/clients/facturation`, implemented — TRM-specific, NOT shared, see below), **Gestion** (`/clients/gestion`, implemented — see "Clients › Gestion" below), Planning
 3. **Fils** — **Références** (`/fils/references`, shared verbatim with ETM), **Stock** (`/fils/stock`, implemented — TRM-specific, NOT shared, see "Fils › Stock" below), **Fournisseurs** (`/fils/fournisseurs`, shared verbatim with ETM)
 4. **Tombé Métier** — **Références** (`/tombe-metier/references`, implemented — shared verbatim with ETM, see "Shared screens" below), Échantillons, **Stock** (`/tombe-metier/stock`, implemented — TRM-specific, NOT shared, see below). Menu icon is the custom `TmRollIcon`.
@@ -1012,6 +1012,54 @@ The legacy windows are PCS-compressed, but their SQL survives in **WinDev's comp
 - **Rows**: OFs with `est_actif = 1` **and at least one weighed roll**, sorted by pct ascending; Métier = `machine.emplacement`; Nb pièces = `COUNT(stock_ecru)`. Colours: red `< 0,6`, orange `< 0,8`, green (the two literals recovered next to the query; the boundary operators are an assumption). No `IDsociete` filter anywhere — the ETM handover flips delivered rolls to société 1 and the legacy counts them.
 - **Chart** (click a row; legacy: double-click): every roll of the OF by `date_saisie`, dashed target line, band `[poids_piece, poids_piece + 0,7]`, red outside. Deliberate deltas: axis target ± 2 stretched to at most ± 4 with out-of-range points pinned as triangles (a 3 kg remnant must not squash the band), a grey remnant zone, X = weighing sequence, hover tooltip. The legacy's `18–22` axis is an inference (integer literals don't survive the cache).
 
+### Widget « Pièces à visiter » — port of `FI_PiecesAVisiter.wdw`
+
+Le tombé métier qui est sorti d'un métier et que personne n'a encore pesé : la liste de
+travail de la visiteuse, et la preuve pour le régleur que ça s'accumule quelque part.
+Écran `apps/web/src/components/dashboard/PiecesAVisiterWidget.tsx` ; API
+`GET /api/dashboard-trm/pieces-a-visiter` ; droit `dashboard_pieces_a_visiter`.
+
+Le `.wdw` est PCS-compressé : la requête vient du **cache de compilation WinDev**
+(`MPS.cpl/<user>/00000000/FI_PiecesAVisiter.*.wdw.wcw`) et **le WLanguage de la boucle de
+coloriage a été fourni par l'utilisateur** — les littéraux entiers ne survivent pas au
+cache, donc les seuils n'étaient pas récupérables autrement. Les deux sont cités verbatim
+dans l'en-tête de `routes/dashboard-trm.ts`.
+
+- **Population** = pièce `piece_production` terminée, sans `stock_ecru`, `date_fin` dans les
+  **24 h**, la plus ancienne en tête. Pas de filtre `IDsociete` (les tables OF n'en ont pas).
+- **Couleur = le temps d'attente**, et c'est le seul signal du widget : **rouge ≥ 3 h,
+  orange ≥ 2 h, vert en deçà** (`dhDateRouge.Heure -= 3` / `dhDateOrange.Heure -= 2`).
+  Calculée **dans le navigateur** contre une horloge qui bat à la minute, comme le legacy la
+  calcule contre `DateHeureSys()` — mais sans figer au moment du fetch : une ligne passe à
+  l'orange puis au rouge sous les yeux. Épinglé à la minute par
+  `PiecesAVisiterWidget.test.ts` : un `<` pris pour un `<=` décale toute la grille d'une heure
+  sans que rien ne se voie.
+- **Colonne « Attente » en plus du legacy** : le legacy peint la ligne et laisse lire deux
+  heures d'horloge pour comprendre pourquoi. La couleur doit être lisible comme un nombre.
+- **Lecture seule**, comme le legacy (décision utilisateur du 2026-08-27) : pas de clic vers
+  Production › Visitage. Le widget constate, le poste saisit.
+- ⚠️ **L'équipe se dérive de l'heure PARSÉE, jamais du `SUBSTR(date_fin,9,2)` du legacy.**
+  Bornes legacy conservées (5–13 Matin, 13–21 Après-Midi, sinon Nuit), mais le SUBSTR ne lit
+  l'heure que sur le `AAAAMMJJHHMMSS` compact de WinDev ; sur un pilote qui rend
+  `YYYY-MM-DD HH:MM:SS` ces deux caractères sont le **jour du mois**, et le même CASE
+  étiquetterait toutes les pièces par quantième. Mesuré 0/8 sur le pilote ODBC Windows
+  (`probe-pieces-a-visiter-trm.ts` §5).
+- **Le lecteur est partagé avec le poste de Visitage** : `awaitingPieces()` dans
+  `ETM/apps/api/src/lib/production-trm.ts`, extrait de `visitage-trm.ts` pour ce widget.
+  Il encode de la discipline de pilote (anti-jointure résolue en JS — `date_fin <> ''` vs
+  `IS NULL` ne se comportent pas pareil des deux côtés — et balayage par machine plutôt que
+  la boucle par OF du legacy, qui perd les pièces des OF terminés). **Améliorer ce fichier,
+  ne jamais en forker une copie.** Chaque appelant pose sa propre fenêtre : 7 jours pour le
+  poste, 24 h pour le widget.
+- **Sonde de parité** : `ETM/apps/api/src/scripts/probe-pieces-a-visiter-trm.ts` (lecture
+  seule, rejouable en prod après un `/etm_deploy`). Elle fait tourner le SQL legacy et le
+  helper côte à côte — **56 vs 56 dans la profondeur de scan** au 2026-08-27 — vérifie que
+  l'anti-jointure n'a pas de trou (aucun `stock_ecru` sans `date_saisie`) et enregistre la
+  forme de DATETIME que parle le pilote. `PROBE_WINDOW_DAYS` élargit la fenêtre : la base de
+  dev est un instantané de mars, donc 0 ligne à 24 h.
+- Dérogation dev `PIECES_A_VISITER_WINDOW_HOURS` (`apps/api/.env.development` **seulement**,
+  la prod garde 24 h) — même raison et même patron que `VISITAGE_PIECE_MAX_AGE_DAYS`.
+
 ## Design system rule
 
 **Before building or modifying any user-facing screen, component, button, tab, card, dialog, or interaction pattern, you MUST invoke the `mps_designer` skill (`Skill(skill: "mps_designer")`).** Not optional — same rule as ETM. The skill is a pointer, so its first instruction is to `Read` ETM's canonical file — do that before writing code, not after.
@@ -1044,6 +1092,13 @@ numbers**: the two apps ship independently, so TRM started its own count at **0.
   injects it as `__APP_VERSION__` (`define` in `apps/web/vite.config.ts`, declared in
   `apps/web/src/vite-env.d.ts`) and the header profile menu displays it under the
   « Actualiser l'application » button.
+  - ⚠️ **`vite-env.d.ts` était `.gitignore`-é et jamais commité** jusqu'au 2026-08-27 :
+    la règle `apps/web/src/**/*.d.ts` (qui existe pour empêcher un `tsc -b` d'éclipser les
+    sources) l'avalait. Le fichier n'existait donc que dans le checkout principal, où il
+    avait été créé à la main — et **tout worktree neuf échouait au build** sur
+    `TS2304: Cannot find name '__APP_VERSION__'`, alors que `/trm_deploy` depuis le
+    principal passait. Corrigé en reprenant la négation qu'ETM avait déjà
+    (`!apps/web/src/vite-env.d.ts`) et en commitant le fichier. Ne pas ré-ignorer.
 - Unlike ETM there is **no `vitest.config.ts`** here — vitest reads `vite.config.ts`, so
   the one `define` covers the test run too. If a vitest config is ever added, the define
   must be duplicated into it or every test touching the Header fails on an undefined global.
