@@ -450,6 +450,15 @@ event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell
   de tenir sur un écran 1080p — la fiche se lit au métier, le régleur ne doit pas défiler
   pour savoir quels lots alimentent la production qu'il lance. La carte Paramètres est
   `h-full` pour finir sur la même ligne que Commande client.
+- **La consigne porte le même bandeau rouge qu'au poste de visitage**
+  (`components/of/ConsigneCallout.tsx`, `mps_designer` §46) : c'est le même
+  `ordre_fabrication.observations`, et le montrer en carte calme d'un côté et en alerte de
+  l'autre apprenait au lecteur que l'alerte était décorative. La carte neutre reste dans
+  deux cas — **vide** (rien à crier, et c'est l'en-tête qui nomme la chose absente) et **en
+  édition** (on l'écrit, on ne l'exécute pas : un champ encadré de rouge se lit comme une
+  erreur de saisie, et le liseré or du §9 a besoin du cadre). ⚠️ Le rouge est un **étirement
+  assumé du §41** : 6 des 10 OF en cours portent une consigne, dont quatre la même phrase
+  type. À surveiller — voir §46.2 pour le décompte à rejouer.
 
 ### Atelier › Maintenance (`/atelier/maintenance`) — port de `FI_Maintenance.wdw`
 
@@ -552,6 +561,12 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
     que Prime rend verbatim.
   - Les colonnes écrites sont ASCII, donc `UPDATE` nommé classique ; c'est `récuperé` seul
     qui force encore la réécriture positionnelle, qui porte désormais la quantité aussi.
+  - ⚠️ **Un champ vide veut dire « ne touche à rien », jamais 0** — traverser une pastille
+    sans rien taper effaçait la déclaration du bonnetier, et 0 est une quantité plausible :
+    rien à l'écran ne trahit l'erreur. Le zéro reste joignable en tapant zéro. `qteDigits` /
+    `qteCommit` sont sortis du composant et épinglés par `ProductionVisitage.test.ts` :
+    l'expression du masque est toute la correction de ce champ (elle a déjà été écrite
+    `[^d]` au lieu de `\D`, ce qui refusait tous les chiffres et validait 0 à chaque sortie).
 - **Décrément du fil** = `Σ(poids des rouleaux) × asso_fil_of.pourcentage / 100`, **déclassés
   compris** (43 lots ouverts sur 75 le reproduisent, 0 en ne comptant que le 1er choix).
   C'est l'écriture la plus risquée : une mauvaise assiette fait dériver le grand livre du fil

@@ -61,6 +61,7 @@ import { useHasPermission } from '@/contexts/PermissionsContext'
 import { CreateOfDialog } from '@/components/of/CreateOfDialog'
 import { AddFilButton, AddIncorporeButton, nextDraftKey, type FilPair, type LotLookup } from '@/components/of/FilPickers'
 import { HorsRefBadge } from '@/components/of/HorsRefBadge'
+import { ConsigneCallout } from '@/components/of/ConsigneCallout'
 import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst'
 import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
 import { useElementSize } from '@/hooks/useElementSize'
@@ -1558,6 +1559,15 @@ function ParamsCard({
   )
 }
 
+/** The consigne is the same object the poste de visitage puts under a red
+ *  callout, so on the fiche it wears the same face (§46) — a fiche that shows
+ *  it as one more quiet card teaches the reader it is optional, and it is not:
+ *  it changes what the bonnetier does with his hands.
+ *
+ *  Two states keep the plain card: EMPTY (there is nothing to shout, and the
+ *  header is what names the missing thing) and EDITING (the field is being
+ *  written, not obeyed — dressing an input as an alert would read as a
+ *  validation error, and the gold §9 edit border needs its own frame). */
 function ConsigneCard({
   detail, isEditing, draft, set,
 }: {
@@ -1567,6 +1577,9 @@ function ConsigneCard({
   set: (updater: (d: Draft) => Draft) => void
 }) {
   const d = isEditing && draft ? draft : null
+  if (!isEditing && detail.observations.trim()) {
+    return <ConsigneCallout texte={detail.observations} className="card-premium" />
+  }
   return (
     <Card className={cn('card-premium', isEditing && editSectionClass)}>
       <CardHeader className={cardHeaderClass}>
@@ -1582,8 +1595,6 @@ function ConsigneCard({
             onChange={(e) => set((cur) => ({ ...cur, observations: e.target.value }))}
             placeholder="Consigne pour le bonnetier…"
           />
-        ) : detail.observations.trim() ? (
-          <p className="text-sm whitespace-pre-line">{detail.observations.trim()}</p>
         ) : (
           <p className="text-sm text-muted-foreground italic">Aucune consigne</p>
         )}

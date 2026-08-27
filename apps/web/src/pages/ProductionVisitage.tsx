@@ -50,6 +50,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Label } from '@/components/ui/label'
 import { PopoverSelect, type PopoverSelectOption } from '@/components/ui/popover-select'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { ConsigneCallout } from '@/components/of/ConsigneCallout'
 import { TmRollIcon } from '@/components/icons/TmRollIcon'
 import { useHasPermission } from '@/contexts/PermissionsContext'
 import { apiFetch, API_URL } from '@/lib/api'
@@ -683,7 +684,10 @@ export function ProductionVisitage() {
           </div>
 
           {/* ── Bande 3 · contexte ──────────────────────── */}
-          <div className={cn('flex-shrink-0 grid gap-3', of.consigne ? 'md:grid-cols-3' : 'md:grid-cols-2')}>
+          {/* Third column only when a consigne actually renders — the callout
+              trims before deciding (§24: HFSQL stores " " for empty), so the
+              grid has to ask the same question or it leaves a dead column. */}
+          <div className={cn('flex-shrink-0 grid gap-3', of.consigne?.trim() ? 'md:grid-cols-3' : 'md:grid-cols-2')}>
             <JaugeCard titre="OF en cours" realise={of.realise} total={of.quantite} pct={of.pct} />
             {of.commande && (
               <JaugeCard
@@ -694,15 +698,7 @@ export function ProductionVisitage() {
                 pct={of.commande.pct}
               />
             )}
-            {!!of.consigne && (
-              <Card className="p-3 flex items-start gap-2.5 border-destructive/30 bg-destructive/5">
-                <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-destructive">Consigne</div>
-                  <p className="text-sm mt-0.5 whitespace-pre-wrap">{of.consigne}</p>
-                </div>
-              </Card>
-            )}
+            <ConsigneCallout texte={of.consigne} />
           </div>
 
           {/* ── Bande 4 · pièce + rouleaux ──────────────── */}
@@ -1387,18 +1383,35 @@ function DefautPill({ defaut, hasLeft, hasRight, onMove, onToggleRecupere, onCha
  *
  *  It is kept as a string while it has focus so the field can be emptied and
  *  retyped; a controlled number would fight the operator on the first
- *  backspace. Blur commits, and an empty field commits 0 rather than leaving
- *  the draft holding NaN.
+ *  backspace. Blur commits — but an empty field REVERTS to the stored value
+ *  rather than committing 0: clicking through a pill without typing must not
+ *  silently wipe what the bonnetier declared. Zero stays reachable by typing
+ *  it. ⚠️ The strip regex is `\D`, not `[^d]` — the latter kept only the
+ *  letter "d", so no digit could be entered at all and every blur landed on 0.
  */
+/** Keeps only the digits of what was keyed, capped at the legacy mask's 4.
+ *  Exported for the test — the regex is the whole of this field's correctness
+ *  and a typo in it is invisible on screen. */
+export function qteDigits(raw: string): string {
+  return raw.replace(/\D/g, '').slice(0, 4)
+}
+
+/** What a blur should commit, or `null` for "leave the stored value alone".
+ *  Empty is `null`, never 0. */
+export function qteCommit(raw: string): number | null {
+  const digits = qteDigits(raw)
+  return digits === '' ? null : Math.min(9999, Number(digits))
+}
+
 function QteField({ defaut, onChange }: { defaut: DefautDraft; onChange: (qte: number) => void }) {
   const cm = defaut.unite === 'cm'
   const value = cm ? defaut.taille_cm : defaut.nombre
   const [text, setText] = useState<string | null>(null)
 
   const commit = (raw: string) => {
-    const n = Math.min(9999, Math.max(0, Math.round(Number(raw.replace(/[^d]/g, '')) || 0)))
+    const n = qteCommit(raw)
     setText(null)
-    if (n !== value) onChange(n)
+    if (n !== null && n !== value) onChange(n)
   }
 
   return (
@@ -1408,7 +1421,7 @@ function QteField({ defaut, onChange }: { defaut: DefautDraft; onChange: (qte: n
         type="text"
         inputMode="numeric"
         value={text ?? String(value)}
-        onChange={(e) => setText(e.target.value.replace(/[^d]/g, '').slice(0, 4))}
+        onChange={(e) => setText(qteDigits(e.target.value))}
         onFocus={(e) => { setText(String(value)); e.target.select() }}
         onBlur={(e) => commit(e.target.value)}
         onKeyDown={(e) => {
