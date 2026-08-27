@@ -38,6 +38,7 @@
 //  - A bottom strip lists the rolls already passed today on this métier — the
 //    legacy gives no way to check a piece has not already been weighed.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle, Check, ChevronLeft, ChevronRight, Loader2, Plus, Printer, RefreshCw, Scale, Scissors, UserCheck, X,
@@ -47,7 +48,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { PopoverSelect, SearchableCombobox, type PopoverSelectOption } from '@/components/ui/popover-select'
+import { PopoverSelect, type PopoverSelectOption } from '@/components/ui/popover-select'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { TmRollIcon } from '@/components/icons/TmRollIcon'
 import { useHasPermission } from '@/contexts/PermissionsContext'
@@ -588,27 +589,19 @@ export function ProductionVisitage() {
         {/* Identification. Required to work (legacy: "Vous devez vous
             identifier") — and since every roll this poste creates is stamped
             with this person's name in stock_ecru.visiteur, the photo is the
-            check that it is really them. It is rendered large enough to read
-            across a workshop desk. */}
+            check that it is really them. */}
         <span className={cn(
-          'text-sm font-medium',
+          'text-sm font-medium flex-shrink-0',
           identified ? 'text-muted-foreground' : 'text-amber-700',
         )}>
           {identified ? 'Visiteur' : 'Identifiez-vous'}
         </span>
-        <div className={cn('w-[220px] rounded-md', !identified && 'ring-2 ring-amber-500/60')}>
-          <SearchableCombobox<VisiteurRow>
-            options={visiteurs.data ?? []}
-            value={visiteurId}
-            onChange={setVisiteurId}
-            getId={(v) => v.id}
-            getPrimary={(v) => v.label}
-            loading={visiteurs.isLoading}
-            placeholder="Qui visite ?"
-            size="sm"
-          />
-        </div>
-        <VisiteurPhoto id={visiteurId} nom={visiteur?.label ?? ''} />
+        <VisiteurGate
+          visiteurs={visiteurs.data ?? []}
+          value={visiteurId}
+          onChange={setVisiteurId}
+          loading={visiteurs.isLoading}
+        />
       </div>
 
       {/* The picker is a worklist now, so an empty one means the whole workshop
@@ -996,7 +989,123 @@ function AjoutDefautDialog({ open, types, onCancel, onConfirm }: {
  *  sharp on a hi-DPI screen.
  *
  *  Falls back to initials on any non-200 (several bonnetiers have no photo). */
-function VisiteurPhoto({ id, nom }: { id: number; nom: string }) {
+/** Identification at the poste — the face IS the control.
+ *
+ *  §45.4 makes identification a gate and the photo the check that the name on
+ *  tonight's output belongs to the person standing there. The combobox beside
+ *  it asked the visiteuse to read and type a name she already recognises by
+ *  face, so the face became the trigger and the field went away (user,
+ *  2026-08-27).
+ *
+ *  The popover lists FACES, not rows of text: at a workshop desk you pick the
+ *  person you can see. That is also why this is local rather than a
+ *  `PopoverSelect` — that primitive is a shared ETM mirror with no custom
+ *  trigger and no avatar in its rows, and bending it for one station screen
+ *  would ripple through every dropdown in both apps.
+ */
+function VisiteurGate({ visiteurs, value, onChange, loading }: {
+  visiteurs: VisiteurRow[]
+  value: number
+  onChange: (id: number) => void
+  loading: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const popRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ right: number; top: number } | null>(null)
+
+  const reposition = useCallback(() => {
+    const el = btnRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    // Anchored to the button's RIGHT edge: this sits at the far end of the
+    // toolbar, so a left-anchored popover would hang off the viewport.
+    setPos({ right: Math.max(8, window.innerWidth - r.right), top: r.bottom + 6 })
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    reposition()
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (btnRef.current?.contains(t) || popRef.current?.contains(t)) return
+      setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open, reposition])
+
+  const selected = visiteurs.find((v) => v.id === value)
+  const identified = value > 0
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        title={identified ? `${selected?.label ?? ''} — cliquer pour changer` : 'Choisir le visiteur'}
+        className={cn(
+          'flex items-center gap-2.5 rounded-full pl-3.5 pr-1 py-1 transition-colors flex-shrink-0',
+          'hover:bg-white/70 focus:outline-none focus:ring-2 focus:ring-ring',
+          !identified && 'ring-2 ring-amber-500/60 bg-amber-500/5',
+        )}
+      >
+        <span className={cn(
+          'text-sm font-medium whitespace-nowrap',
+          identified ? 'text-foreground' : 'text-amber-700',
+        )}>
+          {identified ? selected?.label ?? '—' : 'Qui visite ?'}
+        </span>
+        <VisiteurPhoto id={value} nom={selected?.label ?? ''} />
+      </button>
+
+      {open && pos && createPortal(
+        <div
+          ref={popRef}
+          style={{ position: 'fixed', right: pos.right, top: pos.top }}
+          className="z-[100] w-[320px] max-h-[70vh] overflow-y-auto scrollbar-transparent rounded-lg border bg-white shadow-lg p-1.5"
+        >
+          {loading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-accent" />
+            </div>
+          ) : visiteurs.length === 0 ? (
+            <p className="px-3 py-4 text-sm text-muted-foreground text-center">Aucun visiteur</p>
+          ) : (
+            visiteurs.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => { onChange(v.id); setOpen(false) }}
+                className={cn(
+                  'w-full flex items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors',
+                  v.id === value ? 'bg-accent/15' : 'hover:bg-accent/10',
+                )}
+              >
+                <VisiteurPhoto id={v.id} nom={v.label} size={40} />
+                <span className="text-sm font-medium truncate">{v.label}</span>
+                {v.id === value && <Check className="h-4 w-4 ml-auto flex-shrink-0 text-accent-blue" />}
+              </button>
+            ))
+          )}
+        </div>,
+        document.body,
+      )}
+    </>
+  )
+}
+
+function VisiteurPhoto({ id, nom, size = 56 }: { id: number; nom: string; size?: number }) {
   const [failed, setFailed] = useState(false)
   useEffect(() => { setFailed(false) }, [id])
 
@@ -1007,16 +1116,21 @@ function VisiteurPhoto({ id, nom }: { id: number; nom: string }) {
     .map((w) => w[0]?.toUpperCase() ?? '')
     .join('')
 
+  const box = { width: size, height: size }
+
   if (id <= 0) {
     return (
-      <div className="h-14 w-14 rounded-full border-2 border-dashed border-amber-500/50 bg-amber-500/5 flex-shrink-0" />
+      <div
+        style={box}
+        className="rounded-full border-2 border-dashed border-amber-500/50 bg-amber-500/5 flex-shrink-0"
+      />
     )
   }
   if (failed) {
     return (
       <div
-        title={nom}
-        className="h-14 w-14 rounded-full border-2 border-accent/40 bg-primary text-primary-foreground flex items-center justify-center text-base font-semibold flex-shrink-0"
+        style={{ ...box, fontSize: Math.round(size * 0.29) }}
+        className="rounded-full border-2 border-accent/40 bg-primary text-primary-foreground flex items-center justify-center font-semibold flex-shrink-0"
       >
         {initials || '?'}
       </div>
@@ -1024,10 +1138,10 @@ function VisiteurPhoto({ id, nom }: { id: number; nom: string }) {
   }
   return (
     <img
-      src={`${API_URL}/prime-trm/bonnetiers/${id}/photo?size=168`}
+      src={`${API_URL}/prime-trm/bonnetiers/${id}/photo?size=${size * 3}`}
       alt={nom}
-      title={nom}
-      className="h-14 w-14 rounded-full object-cover border-2 border-accent/40 flex-shrink-0"
+      style={box}
+      className="rounded-full object-cover border-2 border-accent/40 flex-shrink-0"
       onError={() => setFailed(true)}
     />
   )

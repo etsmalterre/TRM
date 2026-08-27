@@ -559,6 +559,19 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
 - **Droit `saisie_visitage`** (`permission-keys-trm.ts`, catégorie Production) : il ne garde que
   le bouton Valider et la route d'écriture — consulter le poste reste ouvert. ⚠️ **Fermé par
   défaut : à accorder aux visiteuses en prod** (Paramètres › Utilisateurs) après le déploiement.
+- **L'identification, c'est le visage — il n'y a plus de champ.** Le bandeau ne porte que
+  le nom et la photo, et **cliquer dessus ouvre un sélecteur de VISAGES** (décision
+  utilisateur du 2026-08-27) : la combobox demandait de lire puis saisir un nom que la
+  visiteuse reconnaît de toute façon au premier coup d'œil. La porte du §45.4 est intacte —
+  non identifié, la pastille passe en ambre et dit « Qui visite ? ».
+  - ⚠️ **`VisiteurGate` est local à l'écran, pas un `PopoverSelect`** : ce primitif est un
+    miroir d'ETM sans déclencheur personnalisable ni avatar dans ses lignes, et le plier
+    pour un seul écran de poste se propagerait à toutes les listes déroulantes des deux
+    applications. Le popover est ancré au bord **droit** du bouton (il vit au bout de la
+    barre : ancré à gauche il sortirait de l'écran).
+  - `VisiteurPhoto` prend une `size` (56 au déclencheur, 40 dans les lignes) posée en style
+    inline — une classe Tailwind ne se fabrique pas à partir d'un nombre — et demande
+    `size * 3` à l'endpoint photo pour rester net sur l'écran du poste.
 - **L'étiquette Dymo, imprimée à la validation** — `GET /visitage-trm/etiquettes?ids=…`,
   **une page PDF par rouleau** (`lib/pdf/EtiquetteEcruPdf.tsx`, Dymo 99012 89 × 36 mm comme
   `StockFiniLabelPdf` / `StockFilLabelPdf`), envoyée par `POST /valider` → `printPdf()` dès
