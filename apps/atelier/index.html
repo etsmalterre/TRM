@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--
+      viewport-fit=cover: the app paints its own navy band behind the status
+      bar / gesture bar when installed, so it must own the safe-area insets.
+      user-scalable=no: this is a fixed-purpose station app worked with gloves
+      at a knitting machine — an accidental pinch leaves the bonnetier stuck at
+      3x with no obvious way back, and every type size here is already set for
+      arm's length (§45.1). Drop `user-scalable=no, maximum-scale=1` if that
+      trade ever stops being worth it.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#143D6B" />
+    <meta name="description" content="Atelier TRM - poste bonnetier et régleur" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <title>Atelier TRM</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

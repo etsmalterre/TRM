@@ -24,6 +24,21 @@ apps/web/vite.config.js.map
 apps/web/vite.config.d.ts
 apps/web/vite.config.d.ts.map
 
+# Same two rules for the atelier PWA. Written at scaffold time on purpose:
+# apps/web shipped for months with vite-env.d.ts swallowed by the pattern
+# above, and every fresh worktree failed to build until it was noticed.
+apps/atelier/src/**/*.js
+apps/atelier/src/**/*.js.map
+apps/atelier/src/**/*.d.ts
+apps/atelier/src/**/*.d.ts.map
+!apps/atelier/src/vite-env.d.ts
+apps/atelier/vite.config.js
+apps/atelier/vite.config.js.map
+apps/atelier/vite.config.d.ts
+apps/atelier/vite.config.d.ts.map
+# dev-server override for a paired API worktree — never committed
+apps/atelier/.env.local
+
 # IDE
 .idea/
 .vscode/
