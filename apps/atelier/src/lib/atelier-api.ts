@@ -69,8 +69,46 @@ export interface OfContexte {
   derniere_action: DerniereAction | null
 }
 
+export interface TypeDefaut {
+  type: string
+  unite: 'cm' | 'nb'
+}
+export interface TailleDefaut {
+  label: string
+  taille_cm: number
+}
+export interface LookupsDefauts {
+  types: TypeDefaut[]
+  tailles: TailleDefaut[]
+}
+
+export interface SaisiePayload {
+  action: string
+  IDbonnetier: number
+  appareil?: string
+  defaut?: { type: string; taille?: number }
+}
+
+export interface SaisieResultat {
+  ok: true
+  /** What actually landed, in order. The commit path has no transaction, so a
+   *  partial failure has to be reportable rather than a bare 500. */
+  ecrits: string[]
+  contexte: OfContexte
+}
+
 export const fetchBonnetiers = (regleur = false) =>
   apiFetch<Bonnetier[]>(`/atelier/bonnetiers?regleur=${regleur ? 1 : 0}`)
+
+/** The defect vocabulary is served, not duplicated here: it is the legacy
+ *  window's own combo content and the API validates against the same list. */
+export const fetchLookupsDefauts = () => apiFetch<LookupsDefauts>('/atelier/lookups/defauts')
+
+export const posterEvenement = (ofId: number, body: SaisiePayload) =>
+  apiFetch<SaisieResultat>(`/atelier/of/${ofId}/evenement`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 
 export const fetchMachines = () => apiFetch<Machine[]>('/atelier/machines')
 

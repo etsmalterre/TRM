@@ -24,18 +24,23 @@
 //       <COMPILE SI Configuration="Appli_Regleur">
 //           Ajoute("Relancer OF")
 //
-// ⚠️ ONE INFERENCE, flagged. The March build offers the régleur a single extra
-// entry labelled « Relancer OF ». Screenshot of the RUNNING app (2026-08-27,
-// OF 3554 on 3B, 43/100, régleur build) shows that slot reading « Interrompre
-// OF » instead — and BTN_Valider's own code has always had both halves: one
-// branch stamps `arret_prod`, the other clears it and writes a "Reprise OF"
-// event. So the slot is the interrupt/resume PAIR, keyed on whether the OF is
-// currently stopped. That reading fits both the code and the screenshot, but
-// it is a reading: confirm it against the current WinDev source before the
-// commit path goes live.
+// The régleur's extra slot is an interrupt/resume PAIR, keyed on whether the
+// OF is currently stopped. CONFIRMED 2026-08-27 against the CURRENT WinDev
+// compile cache (`MPS.cpl/<user>/00000005/FEN_Action_Machine.*.wcw`, built
+// 25/08/2026), whose COMBO_Action literals read in order:
 //
-// The verbatim strings matter — they are what the legacy writes into
-// `evenement_piece.evenement`, and years of history are keyed on them.
+//   Lancement OF · Nettoyage · Terminer OF · Fin de pièce · Dernière pièce ·
+//   Défaut · Interrompre OF · Relancer OF
+//
+// Both halves are compiled in and chosen at runtime. The March Java showed
+// only « Relancer OF », which is why this started as an inference; the other
+// build config (00000003) still differs by exactly that one literal.
+//
+// ⚠️ THE LABEL IS NOT THE EVENT STRING. The combo says « Interrompre OF » and
+// « Relancer OF »; BTN_Valider writes « Interruption OF » and « Reprise OF »
+// into `evenement_piece.evenement`. Same trap on « Fin de pièce », which
+// writes « Fin du tricotage ». The event strings are what years of history are
+// keyed on — see EVENEMENT_POUR below, and never derive one from the other.
 
 export type ActionAtelier =
   | 'Lancement OF'

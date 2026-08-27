@@ -4,11 +4,10 @@
 // action that commits, and the operator stands at it all day. Phone scale
 // rather than desk scale, but the same band stack.
 //
-// ⚠️ READ-ONLY for now. Band 4 lists the actions the legacy would offer, so
-// the derivation in lib/actions.ts can be checked against the real floor, but
-// nothing commits yet — the write path (evenement_piece, piece_production,
-// defaut_qualite, the ordre_fabrication timestamps) is the next piece of work
-// and carries real production consequences.
+// The commit path is live: band 4 writes evenement_piece, piece_production,
+// defaut_qualite and the ordre_fabrication timestamps, behind the
+// `saisie_atelier` right. There is NO undo yet — the legacy has one
+// (IMG_Annuler on the last action) and this does not.
 import { useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -17,6 +16,7 @@ import { fetchMachines, fetchOf, progression } from '@/lib/atelier-api'
 import { actionsDisponibles } from '@/lib/actions'
 import { PosteHeader } from '@/components/layout/PosteHeader'
 import { ConsigneCallout } from '@/components/of/ConsigneCallout'
+import { SaisieBand } from '@/components/atelier/SaisieBand'
 import { BonnetierPhoto } from '@/components/atelier/BonnetierPhoto'
 import { useIdentite } from '@/contexts/BonnetierContext'
 import { Card } from '@/components/ui/card'
@@ -143,29 +143,8 @@ export function Poste() {
             <ConsigneCallout texte={of.consigne} />
           </div>
 
-          {/* Band 4 — the input band. Not wired yet: see the file header. */}
-          <div className="px-3 pb-3">
-            <div className="rounded-xl border-2 border-dashed border-gold/40 bg-gold-light/30 p-3">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-accent">
-                  Actions
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  saisie non branchée — étape suivante
-                </span>
-              </div>
-              <ul className="mt-2 space-y-1.5">
-                {actions.map((a) => (
-                  <li
-                    key={a}
-                    className="h-11 px-3 rounded-lg bg-card border border-border flex items-center text-base font-medium text-muted-foreground"
-                  >
-                    {a}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+          {/* Band 4 — the input band, and the only place this app writes. */}
+          <SaisieBand of={of} actions={actions} metier={titre} />
 
           {/* Band 5 — the trace: what happened last on this piece. */}
           <div className="px-3 pb-3">
