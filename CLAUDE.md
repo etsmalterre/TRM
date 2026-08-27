@@ -538,6 +538,20 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
   c'est ce qui distingue encore, des années après, un défaut terminal d'un défaut visitage.
   ⚠️ **L'origine se lit sur `Type_Spotteur` seul** — « description NULL = visitage » n'est vrai
   que depuis 2023. `récuperé` est accentué → réécriture positionnelle (patron `setClientFlag`).
+- **La quantité d'un défaut est CORRIGIBLE au poste, et c'est le point** : au terminal le
+  bonnetier saisit une approximation — **999 pour « plus de 3 m »** — et c'est à la
+  visiteuse de mesurer et de rectifier. Chaque pastille porte donc son champ (masques du
+  legacy : `9 999 cm` sur `taille_cm`, `x9 999` sur `nombre`), et `POST /valider` écrit la
+  valeur en convertissant le défaut. Ce n'est pas une extension : la requête de la fenêtre
+  legacy, récupérée verbatim dans le cache de compilation, ne lit **que**
+  `IDdefaut_qualite, type_defaut, taille_cm, nombre FROM defaut_qualite WHERE
+  Type_Reference = 1 AND reference = ?` — la colonne était liée et éditable.
+  - **Seule la colonne de l'unité du type est prise du payload** ; l'autre garde ce que le
+    terminal a écrit, pour qu'un client ne puisse pas la vider. `description` n'est **pas**
+    touchée (le legacy ne la lit même pas ici) : elle reste la phrase du bonnetier, celle
+    que Prime rend verbatim.
+  - Les colonnes écrites sont ASCII, donc `UPDATE` nommé classique ; c'est `récuperé` seul
+    qui force encore la réécriture positionnelle, qui porte désormais la quantité aussi.
 - **Décrément du fil** = `Σ(poids des rouleaux) × asso_fil_of.pourcentage / 100`, **déclassés
   compris** (43 lots ouverts sur 75 le reproduisent, 0 en ne comptant que le 1er choix).
   C'est l'écriture la plus risquée : une mauvaise assiette fait dériver le grand livre du fil
@@ -592,6 +606,18 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
     atteint ce coin.
   - **Tout est noir sauf le badge** : une Dymo est thermique, donc tout ce qui n'est pas
     quasi-noir sort gris. Ne pas y remettre l'ambre de l'app.
+  - ⚠️ **La tête d'impression ne va PAS jusqu'au bout de l'étiquette** : elle s'arrête à
+    ~82,5 mm des 89 mm, les ~6,5 mm de droite sont perdus. Mesuré sur un tirage du poste le
+    2026-08-27, où le pavé DÉCLASSÉ est sorti tranché en plein mot (« DÉCLASS ») ; le bord
+    gauche, lui, tombe exactement là où le PDF le met — donc rien n'est décalé ni mis à
+    l'échelle, c'est bien une largeur imprimable. D'où `SAFE_RIGHT = 26` pt en padding
+    droit de la page : ce n'est pas une marge, c'est une **zone sûre**, volontairement bien
+    plus large que les 5 pt de gauche, et tout ce qui est calé à droite (le filet, le pavé)
+    s'aligne dessus. Sur l'étiquette physique le résultat est centré, parce qu'il est centré
+    dans la bande *imprimable* — ne jamais « rééquilibrer » ce padding contre celui de
+    gauche. Les étiquettes sœurs (`StockFiniLabelPdf` / `StockFilLabelPdf`) ne l'ont jamais
+    rencontré parce que tout y est calé à gauche : leur `paddingRight: 8` n'est pas un
+    précédent.
   - **`printPdf()` (`apps/web/src/lib/print.ts`) n'ouvre PAS d'onglet** : il récupère le PDF
     `credentials: 'include'`, le ressert depuis une **URL `blob:`** — qui hérite de l'origine
     de la page — et appelle `contentWindow.print()` sur une iframe cachée. L'étape blob est
@@ -900,6 +926,11 @@ PCS-compressed, but the full WLanguage survives as comments in the generated And
     en vigueur *aujourd'hui*, puisqu'elle décrit toujours la semaine courante quelle que
     soit la période consultée. Les deux coïncident dès que le semestre courant est affiché,
     seul cas où l'écran rend la semaine.
+  - ⚠️ **Le taux s'affiche à trois décimales quand il en porte trois.** `fmtTaux` (écran
+    *et* `PrimePdf`) était figé à deux : +0,055 sortait « +0,06 €/Kg », un taux que
+    personne ne touche, à côté d'un total calculé sur le vrai 0,055 — sur le document qui
+    paie la prime. La troisième décimale n'apparaît que si elle porte quelque chose
+    (-0,40 et -0,60 se lisent toujours à deux). Le calcul, lui, n'a jamais arrondi.
   - Garde : `bareme-prime-trm.test.ts` épingle la bascule au jour près et vérifie que la
     table reste triée et sur des frontières de semestre — `baremePour` sort de sa boucle au
     premier `from` futur, donc une table désordonnée résoudrait faux en silence.

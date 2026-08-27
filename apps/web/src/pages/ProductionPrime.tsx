@@ -60,7 +60,8 @@ interface DeclassementType {
   type: string
   kg: number
   pieces: number
-  /** Positive "manque à gagner" (kg × 0,20 €) — rendered with a minus. */
+  /** Positive "manque à gagner" (kg × le taux 2nd choix du barème en vigueur —
+   *  0,40 €/Kg depuis S2 2026) — rendered with a minus. */
   montant: number
   pct: number
 }
@@ -82,7 +83,8 @@ interface DeclassementSemaine {
   piece: string
   machine: string
   poids: number
-  /** Positive "manque à gagner" (poids × 0,20 €) — rendered with a minus. */
+  /** Positive "manque à gagner" (poids × le taux 2nd choix du barème en
+   *  vigueur) — rendered with a minus. */
   montant: number
   defauts: DefautDeclassement[]
 }
@@ -137,8 +139,18 @@ function frDate(iso: string, withYear = true): string {
     : `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 }
 
+/** A barème rate, €/Kg.
+ *
+ * ⚠️ Two decimals are NOT enough. The barème runs to a tenth of a centime since
+ * S2 2026 (+0,055 €/Kg on the 1er choix), so a fixed `toFixed(2)` printed
+ * « +0,06 €/Kg » — a rate nobody is paid, next to a total computed on the real
+ * 0,055. The third decimal appears only when it carries something: -0,40 and
+ * -0,60 still read with two.
+ */
 function fmtTaux(v: number): string {
-  return `${v > 0 ? '+' : ''}${fmtNum(v, 2)} €/Kg`
+  const cents = v * 100
+  const decimals = Math.abs(cents - Math.round(cents)) < 1e-9 ? 2 : 3
+  return `${v > 0 ? '+' : ''}${fmtNum(v, decimals)} €/Kg`
 }
 
 function fmtPct(v: number): string {

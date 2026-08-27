@@ -338,6 +338,19 @@ export function ProductionVisitage() {
     })
   }, [])
 
+  // The bonnetier keys an approximation at the terminal — 999 is what he enters
+  // for "plus de 3 m" — and measuring it properly is the visiteuse's job. So the
+  // quantity is editable on every pill, hers and his alike. Writes the column the
+  // type's unit uses and leaves the other alone (the legacy's own SELECT on this
+  // window reads type_defaut, taille_cm and nombre, and nothing else).
+  const modifierQte = useCallback((rollKey: string, defKey: string, qte: number) => {
+    setRouleaux((prev) => prev.map((r) => (r._key !== rollKey ? r : {
+      ...r,
+      defauts: r.defauts.map((d) => (d._key !== defKey ? d
+        : d.unite === 'cm' ? { ...d, taille_cm: qte } : { ...d, nombre: qte })),
+    })))
+  }, [])
+
   const toggleRecupere = useCallback((rollKey: string, defKey: string) => {
     setRouleaux((prev) => prev.map((r) => (r._key !== rollKey ? r : {
       ...r,
@@ -836,6 +849,7 @@ export function ProductionVisitage() {
                       onRemove={() => retirer(r._key)}
                       onMoveDefaut={(defKey, dir) => deplacer(r._key, defKey, dir)}
                       onToggleRecupere={(defKey) => toggleRecupere(r._key, defKey)}
+                      onChangeQte={(defKey, qte) => modifierQte(r._key, defKey, qte)}
                       onAddDefaut={() => setAddTarget(r._key)}
                       onDeleteDefaut={(d) => demanderSuppression(r._key, d)}
                       undo={undoDefaut?.rollKey === r._key ? undoDefaut.def : null}
@@ -1054,10 +1068,17 @@ function VisiteurGate({ visiteurs, value, onChange, loading }: {
         type="button"
         onClick={() => setOpen((o) => !o)}
         title={identified ? `${selected?.label ?? ''} — cliquer pour changer` : 'Choisir le visiteur'}
+        // The white pill is the RESTING state, not a hover reveal (user decision,
+        // 2026-08-27): on the zinc toolbar it is what makes the identity read as a
+        // badge worn by the station rather than a label floating in the strip.
+        // Hover therefore has to say something else — it lifts (shadow) and its
+        // hairline turns gold, the app's interactive accent.
         className={cn(
-          'flex items-center gap-2.5 rounded-full pl-3.5 pr-1 py-1 transition-colors flex-shrink-0',
-          'hover:bg-white/70 focus:outline-none focus:ring-2 focus:ring-ring',
-          !identified && 'ring-2 ring-amber-500/60 bg-amber-500/5',
+          'flex items-center gap-2.5 rounded-full pl-3.5 pr-1 py-1 flex-shrink-0',
+          'transition-all focus:outline-none focus:ring-2 focus:ring-ring',
+          identified
+            ? 'bg-white shadow-sm ring-1 ring-black/5 hover:shadow-md hover:ring-accent/60'
+            : 'bg-amber-500/10 shadow-sm ring-2 ring-amber-500/60 hover:bg-amber-500/20 hover:shadow-md',
         )}
       >
         <span className={cn(
@@ -1180,7 +1201,7 @@ function JaugeCard({ titre, sousTitre, realise, total, pct }: {
 
 function RouleauCard({
   draft, numero, canRemove, hasLeft, hasRight,
-  onChange, onRemove, onMoveDefaut, onToggleRecupere, onAddDefaut, onDeleteDefaut, undo, onUndo,
+  onChange, onRemove, onMoveDefaut, onToggleRecupere, onChangeQte, onAddDefaut, onDeleteDefaut, undo, onUndo,
 }: {
   draft: RouleauDraft
   numero: string
@@ -1191,6 +1212,7 @@ function RouleauCard({
   onRemove: () => void
   onMoveDefaut: (defKey: string, dir: -1 | 1) => void
   onToggleRecupere: (defKey: string) => void
+  onChangeQte: (defKey: string, qte: number) => void
   onAddDefaut: () => void
   onDeleteDefaut: (d: DefautDraft) => void
   undo: DefautDraft | null
@@ -1271,6 +1293,7 @@ function RouleauCard({
             hasRight={hasRight}
             onMove={(dir) => onMoveDefaut(d._key, dir)}
             onToggleRecupere={() => onToggleRecupere(d._key)}
+            onChangeQte={(qte) => onChangeQte(d._key, qte)}
             onDelete={() => onDeleteDefaut(d)}
           />
         ))}
@@ -1287,10 +1310,14 @@ function RouleauCard({
             </button>
           </div>
         )}
+        {/* Red, not the app's gold: this button only ever produces defect pills,
+            which are red — a gold hover made the one control that adds a fault
+            read like any other "+". Dashed and tinted rather than solid, because
+            it is an add affordance, not a commit. */}
         <button
           type="button"
           onClick={onAddDefaut}
-          className="w-full h-8 inline-flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border text-xs font-medium text-muted-foreground hover:border-accent hover:text-accent hover:bg-accent/5 transition-colors"
+          className="w-full h-8 inline-flex items-center justify-center gap-1.5 rounded-md border border-dashed border-red-500/40 bg-red-500/5 text-xs font-medium text-red-800/80 hover:border-red-500/70 hover:bg-red-500/15 hover:text-red-800 transition-colors"
         >
           <Plus className="h-3.5 w-3.5" />Ajouter un défaut
         </button>
@@ -1299,17 +1326,15 @@ function RouleauCard({
   )
 }
 
-function DefautPill({ defaut, hasLeft, hasRight, onMove, onToggleRecupere, onDelete }: {
+function DefautPill({ defaut, hasLeft, hasRight, onMove, onToggleRecupere, onChangeQte, onDelete }: {
   defaut: DefautDraft
   hasLeft: boolean
   hasRight: boolean
   onMove: (dir: -1 | 1) => void
   onToggleRecupere: () => void
+  onChangeQte: (qte: number) => void
   onDelete: () => void
 }) {
-  const qte = defaut.unite === 'cm'
-    ? (defaut.taille_cm > 0 ? `${fmtNum(defaut.taille_cm, 0)} cm` : '')
-    : (defaut.nombre > 0 ? `×${defaut.nombre}` : '')
   const recupere = defaut.recupere === 1
 
   // The move arrows live OUTSIDE the pill, pinned to the card's edges, and the
@@ -1331,8 +1356,8 @@ function DefautPill({ defaut, hasLeft, hasRight, onMove, onToggleRecupere, onDel
         <span className="font-medium truncate" title={defaut.description ?? defaut.type_defaut}>
           {defaut.type_defaut}
         </span>
-        {!!qte && <span className="tabular-nums flex-shrink-0">{qte}</span>}
         <div className="flex-1" />
+        <QteField defaut={defaut} onChange={onChangeQte} />
 
         {defaut.origine === 'bonnetier' && (
           <button
@@ -1354,6 +1379,47 @@ function DefautPill({ defaut, hasLeft, hasRight, onMove, onToggleRecupere, onDel
 
       <MoveSlot dir={1} enabled={hasRight} onMove={onMove} />
     </div>
+  )
+}
+
+/** The defect's quantity, editable in place — the legacy's bound column, with
+ *  its two masks (`9 999 cm` on taille_cm, `x9 999` on nombre).
+ *
+ *  It is kept as a string while it has focus so the field can be emptied and
+ *  retyped; a controlled number would fight the operator on the first
+ *  backspace. Blur commits, and an empty field commits 0 rather than leaving
+ *  the draft holding NaN.
+ */
+function QteField({ defaut, onChange }: { defaut: DefautDraft; onChange: (qte: number) => void }) {
+  const cm = defaut.unite === 'cm'
+  const value = cm ? defaut.taille_cm : defaut.nombre
+  const [text, setText] = useState<string | null>(null)
+
+  const commit = (raw: string) => {
+    const n = Math.min(9999, Math.max(0, Math.round(Number(raw.replace(/[^d]/g, '')) || 0)))
+    setText(null)
+    if (n !== value) onChange(n)
+  }
+
+  return (
+    <span className="flex items-center gap-0.5 flex-shrink-0 tabular-nums">
+      {!cm && <span className="opacity-60">×</span>}
+      <input
+        type="text"
+        inputMode="numeric"
+        value={text ?? String(value)}
+        onChange={(e) => setText(e.target.value.replace(/[^d]/g, '').slice(0, 4))}
+        onFocus={(e) => { setText(String(value)); e.target.select() }}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
+          if (e.key === 'Escape') { setText(null); (e.target as HTMLInputElement).blur() }
+        }}
+        title={cm ? "Longueur en cm — corriger l'estimation du bonnetier" : "Nombre — corriger l'estimation du bonnetier"}
+        className="w-11 h-6 px-1 rounded border border-black/15 bg-white text-right text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+      {cm && <span className="opacity-60">cm</span>}
+    </span>
   )
 }
 
