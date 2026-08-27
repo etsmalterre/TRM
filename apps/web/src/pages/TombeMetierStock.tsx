@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   Send,
   Factory,
+  Printer,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -22,9 +23,11 @@ import { KnitIcon } from '@/components/icons/KnitIcon'
 import { cn } from '@/lib/utils'
 import { formatHfsqlDate } from '@/lib/dates'
 import { fmtNum } from '@/lib/format'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, API_URL } from '@/lib/api'
+import { printPdf } from '@/lib/print'
 import { PopoverSelect } from '@/components/ui/popover-select'
 import { CardKV, MobileSortRow } from '@/components/stock/StockCardParts'
+import { useIsDesktop } from '@/hooks/useIsDesktop'
 
 // Tombé Métier › Stock — the écru pieces Tricotage Malterre knitted and still
 // physically holds (IDsociete = 2, not yet shipped). Table-centric "Tableau"
@@ -198,6 +201,7 @@ export function TombeMetierStock() {
   const [secondChoix, setSecondChoix] = useState(false)
   const [sort, setSort] = useState<SortState>({ key: 'date_saisie', dir: 'desc' })
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const isDesktop = useIsDesktop()
 
   const { data: rows, isLoading, isError, error } = useStockEcruTrmList({ statut, secondChoix })
 
@@ -304,7 +308,11 @@ export function TombeMetierStock() {
           </div>
         ) : (
           <>
-            {/* Desktop table (md+) — split header/body sharing one colgroup */}
+            {/* Desktop table (md+) — split header/body sharing one colgroup.
+                The `hidden md:flex` class still carries the layout, but the
+                branch is ALSO gated on useIsDesktop so the other one never
+                mounts — see the hook for why (this list is ~1 000 rows). */}
+            {isDesktop && (
             <div className="hidden md:flex md:flex-col flex-1 min-h-0">
               {/* Header table (non-scrolling) */}
               <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
@@ -350,9 +358,11 @@ export function TombeMetierStock() {
                 </table>
               </div>
             </div>
+            )}
 
             {/* Mobile card list (< md) — same rows, selection and sort state as
-                the table; only the row markup is rendered twice. */}
+                the table; only the row markup differs. */}
+            {!isDesktop && (
             <div className="md:hidden flex-1 min-h-0 flex flex-col">
               <MobileSortRow columns={COLUMNS} sort={sort} onSortChange={setSort} />
               <div className="flex-1 min-h-0 overflow-y-auto scrollbar-transparent p-2 space-y-2 bg-zinc-100/80">
@@ -366,6 +376,7 @@ export function TombeMetierStock() {
                 ))}
               </div>
             </div>
+            )}
           </>
         )}
       </div>
@@ -559,6 +570,16 @@ function StockEcruTrmDrawer({ id, onClose }: { id: number | null; onClose: () =>
   const open = id !== null
   const prod = detail?.production
 
+  // Dymo label for this one roll. `printPdf` never throws — it falls back to a
+  // tab — so the only state worth holding is "in flight", to stop a double-click
+  // spooling the label twice.
+  const [printing, setPrinting] = useState(false)
+  const handlePrintEtiquette = useCallback(() => {
+    if (id === null) return
+    setPrinting(true)
+    void printPdf(`${API_URL}/visitage-trm/etiquettes?ids=${id}`).finally(() => setPrinting(false))
+  }, [id])
+
   return (
     <div
       ref={drawerRef}
@@ -602,6 +623,27 @@ function StockEcruTrmDrawer({ id, onClose }: { id: number | null; onClose: () =>
             )}
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Réimprimer l'étiquette Dymo — the same label the poste de visitage
+                printed when the roll was weighed, from the same endpoint. A tag
+                gets torn, soaked or lost long after the piece left the visiteuse,
+                and until now the only way back to it was to re-validate a piece.
+                Secondary icon action of §27.5bis: ghost white, before the close.
+                Disabled on a roll with no OF — the endpoint's partition guard is
+                `IDordre_fabrication > 0`, so those 404 rather than print. */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 flex-shrink-0 text-white/80 hover:bg-white/15 hover:text-white"
+              disabled={!detail || !detail.IDordre_fabrication || printing}
+              onClick={handlePrintEtiquette}
+              title={
+                detail && !detail.IDordre_fabrication
+                  ? "Pas d'OF sur ce rouleau — étiquette indisponible"
+                  : "Imprimer l'étiquette"
+              }
+            >
+              {printing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+            </Button>
             {/* Mobile-only close — at full drawer width there is no "outside" left to tap */}
             <Button
               variant="ghost"

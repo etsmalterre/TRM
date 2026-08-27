@@ -376,7 +376,16 @@ so the ETM screen could not simply take a `societe` param. TRM has its own scree
 duplicated — same for `fetchDefectsByEcru` / `defautSummary`.
 
 The screen is read-only: pieces are created and closed by the production/visitage flow,
-never edited from here.
+never edited from here. **Une exception : le tiroir réimprime l'étiquette Dymo du
+rouleau** (bouton imprimante de l'en-tête), sur le même
+`GET /visitage-trm/etiquettes?ids=<IDstock_ecru>` que le poste appelle à la validation —
+une étiquette se déchire ou se mouille des mois après la visiteuse, et le seul chemin de
+retour était de revalider une pièce. Ça n'écrit rien, donc ça reste dans un écran en
+lecture seule et sans droit (mêmes raisons qu'au poste). Le bouton est **désactivé quand
+`IDordre_fabrication` est nul** : c'est le garde-fou de partition de l'endpoint, donc ces
+rouleaux-là 404 au lieu d'imprimer.
+⚠️ **`GET /visitage-trm/etiquettes` a donc DEUX appelants maintenant**, plus le
+`?demo=N` sans appelant — le toucher demande de vérifier le poste *et* ce tiroir.
 
 ### Clients › Gestion (`/clients/gestion`) — port of `FI_Gestion_Client_TRM.wdw`
 
@@ -1314,6 +1323,20 @@ Key invariants (full detail in the skill):
 - **SW denylist for `/api/`** in `vite.config.ts` — never remove.
 - **Never revert web build to `tsc -b`** — emitted `.js` in `src/` shadows `.tsx` sources in Vite. Build is `tsc --noEmit && vite build`.
 - HFSQL booleans are `0`/`1` — always `!!value &&` in JSX to avoid rendering `0`.
+- ⚠️ **Le double rendu `hidden md:flex` / `md:hidden` des écrans §27 se paie sur les
+  LONGUES listes.** Le patron table-centric rend chaque ligne **deux fois** — une table
+  desktop et une carte mobile — et en cache une en CSS : gratuit sur 30 lignes, cher sur
+  une vraie liste. Tombé Métier › Stock porte ~1 000 pièces, donc le navigateur
+  construisait, stylait et disposait ~2 000 sous-arbres de ligne (~40 000 éléments) pour
+  en montrer 1 000. Les deux branches se gardent donc aussi sur **`useIsDesktop()`**
+  (`hooks/useIsDesktop.ts`, `matchMedia` au breakpoint `md`, valeur initiale lue
+  **synchroniquement** — un défaut posé en `useEffect` monterait la mauvaise branche une
+  fois et paierait le coût quand même). Les classes Tailwind restent : elles portent la
+  mise en page, le hook porte le montage. **C'est un patron, pas un correctif local** —
+  tout écran §27 dont la liste peut atteindre les centaines de lignes le veut, dans les
+  deux applications (les écrans §27 d'ETM ont exactement le même piège, non traité à ce
+  jour). Ne pas le poser à l'aveugle sur les listes courtes : le hook coûte un rendu de
+  plus au franchissement du breakpoint.
 - **`<Badge className="badge-warning">` renders navy, not amber.** The `.badge-*` helpers live in `@layer components` while the Badge's own `bg-primary` is a plain utility, and utilities beat components — the helper silently loses. For a coloured badge, pass `variant="outline"` plus explicit utilities (`bg-amber-500/15 text-amber-800 border-amber-500/30`). Applies to ETM's copy of `badge.tsx` too.
 
 ## Versioning
