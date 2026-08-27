@@ -12,7 +12,8 @@ apps/web/src/**/*.js
 apps/web/src/**/*.js.map
 apps/web/src/**/*.d.ts
 apps/web/src/**/*.d.ts.map
-# ...but vite-env.d.ts is hand-written source (declares __APP_VERSION__), not an artifact
+# ...but vite-env.d.ts is hand-written source (declares __APP_VERSION__), not an artifact.
+# Without it a fresh clone or worktree fails `tsc --noEmit` and cannot build at all.
 !apps/web/src/vite-env.d.ts
 
 # Emitted vite config artifacts — source is vite.config.ts; a stray `tsc -b`

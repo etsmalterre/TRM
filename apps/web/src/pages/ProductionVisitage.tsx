@@ -40,7 +40,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  AlertTriangle, Check, ChevronLeft, ChevronRight, Loader2, Plus, RefreshCw, Scale, Scissors, UserCheck, X,
+  AlertTriangle, Check, ChevronLeft, ChevronRight, Loader2, Plus, Printer, RefreshCw, Scale, Scissors, UserCheck, X,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -53,6 +53,7 @@ import { TmRollIcon } from '@/components/icons/TmRollIcon'
 import { useHasPermission } from '@/contexts/PermissionsContext'
 import { apiFetch, API_URL } from '@/lib/api'
 import { fmtNum } from '@/lib/format'
+import { printPdf } from '@/lib/print'
 import { cn } from '@/lib/utils'
 
 // ── API payload types ──────────────────────────────────
@@ -129,6 +130,19 @@ interface PostePayload {
   a_visiter_raison: 'ouvert_visiteuse' | 'debut_of' | 'cadence' | null
   approx: boolean
 }
+
+/** What POST /valider hands back — the rolls it created, which is exactly the
+ *  list of labels the Dymo has to spool. */
+interface ValiderResponse {
+  of_id: number
+  evenement: string
+  rouleaux: { id: number; numero: string; num_piece_OF: number; second_choix: number; poids: number }[]
+}
+
+/** The last print job this poste fired, kept until the next validation so a
+ *  label that did not come out of the Dymo can be re-sent without hunting for
+ *  the roll again. `ok` is false when printPdf had to fall back to a tab. */
+interface LastLabels { ids: number[]; ok: boolean }
 
 interface HistoriqueRow {
   id: number
@@ -416,7 +430,18 @@ export function ProductionVisitage() {
   const poidsOk = rouleaux.length > 0 && rouleaux.every((r) => (parseFloat(r.poids.replace(',', '.')) || 0) > 0)
   const canValider = identified && !!piece && poidsOk && canSaisir
 
-  const valider = useMutation({
+  const [lastLabels, setLastLabels] = useState<LastLabels | null>(null)
+
+  /** Fire the Dymo for a set of rolls and remember whether it took. */
+  const imprimerEtiquettes = useCallback((ids: number[]) => {
+    if (ids.length === 0) return
+    setLastLabels({ ids, ok: true })
+    void printPdf(`${API_URL}/visitage-trm/etiquettes?ids=${ids.join(',')}`).then((ok) => {
+      setLastLabels((prev) => (prev && prev.ids === ids ? { ...prev, ok } : prev))
+    })
+  }, [])
+
+  const valider = useMutation<ValiderResponse>({
     mutationFn: () => apiFetch('/visitage-trm/valider', {
       method: 'POST',
       body: JSON.stringify({
@@ -437,7 +462,10 @@ export function ProductionVisitage() {
         })),
       }),
     }),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // One label per roll the cut produced, in one job — the legacy printed
+      // the same tag from ImprimeEtiquetteTM at this exact moment.
+      imprimerEtiquettes((data?.rouleaux ?? []).map((r) => r.id).filter((id) => id > 0))
       // The piece is consumed; force a fresh poste so the next one loads with
       // its own defects and the numbering moves on.
       loadedPieceRef.current = 0
@@ -498,10 +526,14 @@ export function ProductionVisitage() {
           onChange={(id) => { setMetierId(id); setPieceId(0) }}
           hideEmpty
           size="sm"
-          /* A métier is a two-character code — the trigger only has to fit
-             "2A". The popover keeps its own 240px minimum, so the list stays
-             readable. */
-          widthClass="w-[78px]"
+          /* Nothing picked yet is a real state here — the worklist can come
+             back empty, and there is a frame before the auto-select lands.
+             The default « — aucun — » truncated to « — a… » in a 78px trigger,
+             which read as a broken control. So the empty state gets its own
+             word AND its own width; a chosen métier goes straight back to the
+             two-character trigger the toolbar is designed around. */
+          emptyLabel={metierOptions.length === 0 ? 'Aucun' : 'Choisir'}
+          widthClass={metierId === 0 ? 'w-[100px]' : 'w-[78px]'}
         />
         <Button
           variant="outline" size="icon" className="h-9 w-9" title="Rafraîchir"
@@ -509,6 +541,28 @@ export function ProductionVisitage() {
         >
           <RefreshCw className={cn('h-4 w-4', poste.isFetching && 'animate-spin')} />
         </Button>
+
+        {/* ⚠️⚠️ TEMPORAIRE — banc d'essai de l'étiqueteuse. ⚠️⚠️
+            La seule machine qui peut exercer le vrai Dymo est le poste de
+            production, donc ces deux boutons impriment des étiquettes
+            d'exemple (`?demo=N`) sans créer le moindre rouleau. Le bloc est
+            volontairement d'un seul tenant et signalé en pointillés ambre :
+            À SUPPRIMER une fois le rendu validé sur le poste. */}
+        <div className="flex items-center gap-1 rounded-md border border-dashed border-amber-500/60 bg-amber-500/10 px-2 py-1 flex-shrink-0">
+          <span className="text-[11px] font-medium text-amber-800">Test Dymo</span>
+          {[1, 3].map((n) => (
+            <Button
+              key={n}
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              title={`Imprimer ${n} étiquette${n > 1 ? 's' : ''} d'exemple`}
+              onClick={() => { void printPdf(`${API_URL}/visitage-trm/etiquettes?demo=${n}`) }}
+            >
+              <Printer className="h-3.5 w-3.5 mr-1" />{n}
+            </Button>
+          ))}
+        </div>
 
         <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
           {of && aVisiter ? (
@@ -693,6 +747,27 @@ export function ProductionVisitage() {
                     if (s === 400) return 'Saisie invalide'
                     return 'Échec — vérifiez le stock avant de recommencer'
                   })()}
+                </span>
+              )}
+
+              {/* What the Dymo was asked to do, kept until the next
+                  validation. A label that jammed or never came out is the
+                  commonest station incident, and the roll is already in stock
+                  by then — so the way back to it has to stay on screen rather
+                  than in the historique band. */}
+              {lastLabels && !valider.isError && (
+                <span className="text-sm flex items-center gap-1.5 text-muted-foreground">
+                  <Printer className="h-4 w-4 flex-shrink-0" />
+                  {lastLabels.ok
+                    ? `${lastLabels.ids.length} étiquette${lastLabels.ids.length > 1 ? 's' : ''} envoyée${lastLabels.ids.length > 1 ? 's' : ''}`
+                    : 'Étiquettes ouvertes dans un onglet'}
+                  <button
+                    type="button"
+                    onClick={() => imprimerEtiquettes(lastLabels.ids)}
+                    className="underline underline-offset-2 hover:text-foreground"
+                  >
+                    Réimprimer
+                  </button>
                 </span>
               )}
 

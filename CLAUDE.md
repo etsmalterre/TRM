@@ -549,8 +549,45 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
 - **Droit `saisie_visitage`** (`permission-keys-trm.ts`, catégorie Production) : il ne garde que
   le bouton Valider et la route d'écriture — consulter le poste reste ouvert. ⚠️ **Fermé par
   défaut : à accorder aux visiteuses en prod** (Paramètres › Utilisateurs) après le déploiement.
+- **L'étiquette Dymo, imprimée à la validation** — `GET /visitage-trm/etiquettes?ids=…`,
+  **une page PDF par rouleau** (`lib/pdf/EtiquetteEcruPdf.tsx`, Dymo 99012 89 × 36 mm comme
+  `StockFiniLabelPdf` / `StockFilLabelPdf`), envoyée par `POST /valider` → `printPdf()` dès
+  que la réponse revient. C'est le port de la procédure globale legacy **`ImprimeEtiquetteTM`**
+  (collection `Utilitaire` du projet MPS) : le `.wdg` est PCS-compressé mais ses littéraux
+  survivent dans le cache de compilation (`Utilitaire.AF726741.wdg.wcg`) et écrivent
+  l'étiquette en toutes lettres — `TRM.jpg`, `Arial`, le métier via `ordre_fabrication` →
+  `machine`, `"N° : "`, `"Poids : " %5,2f " Kg"`, `"Réf. : "` via `ref_ecru` → `colori_ecru`,
+  `"Date : " JJ/MM/AAAA HH:mm:SS`. **Les champs sont donc ceux du legacy, verbatim et dans
+  son ordre** ; seule la présentation change.
+  - **Deux deltas assumés** : le vieux logo pyramide `TRM.jpg` devient le **badge M carré**
+    (`logo-m-email.png`, décision utilisateur du 2026-08-27 — la bande de gauche d'une
+    89 × 36 est haute et étroite, le monogramme la remplit là où le mot-symbole large doit
+    rétrécir, et il tient mieux la trame thermique) ; et un rouleau déclassé porte
+    désormais un **pavé noir « DÉCLASSÉ »**, que le legacy n'imprime pas — or c'est
+    précisément ce que l'étiquette d'un rouleau devrait dire. Il vit sur la ligne de date,
+    et **pas** en coin haut-droit : à 22 pt un numéro à neuf caractères (« 3417/1001 »)
+    atteint ce coin.
+  - **Tout est noir sauf le badge** : une Dymo est thermique, donc tout ce qui n'est pas
+    quasi-noir sort gris. Ne pas y remettre l'ambre de l'app.
+  - **`printPdf()` (`apps/web/src/lib/print.ts`) n'ouvre PAS d'onglet** : il récupère le PDF
+    `credentials: 'include'`, le ressert depuis une **URL `blob:`** — qui hérite de l'origine
+    de la page — et appelle `contentWindow.print()` sur une iframe cachée. L'étape blob est
+    porteuse : l'API dev est sur un autre port, et une iframe cross-origin lèverait
+    `SecurityError`. ⚠️ **Le poste doit lancer Chrome avec `--kiosk-printing` et la Dymo en
+    imprimante par défaut** pour que ça imprime sans boîte de dialogue, comme le legacy ;
+    sans ce drapeau la boîte s'ouvre pré-chargée. Tout échec retombe sur `window.open`, et
+    la barre de validation dit lequel des deux a eu lieu et offre « Réimprimer ».
+  - Pas de garde `saisie_visitage` : réimprimer une étiquette que le rouleau porte déjà est
+    aussi sensible que consulter le poste. Le garde-fou de partition est
+    **`IDordre_fabrication > 0`** (seul le tricotage TRM a un OF), jamais `IDsociete` — la
+    réception ETM bascule le rouleau en société 1 et l'étiquette doit rester réimprimable.
+  - ⚠️ **`?demo=N` et les deux boutons « Test Dymo » de la barre poste sont TEMPORAIRES**
+    (bloc en pointillés ambre dans `ProductionVisitage.tsx`, d'un seul tenant) : la seule
+    machine capable d'exercer la vraie Dymo est le poste de production. **À supprimer une
+    fois le rendu validé sur le poste** — la route `?demo=` avec.
 - Scripts : `probe-visitage-trm.ts` (règles vs tout l'historique), `check-visitage-trm.ts`
-  (routes, en `dry_run`), `seed-visitage-historique.ts` (**dev only**, refuse de tourner hors
+  (routes, en `dry_run` — et les étiquettes, en lecture seule, avant la porte du worklist),
+  `seed-visitage-historique.ts` (**dev only**, refuse de tourner hors
   localhost — peuple la bande « Aujourd'hui sur <métier> », vide sur l'instantané local).
 
 
