@@ -59,6 +59,11 @@ import { FilsStock } from '@/pages/FilsStock'
 // Références is shared verbatim with ETM — imported from the sister repo
 // via the @etm alias (see vite.config.ts). Edit it there; both apps update.
 import { TombeMetierReferences } from '@etm/pages/TombeMetierReferences'
+// …with one TRM-only graft: its « Obs OF » tab becomes editable. obs_ref_ecru
+// is the régleur's standing note on an écru reference — meaningful here, not in
+// ETM, which buys its écru and has no métiers. The shared file takes the whole
+// editable panel as a prop rather than being forked or learning a TRM endpoint.
+import { ObsOfEditor } from '@/components/of/ObsRefEcru'
 const TmEchantillonsPage = createPlaceholder('Échantillons', 'Échantillons tombé métier', Layers)
 // Stock is NOT shared with ETM: `stock_ecru` is partitioned by IDsociete and the
 // two halves are different objects (TRM pieces come off an OF on a métier; ETM
@@ -136,7 +141,7 @@ export const router = createBrowserRouter([
 
       // Tombé Métier
       { path: 'tombe-metier', element: <Navigate to="/tombe-metier/references" replace /> },
-      { path: 'tombe-metier/references', element: <TombeMetierReferences /> },
+      { path: 'tombe-metier/references', element: <TombeMetierReferences obsOfEditor={ObsOfEditor} /> },
       { path: 'tombe-metier/echantillons', element: <TmEchantillonsPage /> },
       { path: 'tombe-metier/stock', element: <TombeMetierStock /> },
 

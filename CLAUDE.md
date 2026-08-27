@@ -183,11 +183,9 @@ composition qu'ils peuvent alimenter. Port du bouton legacy en bas à droite du 
   laisser croire qu'il n'y en a aucune. `date` est un mot réservé (aliasé au SELECT), et les
   libellés sont résolus à plat, jamais par le JOIN du legacy (le pont Linux mange les accents
   en jointure).
-  - ⚠️ **La saisie n'est pas portée** : ces observations ne se créent aujourd'hui que dans
-    l'app legacy (Tombé Métier › Références, onglet « Obs OF »). L'écran Références de TRM
-    est le fichier **partagé** d'ETM (`@etm/pages/TombeMetierReferences`), donc y ajouter
-    l'onglet le ferait apparaître aussi côté ETM, où `obs_ref_ecru` n'a pas de sens — à
-    trancher avant de l'implémenter.
+  - **La saisie est portée depuis le 2026-08-27** — voir « Observations régleur » plus bas.
+    Le dialogue de création, lui, reste en **lecture seule** sur ce bloc : on lance un OF,
+    on n'écrit pas la doctrine de la référence au même moment.
 - ⚠️ **« Ajouter un fil » sert à DEUX choses**, confirmées par le régleur puis dans le
   registre (2026-08-26) — la seconde avait été ratée au premier port :
   1. **Tricoter un fil absent de la fiche écru**, comme variation volontaire de la
@@ -418,15 +416,63 @@ event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell
   toutes les 3 pièces » / 2 « Toutes les pièces » (0 = 20 legacy rows, shown « — »);
   Tricoter = `asso_fil_of`, Incorporer = `fil_incorpore`; nb_pieces derived
   ceil(quantite/poids_piece); quantité locked once production started.
-- **5 sidebar tabs**: Observations = `message_of` (positional INSERT — reserved `date`);
-  Production = `piece_production` + `evenement_piece` timeline (avatars =
-  `bonnetier.photo` blob endpoint, initials fallback); Visitage = `stock_ecru` rolls;
-  Qualité = `defaut_qualite` both populations (Type_Reference 1 = pièce, 2 = rouleau),
-  trim `type_defaut` (historical `"Autre Barrure "`); Performance = `evenement_machine`
-  (recorder covers PLC métiers only, no data after 2026-03-09 → honest empty state).
+- **5 sidebar tabs**: Observations = **`obs_ref_ecru` + `message_of`**, empilés (voir
+  « Observations régleur » ci-dessous) ; Production = `piece_production` +
+  `evenement_piece` timeline (avatars = `bonnetier.photo` blob endpoint, initials
+  fallback); Visitage = `stock_ecru` rolls; Qualité = `defaut_qualite` both populations
+  (Type_Reference 1 = pièce, 2 = rouleau), trim `type_defaut` (historical
+  `"Autre Barrure "`); Performance = `evenement_machine` (recorder covers PLC métiers
+  only, no data after 2026-03-09 → honest empty state).
 - **Flagged approximations** (legacy formulas unrecoverable): per-piece % =
   trs_10kg_chute/nb_chutes × poids/10 ÷ vitesse (fallback orf → machine → ref_ecru);
   faux-arrêts filter = 120 s. Imprimer (ETAT_OF work sheet) is still the §18 placeholder.
+
+#### « Observations régleur » (`obs_ref_ecru`) — l'onglet Obs. et l'onglet Obs OF
+
+Les consignes durables portées par la **référence écru**, ciblées **par métier et par
+coloris** (`IDmachine = 0` = « Toutes », `IDcolori_ecru = 0` = « Tout coloris »).
+Composant partagé `apps/web/src/components/of/ObsRefEcru.tsx` (carte + dialogue +
+confirmation de suppression), CRUD `ETM/apps/api/src/routes/of-trm.ts`
+(`GET /:id/observations-ref`, `POST /references/:refId/observations-ref`,
+`PUT|DELETE /observations-ref/:obsId`, `GET /lookups/coloris-ecru?ref=`), garde
+`ETM/apps/api/src/scripts/check-obs-ref-ecru-trm.ts`.
+
+- ⚠️ **L'onglet Obs. de la fiche OF lisait `message_of`, et c'était le mauvais fichier**
+  (corrigé le 2026-08-27, signalé par l'utilisateur sur l'OF 1741). Le legacy y montre
+  `obs_ref_ecru` : requête récupérée verbatim dans le cache de compilation
+  (`FI_Gestion_OF.wcw`), prédicat `IDref_ecru = :ref AND (IDmachine = :machine OR
+  IDmachine = 0) AND (IDcolori_ecru = :colori OR IDcolori_ecru = 0) ORDER BY date DESC`.
+  L'OF 1741 (créé en 2022) porte bien une observation de 2024 — c'est le propre d'une note
+  de référence, et c'est ce qui trahissait l'erreur. **`message_of` n'apparaît nulle part
+  dans le legacy bureau** : il vit dans l'app Android du poste (`FEN_Consigne`).
+- **Le scope se lit sur l'OF, pas sur sa ligne de commande** : `ordre_fabrication` porte ses
+  propres `IDref_ecru` / `IDcolori_ecru`, et ils divergent de la ligne sur **848 OF sur
+  3 178**. La fiche affiche ceux de l'OF (`GET /:id`), donc l'onglet aussi.
+- **Les deux populations sont empilées dans le même onglet** (décision utilisateur du
+  2026-08-27) : « Observations régleur » puis « Messages de l'atelier ». Le fil `message_of`
+  est conservé parce que **la PWA est le seul endroit côté bureau où on peut le lire** —
+  113 messages, toujours alimentés depuis le poste.
+- **La saisie est ouverte sur les deux écrans**, comme le legacy (même table, même dialogue
+  `FEN_Editer_Observation`, même confirmation « Voulez-vous vraiment supprimer cette
+  observation ? ») : la fiche OF, où le nouveau billet est **pré-ciblé sur le métier et le
+  coloris de l'OF**, et Tombé Métier › Références, qui montre toute la référence sans filtre.
+- ⚠️ **L'écran Références est le fichier PARTAGÉ d'ETM** : il ne connaît pas `obs_ref_ecru`
+  en écriture et ne doit pas apprendre une URL TRM. Il expose donc une prop
+  `obsOfEditor` — **un composant**, pas un booléen — et TRM y injecte `ObsOfEditor` depuis
+  son `router.tsx`. Sans la prop, l'onglet reste la liste en lecture seule qu'ETM a
+  toujours eue. C'est le pendant frontend de `FinanceScope` : améliorer le fichier dans
+  ETM, ne jamais en forker une copie TRM.
+- **Droit `edit_of`** sur les trois routes d'écriture — pas de nouvelle clé : ces notes
+  existent pour être lues au lancement, c'est le même acte. La lecture reste ouverte.
+- Écriture HFSQL : `DATE` est réservé → **INSERT positionnel** (ordre physique vérifié sur
+  le `SELECT *` runtime : `IDobs_ref_ecru, IDref_ecru, IDmachine, IDcolori_ecru,
+  observation, DATE`), UPDATE nommé pour le reste. ⚠️ **Une modification ne re-date pas la
+  ligne** : les deux tables trient par `date`, une correction de faute ne doit pas remonter
+  en tête. Un coloris non nul doit appartenir à la référence (400 sinon), comme la combo
+  legacy qui est paramétrée dessus.
+- Le libellé du métier vient de `machine.nom`, pas de `machine.emplacement` que le legacy
+  utilise ici : `emplacement` est **vide sur 4 métiers** (Vignoni, jersey 1F, terrot, RAY),
+  qui s'affichaient donc sans nom. Delta assumé, cohérent avec le reste de l'écran.
 - ⚠️ **Une composition est une liste de POSITIONS D'ALIMENTATION, pas de fils.** Un mélange
   peut alimenter deux fois le même couple (fil, coloris) : la réf. 119/ecru, c'est
   71 % + 14,5 % + 14,5 % de deux fils seulement, et il faut les trois lignes pour faire les
@@ -1075,6 +1121,7 @@ Some screens are pixel-identical in both apps and hit the same non-partitioned d
 - **Import**: `import { TombeMetierReferences } from '@etm/pages/TombeMetierReferences'` in `router.tsx`. The `@etm` alias points at `../../../ETM/apps/web/src` (vite.config.ts + tsconfig paths) — the two repos **must stay sibling directories** under `C:\dev\etsmalterre\` (worktrees like `TRM-ref-tm` are siblings too, so they work).
 - **`@/` imports inside a shared screen resolve to THIS app's src** — the screen uses TRM's local copies of components/lib/hooks. Keep those copies in sync with ETM (they currently differ only in line endings, plus the `API_URL` dev fallback in `lib/api.ts`). Verbatim mirrors of ETM files, copied when a screen needed them — improve them **in ETM** and re-copy, never fork: `components/email/SendEmailDialog.tsx`, `components/ui/signature-preview.tsx`, `lib/email.ts`, plus the `components/ui/*`, `lib/*` and `hooks/*` that predate them.
 - **The source of truth lives in ETM** — improve the screen there (or from here via the alias path, it's the same file). Never fork a TRM copy of a shared screen.
+- **A per-app difference is a PROP, never a fork.** Three precedents, in increasing strength: `RapportFinance basePath` (a string), `TombeMetierReferences obsOfEditor` (a whole **component** TRM injects, so the shared file never learns a TRM endpoint — see « Observations régleur »), and on the backend `createFinanceRouter(scope)`. Default the prop to the ETM behaviour and the other app is untouched.
 - **Adding a new shared screen**: (1) import it via `@etm/pages/...` in `router.tsx`; (2) add its file path to the `content` array in `tailwind.config.js` (explicitly — no globs — or its Tailwind classes won't be generated); (3) check the data it touches is either non-partitioned or already TRM-scoped; (4) if it needs modules TRM doesn't have yet, copy those from ETM first.
 - **Guardrails already in vite.config.ts** — `server.fs.allow` (serves out-of-root files in dev) and `resolve.dedupe` (prevents a second React copy from ETM's node_modules, which would crash hooks). Don't remove either.
 - Consequence: TRM builds require the ETM checkout to be present at the sibling path.

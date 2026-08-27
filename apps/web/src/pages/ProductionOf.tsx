@@ -62,6 +62,7 @@ import { CreateOfDialog } from '@/components/of/CreateOfDialog'
 import { AddFilButton, AddIncorporeButton, nextDraftKey, type FilPair, type LotLookup } from '@/components/of/FilPickers'
 import { HorsRefBadge } from '@/components/of/HorsRefBadge'
 import { ConsigneCallout } from '@/components/of/ConsigneCallout'
+import { OfObservationsRegleur } from '@/components/of/ObsRefEcru'
 import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst'
 import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
 import { useElementSize } from '@/hooks/useElementSize'
@@ -1169,7 +1170,10 @@ function OfListCard({
               </Button>
             </div>
           )}
-          <Badge variant="outline" className="text-[10px] py-0 font-mono">{row.machine || '—'}</Badge>
+          {/* The métier is what the atelier scans this list for — the pill
+              carries a size of its own rather than the [10px] chip size used
+              for incidental tags. */}
+          <Badge variant="outline" className="text-xs py-0.5 px-2 font-mono">{row.machine || '—'}</Badge>
         </div>
       </div>
       <p className="text-xs text-muted-foreground mt-1 truncate">
@@ -2023,7 +2027,7 @@ function OfSidebar({
           })}
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-transparent">
-          {tab === 'observations' && <ObservationsTab ofId={detail.id} canEdit={canEdit} />}
+          {tab === 'observations' && <ObservationsTab detail={detail} canEdit={canEdit} />}
           {tab === 'production' && <ProductionTab ofId={detail.id} />}
           {tab === 'visitage' && <VisitageTab ofId={detail.id} />}
           {tab === 'qualite' && <QualiteTab ofId={detail.id} />}
@@ -2043,9 +2047,56 @@ function OfSidebar({
   )
 }
 
-// Tab 1 — Observations (message_of)
+// Tab 1 — Observations, two populations that the legacy never shows together:
+//
+//   « Observations régleur » = obs_ref_ecru, the standing notes carried by the
+//   ÉCRU REFERENCE and scoped per métier / coloris. This is what the legacy OF
+//   window's Observations tab shows (its query is quoted in of-trm.ts), and it
+//   was MISSING here until 2026-08-27 — the tab read message_of only, so an OF
+//   whose reference carried a note honestly reported « Aucune observation ».
+//
+//   « Messages de l'atelier » = message_of, the bonnetier's thread. The legacy
+//   desktop shows it nowhere: it belongs to the Android terminal
+//   (`FEN_Consigne`). It is kept because this fiche is the only place on the
+//   bureau side where those messages can be read at all (user decision,
+//   2026-08-27) — 113 of them, still arriving.
+//
+// They are stacked rather than split into two sidebar tabs: both answer « what
+// do I need to know before touching this run », and a 6th tab icon would crowd
+// the bar for a thread that is often empty.
 
-function ObservationsTab({ ofId, canEdit }: { ofId: number; canEdit: boolean }) {
+function ObservationsTab({ detail, canEdit }: { detail: OfDetail; canEdit: boolean }) {
+  return (
+    <>
+      <SectionLabel icon={ClipboardList} title="Observations régleur" />
+      <OfObservationsRegleur
+        ofId={detail.id}
+        refId={detail.IDref_ecru}
+        refLabel={detail.ref_label}
+        machineId={detail.IDmachine}
+        coloriId={detail.IDcolori_ecru}
+        canEdit={canEdit}
+      />
+      <SectionLabel icon={MessageSquare} title="Messages de l'atelier" className="pt-3" />
+      <MessagesAtelier ofId={detail.id} canEdit={canEdit} />
+    </>
+  )
+}
+
+function SectionLabel({
+  icon: Icon,
+  title,
+  className,
+}: { icon: typeof MessageSquare; title: string; className?: string }) {
+  return (
+    <p className={cn('text-xs font-semibold text-muted-foreground flex items-center gap-1.5', className)}>
+      <Icon className="h-3.5 w-3.5 text-accent" />
+      {title}
+    </p>
+  )
+}
+
+function MessagesAtelier({ ofId, canEdit }: { ofId: number; canEdit: boolean }) {
   const queryClient = useQueryClient()
   const [text, setText] = useState('')
   const { data, isLoading } = useQuery<ObservationRow[]>({
@@ -2066,11 +2117,11 @@ function ObservationsTab({ ofId, canEdit }: { ofId: number; canEdit: boolean }) 
   return (
     <>
       {isLoading && <div className="space-y-2">{[1, 2].map((i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />)}</div>}
+      {/* A quiet one-liner, not the big centered empty state it used to be:
+          this is now the second block of the tab, and an OF with no terminal
+          message is the normal case — 113 messages across 3 178 OFs. */}
       {!isLoading && (data ?? []).length === 0 && (
-        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-          <MessageSquare className="h-8 w-8 mb-2 opacity-50" />
-          <p className="text-sm">Aucune observation</p>
-        </div>
+        <p className="text-sm text-muted-foreground italic">Aucun message de l'atelier.</p>
       )}
       {(data ?? []).map((o) => (
         <div key={o.id} className="p-3 rounded-lg border bg-card shadow-sm">
