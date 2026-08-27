@@ -548,8 +548,14 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
   ⚠️ **L'origine se lit sur `Type_Spotteur` seul** — « description NULL = visitage » n'est vrai
   que depuis 2023. `récuperé` est accentué → réécriture positionnelle (patron `setClientFlag`).
 - **La quantité d'un défaut est CORRIGIBLE au poste, et c'est le point** : au terminal le
-  bonnetier saisit une approximation — **999 pour « plus de 3 m »** — et c'est à la
-  visiteuse de mesurer et de rectifier. Chaque pastille porte donc son champ (masques du
+  bonnetier ne mesure pas, il prend un **seau** dans une liste, et c'est à la visiteuse de
+  mesurer et de rectifier. Les seaux, comptés sur la base le 2026-08-27 : `100` domine
+  massivement (1 456 lignes sur ~2 450 — c'est « de 100cm », le défaut par défaut), puis
+  `0` pour tout ce qui se compte, `200` = « 1m - 3m », `25` = « Moins de 50 cm »,
+  `300` = « Plus de 3m », `75` = « 50 cm - 1m », et **`999` = « Toute la pièce »** (7 lignes).
+  ⚠️ Ne pas lire 999 comme « plus de 3 m » — c'est 300 ; 999 est le seau « toute la pièce »,
+  et le champ de saisie du poste porte de toute façon un masque à quatre chiffres, pas une
+  énumération. Chaque pastille porte donc son champ (masques du
   legacy : `9 999 cm` sur `taille_cm`, `x9 999` sur `nombre`), et `POST /valider` écrit la
   valeur en convertissant le défaut. Ce n'est pas une extension : la requête de la fenêtre
   legacy, récupérée verbatim dans le cache de compilation, ne lit **que**
@@ -583,8 +589,23 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
 - **Le bandeau « Pièce à visiter »** : `ouvert_visiteuse = 1` → toutes les pièces, **exact**
   (18 355/18 362). Sinon une **cadence approximative** (~1 sur 3, parité 71,8 % — sept
   variantes essayées, aucune meilleure) : le legacy est probablement indicatif, donc l'écran
-  affiche « changer » et laisse la visiteuse trancher. Le choix décide aussi lequel des deux
+  laisse la visiteuse trancher. Le choix décide aussi lequel des deux
   événements est écrit : `Visitage tombé métier` / `Pesage tombé métier`.
+  - **C'est une pastille pleine, et la pastille EST le bouton** (décision utilisateur du
+    2026-08-27, `mps_designer` §45.2) : rouge « Pièce à visiter » / bleu « Pesée simple »,
+    un clic la retourne. Ni le mot posé dans la barre avec un « changer » souligné à côté
+    (rien ne disait que le mot était l'état courant), ni la pastille scindée du §29.3 dont
+    la moitié droite nomme la cible — avec **deux modes nommés** elle écrit les deux côte à
+    côte et laisse deviner lequel est lequel. La flèche `ArrowLeftRight` est ce qui dit
+    qu'on peut cliquer : sans elle une pastille pleine se lit comme un statut figé.
+- ⚠️ **La carte d'un rouleau porte la teinte de son choix SUR SON CORPS** (bord 2 px, bandeau
+  d'en-tête à 20 %, corps à 10 % — remonté le 2026-08-27, la version d'origine à filet fin +
+  lavis 5 % se lisait comme deux cartes blanches à bout de bras). Conséquence pour toute
+  retouche de cette carte : **rien de ce qui s'y pose ne peut être un lavis de la même
+  teinte** — une pastille de défaut « récupéré » à 10 % de vert disparaissait dans une carte
+  verte, et le fond rouge à 5 % de « Ajouter un défaut » sombrait dans une carte déclassée
+  tout en criant sur une carte 1er choix (il est passé au blanc). Le corps reste à 10 % et
+  pas plus : il contient des champs blancs.
 - **Droit `saisie_visitage`** (`permission-keys-trm.ts`, catégorie Production) : il ne garde que
   le bouton Valider et la route d'écriture — consulter le poste reste ouvert. ⚠️ **Fermé par
   défaut : à accorder aux visiteuses en prod** (Paramètres › Utilisateurs) après le déploiement.
@@ -654,14 +675,23 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
     aussi sensible que consulter le poste. Le garde-fou de partition est
     **`IDordre_fabrication > 0`** (seul le tricotage TRM a un OF), jamais `IDsociete` — la
     réception ETM bascule le rouleau en société 1 et l'étiquette doit rester réimprimable.
-  - ⚠️ **`?demo=N` et les deux boutons « Test Dymo » de la barre poste sont TEMPORAIRES**
-    (bloc en pointillés ambre dans `ProductionVisitage.tsx`, d'un seul tenant) : la seule
-    machine capable d'exercer la vraie Dymo est le poste de production. **À supprimer une
-    fois le rendu validé sur le poste** — la route `?demo=` avec.
+  - Les deux boutons « Test Dymo » de la barre poste (bloc temporaire en pointillés ambre)
+    ont été **retirés le 2026-08-27**, le rendu ayant été validé sur la vraie Dymo. **La
+    route `?demo=N` de `GET /visitage-trm/etiquettes` survit** côté API (`demoEtiquettes()`
+    dans `visitage-trm.ts`) : elle n'a plus d'appelant, mais la retirer demande une
+    worktree ETM appairée et un passage par le pipeline NG pour du code mort inoffensif.
+    À faire au prochain travail d'API sur ce fichier, pas pour elle-même.
 - Scripts : `probe-visitage-trm.ts` (règles vs tout l'historique), `check-visitage-trm.ts`
   (routes, en `dry_run` — et les étiquettes, en lecture seule, avant la porte du worklist),
   `seed-visitage-historique.ts` (**dev only**, refuse de tourner hors
-  localhost — peuple la bande « Aujourd'hui sur <métier> », vide sur l'instantané local).
+  localhost — peuple la bande « Aujourd'hui sur <métier> », vide sur l'instantané local) et
+  **`seed-visitage-pieces.ts`** (dev only, même garde — peuple le **worklist** : sur
+  l'instantané local les huit dernières pièces sont toutes encore sur le métier
+  (`date_fin` NULL), donc le poste ouvre sur « Aucune pièce à visiter » et rien n'est
+  testable. Il termine des pièces il y a quelques **heures**, ce qui tient dans les deux
+  fenêtres — les 7 jours du poste et les 24 h du widget — sans dérogation d'env, et étale
+  les heures de fin de part et d'autre des seuils 2 h / 3 h du widget. `--clean` défait tout,
+  rouleaux compris si le poste en a déjà créé).
 
 
 ### Paramètres › Utilisateurs (`/settings/utilisateurs`) — TRM's own permission store

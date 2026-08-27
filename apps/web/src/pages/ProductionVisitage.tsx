@@ -41,7 +41,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  AlertTriangle, Check, ChevronLeft, ChevronRight, Loader2, Plus, Printer, RefreshCw, Scale, Scissors, UserCheck, X,
+  AlertTriangle, ArrowLeftRight, Check, ChevronLeft, ChevronRight, Loader2, Plus, Printer, RefreshCw, Scale, Scissors, UserCheck, X,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -557,45 +557,45 @@ export function ProductionVisitage() {
           <RefreshCw className={cn('h-4 w-4', poste.isFetching && 'animate-spin')} />
         </Button>
 
-        {/* ⚠️⚠️ TEMPORAIRE — banc d'essai de l'étiqueteuse. ⚠️⚠️
-            La seule machine qui peut exercer le vrai Dymo est le poste de
-            production, donc ces deux boutons impriment des étiquettes
-            d'exemple (`?demo=N`) sans créer le moindre rouleau. Le bloc est
-            volontairement d'un seul tenant et signalé en pointillés ambre :
-            À SUPPRIMER une fois le rendu validé sur le poste. */}
-        <div className="flex items-center gap-1 rounded-md border border-dashed border-amber-500/60 bg-amber-500/10 px-2 py-1 flex-shrink-0">
-          <span className="text-[11px] font-medium text-amber-800">Test Dymo</span>
-          {[1, 3].map((n) => (
-            <Button
-              key={n}
-              variant="outline"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              title={`Imprimer ${n} étiquette${n > 1 ? 's' : ''} d'exemple`}
-              onClick={() => { void printPdf(`${API_URL}/visitage-trm/etiquettes?demo=${n}`) }}
-            >
-              <Printer className="h-3.5 w-3.5 mr-1" />{n}
-            </Button>
-          ))}
-        </div>
-
-        <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
-          {of && aVisiter ? (
-            <>
-              <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
-              <span className="text-lg font-heading font-bold text-destructive truncate">Pièce à visiter</span>
-            </>
-          ) : of ? (
-            <span className="text-sm text-muted-foreground">Pesée simple</span>
-          ) : null}
+        {/* Le mode de la pièce est un ÉTAT que l'opératrice contrôle, pas un
+            libellé décoratif : c'est lui qui décide lequel des deux événements
+            est écrit (Visitage / Pesage tombé métier). Il prend donc la pastille
+            d'état pleine du §29.3 — mais d'un seul tenant, la pastille ELLE-MÊME
+            étant le bouton (décision utilisateur, 2026-08-27) : deux états, deux
+            libellés, donc afficher aussi la cible dans une moitié de droite ne
+            faisait qu'écrire les deux modes côte à côte et laisser lire lequel
+            était lequel. Avant, c'était deux mots posés dans la barre avec un
+            « changer » souligné à côté — rien ne disait que le mot était l'état
+            courant, ni qu'il se retournait.
+            Rond et h-11 pour faire pastille sœur du badge visiteur au bout de la
+            barre, et libellé en text-base plutôt que le text-sm du §29.3 — un
+            poste se lit à bout de bras (§45.1). La double flèche dit qu'on peut
+            cliquer : sans elle, une pastille pleine se lit comme un statut figé,
+            ce qui était tout le problème du « changer ». Une flèche horizontale,
+            pas le chevron double d'un `PopoverSelect` — il n'y a aucune liste à
+            ouvrir, l'état bascule sur place. */}
+        <div className="flex-1 flex items-center justify-center min-w-0">
           {!!of && (
             <button
               type="button"
               onClick={() => setForceVisitage(!aVisiter)}
               title={aVisiter ? 'Marquer comme simple pesée' : 'Marquer comme visitage complet'}
-              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground flex-shrink-0"
+              className={cn(
+                'group flex items-center gap-2 h-11 pl-4 pr-3.5 rounded-full border shadow-sm text-white',
+                'flex-shrink-0 max-w-full transition-colors',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                aVisiter
+                  ? 'bg-destructive border-destructive hover:bg-destructive/90'
+                  : 'bg-primary border-primary hover:bg-primary/90',
+              )}
             >
-              changer
+              {aVisiter
+                ? <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+                : <Scale className="h-5 w-5 flex-shrink-0" />}
+              <span className="text-base font-bold uppercase tracking-wide truncate">
+                {aVisiter ? 'Pièce à visiter' : 'Pesée simple'}
+              </span>
+              <ArrowLeftRight className="h-4 w-4 flex-shrink-0 text-white/60 group-hover:text-white transition-colors" />
             </button>
           )}
         </div>
@@ -1216,14 +1216,24 @@ function RouleauCard({
 }) {
   return (
     <div className={cn(
-      // The tint carries the choix, matching the legacy's colour-coded cards —
-      // restrained, because here the colour discriminates rather than decorates.
-      'w-72 flex-shrink-0 h-full min-h-0 rounded-lg border shadow-sm flex flex-col',
-      draft.second_choix ? 'border-red-500/40 bg-red-500/5' : 'border-emerald-500/40 bg-emerald-500/5',
+      // The tint carries the choix, matching the legacy's colour-coded cards.
+      // It was a hairline border + a 5 % wash, which at arm's length across a
+      // workshop desk read as two white cards (user, 2026-08-27): a 2 px
+      // coloured edge and a tinted header band instead, so which card is
+      // déclassé is legible without reading the pill. The BODY stays at 10 %,
+      // because it holds white inputs — flooding it would muddy them, and the
+      // colour here discriminates rather than decorates.
+      'w-72 flex-shrink-0 h-full min-h-0 rounded-lg border-2 shadow-sm flex flex-col overflow-hidden',
+      draft.second_choix ? 'border-red-500/70 bg-red-500/10' : 'border-emerald-600/60 bg-emerald-500/10',
     )}>
       {/* header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
-        <TmRollIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+      <div className={cn(
+        'flex items-center gap-2 px-3 py-2 border-b',
+        draft.second_choix
+          ? 'bg-red-500/20 border-red-500/30 text-red-900'
+          : 'bg-emerald-500/20 border-emerald-600/30 text-emerald-900',
+      )}>
+        <TmRollIcon className="h-4 w-4 flex-shrink-0 opacity-70" />
         <span className="text-sm font-semibold tabular-nums truncate">{numero}</span>
         <div className="flex-1" />
         {canRemove && (
@@ -1256,8 +1266,8 @@ function RouleauCard({
           className={cn(
             'h-9 px-2.5 inline-flex items-center gap-1.5 rounded-md border text-xs font-medium transition-colors',
             draft.second_choix
-              ? 'bg-red-500/15 text-red-800 border-red-500/30 hover:bg-red-500/25'
-              : 'bg-emerald-500/15 text-emerald-800 border-emerald-500/30 hover:bg-emerald-500/25',
+              ? 'bg-red-500/25 text-red-900 border-red-500/50 hover:bg-red-500/35'
+              : 'bg-emerald-500/25 text-emerald-900 border-emerald-600/50 hover:bg-emerald-500/35',
           )}
         >
           {draft.second_choix ? <X className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
@@ -1308,12 +1318,14 @@ function RouleauCard({
         )}
         {/* Red, not the app's gold: this button only ever produces defect pills,
             which are red — a gold hover made the one control that adds a fault
-            read like any other "+". Dashed and tinted rather than solid, because
-            it is an add affordance, not a commit. */}
+            read like any other "+". Dashed rather than solid, because it is an
+            add affordance, not a commit. Its base is WHITE, not a red wash:
+            since the card body carries the choix tint, a 5 % red would sink
+            into a déclassé card and shout on a 1er-choix one. */}
         <button
           type="button"
           onClick={onAddDefaut}
-          className="w-full h-8 inline-flex items-center justify-center gap-1.5 rounded-md border border-dashed border-red-500/40 bg-red-500/5 text-xs font-medium text-red-800/80 hover:border-red-500/70 hover:bg-red-500/15 hover:text-red-800 transition-colors"
+          className="w-full h-8 inline-flex items-center justify-center gap-1.5 rounded-md border border-dashed border-red-500/50 bg-white/70 text-xs font-medium text-red-800 hover:border-red-500/80 hover:bg-white transition-colors"
         >
           <Plus className="h-3.5 w-3.5" />Ajouter un défaut
         </button>
@@ -1345,9 +1357,12 @@ function DefautPill({ defaut, hasLeft, hasRight, onMove, onToggleRecupere, onCha
 
       <div className={cn(
         'flex-1 min-w-0 flex items-center gap-1 rounded-md border pl-2 pr-1 py-1 text-xs',
+        // Raised in step with the card (2026-08-27): the pill sits ON the
+        // tinted body now, so a 10 % wash of the card's own hue vanished into
+        // it — a récupéré defect has to stay visible on a green card.
         recupere
-          ? 'bg-emerald-500/10 text-emerald-800 border-emerald-500/30'
-          : 'bg-red-500/10 text-red-800 border-red-500/30',
+          ? 'bg-emerald-500/25 text-emerald-900 border-emerald-600/50'
+          : 'bg-red-500/25 text-red-900 border-red-500/50',
       )}>
         <span className="font-medium truncate" title={defaut.description ?? defaut.type_defaut}>
           {defaut.type_defaut}
