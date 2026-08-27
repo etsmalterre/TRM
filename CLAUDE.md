@@ -587,6 +587,15 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
     imprimante par défaut** pour que ça imprime sans boîte de dialogue, comme le legacy ;
     sans ce drapeau la boîte s'ouvre pré-chargée. Tout échec retombe sur `window.open`, et
     la barre de validation dit lequel des deux a eu lieu et offre « Réimprimer ».
+  - **Le raccourci du poste** (à refaire tel quel si le PC est réinstallé) :
+    `chrome.exe --kiosk-printing --user-data-dir="C:\visitage-profile" --app=https://trm.malterre/production/visitage`.
+    ⚠️ Le `--user-data-dir` séparé n'est pas cosmétique : Chrome est un singleton par
+    profil, donc lancé sur un profil déjà ouvert il passe l'URL au processus existant et
+    **jette `--kiosk-printing`** — la boîte de dialogue revient et le drapeau a l'air cassé.
+    Le profil isolé porte aussi le cookie du compte-poste `Visitage`. Vérifier le drapeau
+    dans `chrome://version` (ligne « Ligne de commande »), jamais à l'œil. L'icône du
+    raccourci est `public/icons/trm.ico` (multi-résolutions, dérivé de `icon-512.png`),
+    servie par l'app pour être récupérable depuis le poste lui-même.
   - Pas de garde `saisie_visitage` : réimprimer une étiquette que le rouleau porte déjà est
     aussi sensible que consulter le poste. Le garde-fou de partition est
     **`IDordre_fabrication > 0`** (seul le tricotage TRM a un OF), jamais `IDsociete` — la
