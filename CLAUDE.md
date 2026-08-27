@@ -440,6 +440,16 @@ event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell
   `IDcomposition_ecru`, et le pourcentage n'est sommé par couple que là où c'est la bonne
   question (colonne % et « Potentiel » de l'onglet Stock de fil : ce lot couvre 29 % du
   mélange, pas 14,5). Garde : `check-of-creation-trm.ts`.
+- **Le corps de la fiche passe en deux colonnes au-dessus de ~780 px de largeur de
+  PANNEAU** — mesurée par `useElementSize` dans `OfDetailBody`, jamais un palier Tailwind.
+  `lg:`/`xl:` portent sur la **fenêtre**, or la largeur de ce panneau est fixée par le mode
+  master-detail (§4) : à 1400 px de fenêtre il ne fait que ~390 px alors que `xl:` est vrai
+  depuis longtemps, et la grille des paramètres y serait déchiquetée. Ses cartes tournent
+  aussi sur des paddings resserrés (`cardHeaderClass` / `cardContentClass`) : à `p-6`, cinq
+  sections empilées coûtaient ~100 px de pure gouttière, exactement ce qui empêchait un OF
+  de tenir sur un écran 1080p — la fiche se lit au métier, le régleur ne doit pas défiler
+  pour savoir quels lots alimentent la production qu'il lance. La carte Paramètres est
+  `h-full` pour finir sur la même ligne que Commande client.
 
 ### Atelier › Maintenance (`/atelier/maintenance`) — port de `FI_Maintenance.wdw`
 

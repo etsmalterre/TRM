@@ -26,14 +26,20 @@
 //    terminals; the bureau shouldn't need edit mode for a message).
 //  - The legacy ETAT_OF print is not ported yet — Imprimer opens the §18
 //    placeholder dialog.
+//  - The center body is a two-column grid above ~780px of PANEL width
+//    (measured, not a `lg:` viewport gate — see OfDetailBody) and its cards
+//    run on tighter paddings than the §7 default. Both exist so a whole OF —
+//    settings, consigne, commande, composition — fits one screen without a
+//    scroll: the fiche is read at the machine, and a régleur should not have
+//    to scroll to learn which lots feed the run he is about to start.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Activity, AlertCircle, Award, Bell, CheckCircle2, ChevronDown, ChevronUp,
-  Clock, Eye, Factory, Info, Layers, Loader2, MessageSquare, Pencil, Plus,
-  Printer, RefreshCw, Save, Search, Trash2, X,
+  Activity, AlertCircle, Award, Bell, Check, CheckCircle2, ChevronDown,
+  ChevronUp, ClipboardList, Clock, Eye, Factory, Info, Layers, Loader2,
+  MessageSquare, Pencil, Plus, Printer, RefreshCw, Save, Search, Trash2, X,
 } from 'lucide-react'
 import { MasterDetailLayout } from '@/components/layout/MasterDetailLayout'
 import { Badge } from '@/components/ui/badge'
@@ -251,6 +257,13 @@ interface CompositionSeed { components: CompositionSeedComponent[]; compatibles:
 
 const inputClass = 'w-full h-8 px-2.5 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring'
 const editSectionClass = 'border-l-4 border-l-accent/70 bg-accent/[0.03]'
+
+// Tighter than the §7 default (`p-6` / `p-6 pt-0`): five stacked sections at
+// full card padding cost ~100px of pure gutter, which was the difference
+// between the fiche fitting a 1080p screen and not. Applied to every card of
+// this body so the density reads as one deliberate choice, not a stray card.
+const cardHeaderClass = 'flex flex-row items-center gap-2 px-4 pt-3.5 pb-2'
+const cardContentClass = 'px-4 pb-3.5'
 
 /** The legacy Visitage combo captions (recovered from the live screen —
  *  value 0 exists only on 20 pre-2021 migrated rows and is not offered). */
@@ -1278,14 +1291,26 @@ function OfDetailBody({
   draft: Draft | null
   set: (updater: (d: Draft) => Draft) => void
 }) {
+  // Two columns are driven by the MEASURED panel width, not a Tailwind `lg:`
+  // gate: this panel's width is set by the master-detail mode (§4), so at a
+  // 1400px viewport — where `lg:`/`xl:` are long since true — it is only
+  // ~390px wide and a split would shred the params grid. 780px is where the
+  // four figures still hold one line beside the consigne column.
+  const [bodyRef, bodySize] = useElementSize<HTMLDivElement>()
+  const twoCols = bodySize.w >= 780
+
   return (
-    <div className="flex-1 min-h-0 overflow-auto space-y-4 scrollbar-transparent pr-0.5">
+    <div ref={bodyRef} className="flex-1 min-h-0 overflow-auto space-y-3 scrollbar-transparent pr-0.5">
       <ReferenceBanner detail={detail} />
-      <ParamsCard detail={detail} isEditing={isEditing} draft={draft} set={set} />
-      <ConsigneCard detail={detail} isEditing={isEditing} draft={draft} set={set} />
+      <div className={cn('gap-3', twoCols ? 'grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]' : 'flex flex-col')}>
+        <ParamsCard detail={detail} isEditing={isEditing} draft={draft} set={set} />
+        <div className="flex flex-col gap-3">
+          <ConsigneCard detail={detail} isEditing={isEditing} draft={draft} set={set} />
+          <CommandeCard detail={detail} />
+        </div>
+      </div>
       <TricoterCard detail={detail} isEditing={isEditing} draft={draft} set={set} />
       <IncorporerCard detail={detail} isEditing={isEditing} draft={draft} set={set} />
-      <CommandeCard detail={detail} />
     </div>
   )
 }
@@ -1293,10 +1318,10 @@ function OfDetailBody({
 /** The gold reference banner of the legacy form: ref - coloris + contexture. */
 function ReferenceBanner({ detail }: { detail: OfDetail }) {
   return (
-    <div className="rounded-lg border border-gold/30 bg-gradient-to-r from-gold/30 via-gold/10 to-transparent px-4 py-3 flex items-center gap-3">
-      <TmRollIcon className="h-8 w-8 text-primary flex-shrink-0" />
+    <div className="rounded-lg border border-gold/30 bg-gradient-to-r from-gold/30 via-gold/10 to-transparent px-3.5 py-2.5 flex items-center gap-3">
+      <TmRollIcon className="h-7 w-7 text-primary flex-shrink-0" />
       <div className="min-w-0">
-        <p className="font-semibold truncate">
+        <p className="font-semibold leading-tight truncate">
           {detail.ref_label}{detail.coloris_label ? ` - ${detail.coloris_label}` : ''}
         </p>
         <p className="text-xs text-muted-foreground italic truncate">{detail.contexture || detail.ref_designation}</p>
@@ -1315,6 +1340,39 @@ function KV({ label, children }: { label: string; children: ReactNode }) {
     <div className="space-y-1">
       <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
       <div className="text-sm">{children}</div>
+    </div>
+  )
+}
+
+/** A read-mode figure of the params strip: the four numbers a régleur checks
+ *  first (métier, poids/pièce, quantité, nb pièces) read as instruments, not
+ *  as form fields — they are not editable outside edit mode anyway. */
+function Figure({
+  label, value, unit, mono,
+}: {
+  label: string
+  value: string
+  unit?: string
+  mono?: boolean
+}) {
+  return (
+    <div className="rounded-lg border border-border/50 bg-secondary/60 px-3 py-2 min-w-0">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground truncate">{label}</p>
+      <p className={cn('mt-0.5 text-base font-semibold leading-tight truncate', mono ? 'font-mono' : 'tabular-nums')}>
+        {value}
+        {unit && <span className="ml-1 text-xs font-normal text-muted-foreground">{unit}</span>}
+      </p>
+    </div>
+  )
+}
+
+/** One line of the settings panel under the figures: micro-label left, the
+ *  value (or its control, in edit mode) right. */
+function SettingRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 py-2 min-h-[2.75rem]">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground flex-shrink-0">{label}</p>
+      <div className="min-w-0 text-right">{children}</div>
     </div>
   )
 }
@@ -1353,21 +1411,32 @@ function ParamsCard({
     { key: 'auto_activation', label: 'Activation auto', view: detail.auto_activation },
   ]
 
+  const visitageLabel = VISITAGE_OPTIONS.find((o) => o.id === detail.visitage)?.primary ?? '—'
+  const nettoyageLabel = detail.nettoyage > 0
+    ? `${detail.nettoyage} nettoyage${detail.nettoyage > 1 ? 's' : ''}`
+    : '—'
+
   return (
-    <Card className={cn('card-premium', isEditing && editSectionClass)}>
-      <CardHeader className="flex flex-row items-center gap-2 pb-2">
+    // `h-full` + a spread content column: the grid row is as tall as the
+    // consigne/commande stack beside it, and a card that stopped 80px short of
+    // its neighbour read as a rendering accident rather than as a column.
+    <Card className={cn('card-premium h-full flex flex-col', isEditing && editSectionClass)}>
+      <CardHeader className={cardHeaderClass}>
         <Factory className="h-4 w-4 text-accent" />
         <CardTitle className="text-sm font-semibold">Paramètres de tricotage</CardTitle>
         {detail.compatibles.length > 0 && (
-          <span className="ml-auto text-[11px] text-muted-foreground truncate">
+          <span
+            className="ml-auto text-[11px] text-muted-foreground truncate"
+            title={`Compatible sur : ${detail.compatibles.join(', ')}`}
+          >
             Compatible sur : {detail.compatibles.join(', ')}
           </span>
         )}
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <KV label="Métier">
-            {d ? (
+      <CardContent className={cn(cardContentClass, 'flex-1 flex flex-col justify-between gap-3')}>
+        {d ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <KV label="Métier">
               <PopoverSelect
                 options={machineOptions}
                 value={d.IDmachine}
@@ -1376,24 +1445,16 @@ function ParamsCard({
                 size="sm"
                 widthClass="w-full"
               />
-            ) : (
-              <span className="font-mono">{detail.machine?.nom ?? '—'}</span>
-            )}
-          </KV>
-          <KV label="Poids pièce (Kg)">
-            {d ? (
+            </KV>
+            <KV label="Poids pièce (Kg)">
               <input
                 className={inputClass}
                 value={d.poids_piece}
                 onChange={(e) => set((cur) => ({ ...cur, poids_piece: e.target.value }))}
                 inputMode="decimal"
               />
-            ) : (
-              <span className="tabular-nums">{fmtNum(detail.poids_piece, 2)} Kg</span>
-            )}
-          </KV>
-          <KV label="Quantité (Kg)">
-            {d ? (
+            </KV>
+            <KV label="Quantité (Kg)">
               <input
                 className={cn(inputClass, quantiteLocked && 'opacity-60 cursor-not-allowed bg-muted')}
                 value={d.quantite}
@@ -1402,17 +1463,26 @@ function ParamsCard({
                 title={quantiteLocked ? 'La production a démarré — la quantité est verrouillée.' : undefined}
                 inputMode="decimal"
               />
-            ) : (
-              <span className="tabular-nums">{fmtNum(detail.quantite, 2)} Kg</span>
-            )}
-          </KV>
-          <KV label="Nb pièces">
-            <span className="tabular-nums">{fmtNum(nbPieces)} pièce{nbPieces > 1 ? 's' : ''}</span>
-          </KV>
-        </div>
+            </KV>
+            <KV label="Nb pièces">
+              <span className="tabular-nums leading-8">{fmtNum(nbPieces)} pièce{nbPieces > 1 ? 's' : ''}</span>
+            </KV>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <Figure label="Métier" value={detail.machine?.nom ?? '—'} mono />
+            <Figure label="Poids pièce" value={fmtNum(detail.poids_piece, 2)} unit="Kg" />
+            <Figure label="Quantité" value={fmtNum(detail.quantite, 2)} unit="Kg" />
+            <Figure label="Nb pièces" value={fmtNum(nbPieces)} unit={nbPieces > 1 ? 'pièces' : 'pièce'} />
+          </div>
+        )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <KV label="Visitage">
+        {/* The two settings ride the same surface as the figures above rather
+            than floating as loose label/value pairs: they are readings of the
+            same instrument panel, and two free-standing pairs in the middle of
+            a stretched card read as leftovers. */}
+        <div className="rounded-lg border border-border/50 bg-secondary/60 divide-y divide-border/50 overflow-hidden">
+          <SettingRow label="Visitage">
             {d ? (
               <PopoverSelect
                 options={VISITAGE_OPTIONS}
@@ -1424,40 +1494,65 @@ function ParamsCard({
                 widthClass="w-full"
               />
             ) : (
-              <span>{VISITAGE_OPTIONS.find((o) => o.id === detail.visitage)?.primary ?? '—'}</span>
+              <span className="text-sm font-medium">{visitageLabel}</span>
             )}
-          </KV>
-          <KV label="Nettoyage">
-            <div className="flex items-center gap-4 h-8">
-              {[1, 2].map((v) => (
-                <label key={v} className={cn('flex items-center gap-1.5 text-sm', d ? 'cursor-pointer' : 'cursor-default')}>
-                  <input
-                    type="radio"
-                    name="nettoyage"
-                    checked={(d ? d.nettoyage : detail.nettoyage) === v}
-                    disabled={!d}
-                    onChange={() => d && set((cur) => ({ ...cur, nettoyage: v }))}
-                    className="accent-[hsl(44,92%,50%)]"
-                  />
-                  {v} Nettoyage{v > 1 ? 's' : ''}
-                </label>
-              ))}
-            </div>
-          </KV>
+          </SettingRow>
+          <SettingRow label="Nettoyage">
+            {d ? (
+              <div className="flex items-center justify-end gap-4 h-8">
+                {[1, 2].map((v) => (
+                  <label key={v} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="nettoyage"
+                      checked={d.nettoyage === v}
+                      onChange={() => set((cur) => ({ ...cur, nettoyage: v }))}
+                      className="accent-[hsl(44,92%,50%)]"
+                    />
+                    {v} Nettoyage{v > 1 ? 's' : ''}
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <span className="text-sm font-medium whitespace-nowrap">{nettoyageLabel}</span>
+            )}
+          </SettingRow>
         </div>
 
-        <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1">
-          {checkboxes.map((c) => (
-            <label key={c.key} className={cn('flex items-center gap-2 text-sm', d ? 'cursor-pointer' : 'cursor-default')}>
-              <Checkbox
-                checked={d ? (d[c.key] as boolean) : c.view === 1}
-                disabled={!d}
-                onCheckedChange={(v) => d && set((cur) => ({ ...cur, [c.key]: v === true }))}
-              />
-              {c.label}
-            </label>
-          ))}
-        </div>
+        {d ? (
+          <div className="flex flex-wrap gap-x-5 gap-y-2 pt-0.5">
+            {checkboxes.map((c) => (
+              <label key={c.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox
+                  checked={d[c.key] as boolean}
+                  onCheckedChange={(v) => set((cur) => ({ ...cur, [c.key]: v === true }))}
+                />
+                {c.label}
+              </label>
+            ))}
+          </div>
+        ) : (
+          // View mode: a row of five disabled, mostly-empty checkboxes is noise
+          // that reads as a broken form. Chips say the same thing — on ones lit
+          // in accent, off ones muted — and stay legible at a glance.
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            {checkboxes.map((c) => (
+              <Badge
+                key={c.key}
+                variant="outline"
+                className={cn(
+                  'text-[11px] font-medium gap-1',
+                  c.view === 1
+                    ? 'bg-accent/10 text-accent border-accent/25'
+                    : 'font-normal text-muted-foreground/70 border-border/60',
+                )}
+              >
+                {c.view === 1 && <Check className="h-3 w-3" />}
+                {c.label}
+              </Badge>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -1474,11 +1569,11 @@ function ConsigneCard({
   const d = isEditing && draft ? draft : null
   return (
     <Card className={cn('card-premium', isEditing && editSectionClass)}>
-      <CardHeader className="flex flex-row items-center gap-2 pb-2">
+      <CardHeader className={cardHeaderClass}>
         <Info className="h-4 w-4 text-accent" />
         <CardTitle className="text-sm font-semibold">Consigne</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className={cardContentClass}>
         {d ? (
           <textarea
             rows={3}
@@ -1487,8 +1582,8 @@ function ConsigneCard({
             onChange={(e) => set((cur) => ({ ...cur, observations: e.target.value }))}
             placeholder="Consigne pour le bonnetier…"
           />
-        ) : detail.observations ? (
-          <p className="text-sm text-muted-foreground whitespace-pre-line">{detail.observations}</p>
+        ) : detail.observations.trim() ? (
+          <p className="text-sm whitespace-pre-line">{detail.observations.trim()}</p>
         ) : (
           <p className="text-sm text-muted-foreground italic">Aucune consigne</p>
         )}
@@ -1516,12 +1611,12 @@ function TricoterCard({
 
   return (
     <Card className={cn('card-premium', isEditing && editSectionClass)}>
-      <CardHeader className="flex flex-row items-center gap-2 pb-2">
+      <CardHeader className={cardHeaderClass}>
         <Layers className="h-4 w-4 text-accent" />
         <CardTitle className="text-sm font-semibold">Tricoter</CardTitle>
         <Badge variant="secondary" className="text-xs ml-auto">{(d ? d.composition : detail.composition).length}</Badge>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className={cn(cardContentClass, 'space-y-2')}>
         {d ? (
           <>
             {d.composition.map((c) => (
@@ -1573,7 +1668,25 @@ function TricoterCard({
               { key: 'colori', label: 'Colori', align: 'left', render: (r) => r.coloris_label || '—' },
               { key: 'pct', label: '%', align: 'right', render: (r) => `${fmtNum(r.pourcentage, 2)} %` },
               { key: 'besoin', label: 'Besoin', align: 'right', render: (r) => `${fmtNum(quantite * r.pourcentage / 100, 2)} Kg` },
-              { key: 'stock', label: 'Stock', align: 'right', render: (r) => `${fmtNum(r.pair_stock, 2)} Kg` },
+              {
+                key: 'stock',
+                label: 'Stock',
+                align: 'right',
+                // Amber when the (fil, coloris) pair holds less than this OF
+                // needs — the per-line half of the Réalisable bar, which only
+                // ever gave the verdict for the run as a whole.
+                render: (r) => {
+                  const short = r.pair_stock < quantite * r.pourcentage / 100 - 0.001
+                  return (
+                    <span
+                      className={cn(short && 'text-amber-700 font-semibold')}
+                      title={short ? 'Stock insuffisant pour le besoin de cet OF' : undefined}
+                    >
+                      {fmtNum(r.pair_stock, 2)} Kg
+                    </span>
+                  )
+                },
+              },
               { key: 'lot', label: 'Lot', align: 'right', render: (r) => <span className="font-mono">{r.lot || '—'}</span> },
             ]}
           />
@@ -1689,12 +1802,12 @@ function IncorporerCard({
 
   return (
     <Card className={cn('card-premium', isEditing && editSectionClass)}>
-      <CardHeader className="flex flex-row items-center gap-2 pb-2">
+      <CardHeader className={cardHeaderClass}>
         <Plus className="h-4 w-4 text-accent" />
         <CardTitle className="text-sm font-semibold">Incorporer</CardTitle>
         <Badge variant="secondary" className="text-xs ml-auto">{(rows ?? detail.incorpore).length}</Badge>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className={cn(cardContentClass, 'space-y-2')}>
         {d ? (
           <>
             {d.incorpore.map((r) => (
@@ -1782,47 +1895,70 @@ function CommandeCard({ detail }: { detail: OfDetail }) {
   const cmd = detail.commande
   const remaining = Math.max(0, detail.quantite - detail.realise)
   const realisableOk = detail.realisable >= remaining - 0.001
+  const pct = (v: number) => (detail.quantite > 0 ? Math.min(100, Math.max(0, (v / detail.quantite) * 100)) : 0)
+
   return (
     <Card className="card-premium">
-      <CardContent className="pt-4">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <KV label="Commande client liée">
-            {cmd ? (
-              <span>N° {fmtNum(cmd.numero)} <span className="text-muted-foreground">— {cmd.client_nom}</span></span>
-            ) : (
-              <span className="text-muted-foreground italic">Aucune</span>
-            )}
-          </KV>
-          {cmd && (
-            <KV label="Quantité ligne">
-              <span className="tabular-nums">{fmtNum(cmd.quantite, 2)} Kg</span>
-            </KV>
-          )}
-          <KV label="Réalisé (OF)">
-            <span className="tabular-nums">{fmtNum(detail.realise, 2)} Kg</span>
-          </KV>
-        </div>
-        <div className="mt-3">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[11px] font-medium text-muted-foreground">Réalisable (stock de fil)</p>
-            <p className={cn('text-xs font-semibold tabular-nums', realisableOk ? 'text-green-700' : 'text-amber-700')}>
-              {fmtNum(detail.realisable, 2)} Kg
-            </p>
+      <CardHeader className={cardHeaderClass}>
+        <ClipboardList className="h-4 w-4 text-accent" />
+        <CardTitle className="text-sm font-semibold">Commande client</CardTitle>
+      </CardHeader>
+      <CardContent className={cn(cardContentClass, 'space-y-3')}>
+        {cmd ? (
+          <div className="flex items-baseline gap-2 min-w-0">
+            <span className="text-sm font-semibold tabular-nums flex-shrink-0">N° {fmtNum(cmd.numero)}</span>
+            <span className="text-sm text-muted-foreground truncate">{cmd.client_nom}</span>
+            <span className="ml-auto text-xs tabular-nums text-muted-foreground flex-shrink-0" title="Quantité de la ligne de commande">
+              {fmtNum(cmd.quantite, 2)} Kg
+            </span>
           </div>
-          <div className="h-2.5 rounded-full bg-zinc-200 overflow-hidden">
-            <div
-              className={cn('h-full rounded-full', realisableOk ? 'bg-green-500' : 'bg-amber-500')}
-              style={{ width: `${detail.quantite > 0 ? Math.min(100, (detail.realisable / detail.quantite) * 100) : 0}%` }}
-            />
-          </div>
-          {!realisableOk && (
-            <p className="text-[11px] text-amber-700 mt-1">
-              Le stock de fil ne couvre pas le restant à produire ({fmtNum(remaining, 2)} Kg).
-            </p>
-          )}
-        </div>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">Aucune commande liée</p>
+        )}
+
+        <Meter
+          label="Réalisé"
+          value={`${fmtNum(detail.realise, 2)} / ${fmtNum(detail.quantite, 2)} Kg`}
+          pct={pct(detail.realise)}
+          barClass="bg-accent"
+        />
+        <Meter
+          label="Réalisable (stock de fil)"
+          value={`${fmtNum(detail.realisable, 2)} Kg`}
+          pct={pct(detail.realisable)}
+          barClass={realisableOk ? 'bg-green-500' : 'bg-amber-500'}
+          valueClass={realisableOk ? 'text-green-700' : 'text-amber-700'}
+          note={realisableOk ? undefined : `Le stock de fil ne couvre pas le restant à produire (${fmtNum(remaining, 2)} Kg).`}
+        />
       </CardContent>
     </Card>
+  )
+}
+
+/** Label + figure over a slim track — the two progress readings of the OF.
+ *  Single-hue fills on purpose (`dataviz`): the colour IS the verdict, so a
+ *  gradient or a second hue would say something the number does not. */
+function Meter({
+  label, value, pct, barClass, valueClass, note,
+}: {
+  label: string
+  value: string
+  pct: number
+  barClass: string
+  valueClass?: string
+  note?: string
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2 mb-1">
+        <p className="text-[11px] font-medium text-muted-foreground truncate">{label}</p>
+        <p className={cn('text-xs font-semibold tabular-nums flex-shrink-0', valueClass)}>{value}</p>
+      </div>
+      <div className="h-2 rounded-full bg-zinc-200 overflow-hidden">
+        <div className={cn('h-full rounded-full', barClass)} style={{ width: `${pct}%` }} />
+      </div>
+      {note && <p className="text-[11px] text-amber-700 mt-1">{note}</p>}
+    </div>
   )
 }
 
