@@ -33,7 +33,7 @@ When implementing a feature here you will therefore usually touch **two repos**:
 ## Production / deploy
 
 - **Host**: `http://trm.malterre` — nginx on `mfprod-erp` (`10.10.2.165`), dist at `/home/debian/mps_trm/dist`, `/api/` proxied to the shared ETM API (`10.10.2.163:8081`).
-- **Deploy ownership**: this repo's `/trm_deploy` skill ships the **TRM web bundle only**. The shared API (and `mpsng.malterre`) is deployed exclusively from the ETM checkout with its `/etm_deploy`. If a TRM feature needed API changes, the API deploy (from ETM) must happen **before or with** the TRM web deploy.
+- **Deploy ownership**: this repo's `/trm_deploy` skill ships the **TRM web bundle only**. The shared API (and `mpsng.malterre`) is deployed exclusively from the ETM checkout with its `/etm_deploy`. If a TRM feature needed API changes, the API deploy (from ETM) must happen **before or with** the TRM web deploy — and that ETM leg is part of the job: on `/trm_deploy`, go run `/etm_deploy` in the ETM checkout rather than handing the deploy back to the user (see `trm_deploy` §Scope).
 
 ## Branding
 

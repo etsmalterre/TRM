@@ -15,12 +15,22 @@ Do NOT touch the per-package `apps/*/package.json` versions; they are displayed 
 **TRM's version is its own** — it started at 0.0.1 on 2026-08-26 and has no relation to
 ETM's number; never "align" them.
 
-## Scope — web only. NEVER deploy the API from here.
+## Scope — this skill's *steps* build web only. The *deploy* is both tiers, and it is yours to finish.
 
 **TRM is a frontend-only repo.** Production `trm.malterre` proxies `/api/` to the
-**shared ETM API** (`10.10.2.163:8081`), which is owned and deployed by the **ETM**
-deploy workflow (`/etm_deploy` in `C:\dev\etsmalterre\ETM`). This skill only builds and
-uploads the TRM web bundle.
+**shared ETM API** (`10.10.2.163:8081`), which is deployed by the **ETM** workflow
+(`/etm_deploy` in `C:\dev\etsmalterre\ETM`). Steps 1–4 of §Deploy Steps build and upload
+the TRM web bundle and nothing else — never hand-roll an API deploy out of them.
+
+⚠️ **That is a constraint on *mechanism*, not on *agency*. `/trm_deploy` is a request to
+get TRM live, and you own the whole chain — including the ETM half.** If a gate below shows
+the shared API is behind, **go to `C:\dev\etsmalterre\ETM`, run `/etm_deploy` yourself, come
+back, and continue** — in the same session, without asking permission and without handing
+the deploy back to the user. Vincent's standing expectation, 2026-08-27: *"when I call TRM
+deploy, I expect you to do the stuff you need to do on ETM without asking me."* Narrate what
+you did on the way through. Stop and ask only if `/etm_deploy` itself fails, the SSH key is
+disabled, or ETM `master` carries API changes that are not part of what you were asked to
+ship.
 
 **Coordination rule:** if the TRM feature you're shipping needed shared-API changes, those
 changes were landed on ETM `master` via a **paired NG worktree** (see
@@ -53,8 +63,24 @@ changes were landed on ETM `master` via a **paired NG worktree** (see
    (which blips `mpsng` too). Run such a script by hand instead; on the prod host that is
    `node --env-file=.env --import tsx src/scripts/<x>.ts` from `/home/debian/mps_api`
    (a bare `npx tsx` gets no env and dies with `[IM007] No data source or driver`).
-3. If either check fails, deploy the API first **from the ETM checkout** with its
-   `/etm_deploy` — not from here — then re-run both until they are green.
+3. **If either check fails, deploy the API yourself, then carry on.** Invoke `/etm_deploy`
+   from `C:\dev\etsmalterre\ETM` — that skill owns the build, upload and `mps-api.service`
+   restart, so do not reproduce its steps here — then re-run gates 1 and 2 from TRM until
+   both are green and continue into §Deploy Steps. This is a normal leg of `/trm_deploy`,
+   not an escalation: see the ⚠️ in §Scope.
+4. **Check whether a landed feature still owes a one-off script on the prod API host.** The
+   gates compare *code*; they cannot see a seed that was never run, and a default-closed
+   permission key granted to nobody is invisible until a user hits a 403. Read this
+   project's memory index for lines naming a prod script (`seed-*.ts --write`), and verify
+   the *effect* rather than trusting the note — for a permission key that is:
+   ```bash
+   # 0 = the seed never ran
+   wsl bash -c "ssh $WOPTS debian@10.10.2.163 'grep -c edit_of /home/debian/mps_api/data/permissions-trm.json'"
+   ```
+   Run what is owed on the host as shown in the step-2 Exception, **before** the web bundle
+   that depends on it goes up. Verified 2026-08-27: `edit_of` had been gating the nine
+   `/of-trm` write routes in production for a day with the key granted to nobody, so every
+   non-admin was silently 403'd — the API half had shipped, the seed had not.
 
 **Why this is a script and not a checklist item:** each TRM worktree develops against its
 own paired NG API on `808N`, so a screen whose API half was never deployed works perfectly
