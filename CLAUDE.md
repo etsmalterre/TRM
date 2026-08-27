@@ -51,6 +51,24 @@ When implementing a feature here you will therefore usually touch **two repos**:
 
 **Paired-worktree rule for API changes**: API work is done in an **ETM worktree** (never in the ETM main checkout — that's NG's integration tree) and lands through NG's own pipeline (`feat/*` → NG `master` → `/etm_deploy`). A TRM feature needing endpoints = a pair of same-named worktrees, the TRM one spun up with `--api 808N` pointing at the NG one. Landing order: NG branch first, then TRM. Full rule: `ETM/claude_doc/worktrees.md` §"Shared-API changes"; the `/feature-complete` skill enforces the guardrail.
 
+## Atelier — la PWA mobile de l'atelier (`apps/atelier`, en projet)
+
+Migration de l'app Android legacy des bonnetiers/régleurs. **Rien n'est codé** au
+2026-08-27 ; la conception est faite et tient dans un dossier de reprise :
+**`~/.claude/plans/atelier-malterre.md`** — à lire en entier avant d'y toucher.
+
+- **Une seule app pour les deux rôles** (le régleur est un bonnetier avec plus de droits :
+  c'est déjà ce qu'exprime `permissions-trm.json`), **second app du monorepo**
+  (`apps/atelier`, pas une route de `apps/web`), hôte **`atelier.malterre`**, parc Android.
+- ⚠️ **Le legacy Android n'est PAS PCS-compressé** : `C:Mes ProjetsMPSAndroiddbgCompile`
+  contient les 45 fichiers Java générés, WLanguage en commentaires et SQL en clair. C'est la
+  spec, sans sonde — la première chose à ouvrir (`GWDCPCOL_Appli.java` d'abord).
+- ⚠️ **`bonnetier` n'a pas de colonne `IDutilisateur`** alors que les droits sont clés
+  dessus : ce lien est le prérequis bloquant de toute la fonctionnalité.
+- ⚠️ **`signUserId()` rend la même chaîne pour toujours, sur tout appareil** — donc un cookie
+  de compte privilégié serait copiable et irrévocable. La charge doit porter un `deviceId`
+  avant qu'un compte régleur existe.
+
 ## Production / deploy
 
 - **Host**: `http://trm.malterre` — nginx on `mfprod-erp` (`10.10.2.165`), dist at `/home/debian/mps_trm/dist`, `/api/` proxied to the MPS API (`10.10.2.163:8081`).
