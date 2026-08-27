@@ -24,8 +24,8 @@ running `pnpm dev` just makes the script skip slot 5; the reverse is not protect
 slot 5 is allocated, `pnpm dev` in the main checkout finds `5175` busy and Vite picks
 another port. Serve the main checkout from a worktree, or free slot 5 first.
 
-**TRM is web-only.** Its web server talks to an **ETM API over HTTP**. By default
-it targets the slot-0 master ETM API on `:8080`. To point it at a different ETM API
+**TRM is web-only.** Its web server talks to an **MPS API over HTTP**. By default
+it targets the slot-0 master MPS API on `:8080`. To point it at a different MPS API
 (e.g. a running NG worktree's `808N`), pass `--api <port>`.
 
 > The worktree tooling (the `up.mjs`/`down.mjs`/`status.mjs` scripts + the shared registry)
@@ -36,7 +36,7 @@ it targets the slot-0 master ETM API on `:8080`. To point it at a different ETM 
 
 ## Prerequisite: the ETM master API must be running
 
-A TRM worktree's web server needs an ETM API on `:8080`. Start it once from an **ETM**
+A TRM worktree's web server needs an MPS API on `:8080`. Start it once from an **ETM**
 session with `/serve-main` (it serves master on API `8080` / web `3000`). If it isn't up,
 the TRM worktree still launches but every screen shows
 **« Impossible de charger la liste. Vérifiez que l'API est accessible. »**
@@ -63,7 +63,7 @@ never the cause of this banner.
    ```
    Run from the TRM checkout, it defaults to a TRM worktree: fetches origin, allocates
    a free TRM slot, creates the worktree off `origin/master`, `pnpm install`, writes
-   `apps/web/.env.development.local` (`VITE_API_URL` → the chosen ETM API + the tab
+   `apps/web/.env.development.local` (`VITE_API_URL` → the chosen MPS API + the tab
    label), and starts the web dev server (`dev:517N`) detached. Logs →
    `<worktree>/.dev-logs/`; slot + PID recorded in the shared registry.
 
@@ -72,7 +72,7 @@ never the cause of this banner.
    ```bash
    tail -n 40 ../TRM-<feature-name>/.dev-logs/web.log
    ```
-   If it says the ETM API isn't reachable, start it (see the Prerequisite section) — the
+   If it says the MPS API isn't reachable, start it (see the Prerequisite section) — the
    TRM web will show the « Impossible de charger la liste » banner until then.
 
 4. **Report to the user** the worktree path, the web URL (`http://localhost:517N`), and the
@@ -82,7 +82,7 @@ never the cause of this banner.
 
 ## Feature needs shared-API changes? → paired NG worktree
 
-TRM has no API; its endpoints live in the **ETM API**. If this feature needs new or
+TRM has no API; its endpoints live in the **MPS API**. If this feature needs new or
 modified endpoints, do NOT edit the ETM main checkout (it's the integration tree).
 Instead create a **pair of worktrees** with the same feature name:
 

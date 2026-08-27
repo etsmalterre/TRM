@@ -17,14 +17,35 @@ TRM is the ERP web app for **Tricotage Malterre (TRM)**, the knitting production
 - **Legacy system**: the WinDev MPS app (`C:\Mes Projets\MPS\`) in Tricotage Malterre mode (red banner), plus the older standalone `C:\Mes Projets\TRMPROD\`
 - **Sister project**: ETM (`C:\dev\etsmalterre\ETM`) — same design system, same conventions, same DB, same API
 
+## MPS — the platform TRM runs on
+
+**MPS = Malterre Productive System**: the shared platform behind every Malterre app — the
+HFSQL `MPS` database and the **MPS API** (`mps-api.service`, `/home/debian/mps_api`, package
+`@mps/api`). TRM is one **client** of that platform; ETM is another, a peer and not an owner.
+Planned clients: the régleur mobile app, the bonnetier mobile app, the pointeuse, the atelier
+display screens.
+
+- The docs used to call it "the ETM API". They no longer do, because that one word made the
+  platform read as another app's property, and a `/trm_deploy` once stopped at a red gate and
+  handed the deploy back rather than going and shipping the API half. The code never made that
+  mistake: `/api/health` has always answered `"app": "MPS API"`.
+- ⚠️ **The MPS API's source lives in `ETM/apps/api` — a file location, not ownership.** A TRM
+  feature needing an endpoint is a normal change to that repo, landed through a paired NG
+  worktree. Full reasoning in `ETM/CLAUDE.md` §"MPS — the platform".
+- **Deploying it affects every client at once** (one `systemctl restart mps-api`), so after an
+  API deploy smoke-check `mpsng.malterre` as well as `trm.malterre`.
+- `node ETM/scripts/deploy/preflight.mjs` answers "what needs deploying?" for the whole
+  platform — both stamps, both repos, clean-tree checks, and owed prod seeds — in one
+  read-only command.
+
 ## Architecture — frontend-only repo, shared API and DB
 
 **This repo contains only the web frontend.** There is deliberately no API here:
 
 - **Database**: the shared HFSQL `MPS` database (same server as ETM). Shared tables (`client`, `commande_client`, …) are partitioned by `IDsociete` — **TRM = 2** (ETM = 1, Confection = 3). Every TRM write must set `IDsociete = 2`.
-- **API**: the **ETM API** (`C:\dev\etsmalterre\ETM\apps\api`, dev port 8080). All HFSQL footgun-handling (encoding repair, bridge storm protection, accented columns, positional inserts) and TRM-specific logic (ETM↔TRM cross-ledger bridge, `isTricotageMalterreSst`) already live there. **New TRM endpoints get added to the ETM API**, scoped `IDsociete = 2` — never build a second API stack on the shared tables.
+- **API**: the **MPS API** (`C:\dev\etsmalterre\ETM\apps\api`, dev port 8080). All HFSQL footgun-handling (encoding repair, bridge storm protection, accented columns, positional inserts) and TRM-specific logic (ETM↔TRM cross-ledger bridge, `isTricotageMalterreSst`) already live there. **New TRM endpoints get added to the MPS API**, scoped `IDsociete = 2` — never build a second API stack on the shared tables.
 - **Auth**: the shared cookie auth (`mps_uid`) against the same API — login/user-picker, permissions and admin gating work identically to ETM.
-- **Dev CORS**: this app runs on port **5175**, which is already in the ETM API's `CORS_ORIGIN` list (`apps/api/.env.development`). If the port changes, update that list.
+- **Dev CORS**: this app runs on port **5175**, which is already in the MPS API's `CORS_ORIGIN` list (`apps/api/.env.development`). If the port changes, update that list.
 
 When implementing a feature here you will therefore usually touch **two repos**: the screen in `TRM/apps/web`, and its endpoints in `ETM/apps/api`. All HFSQL rules from `ETM/CLAUDE.md` apply to those endpoints — read them before writing any route.
 
@@ -32,7 +53,7 @@ When implementing a feature here you will therefore usually touch **two repos**:
 
 ## Production / deploy
 
-- **Host**: `http://trm.malterre` — nginx on `mfprod-erp` (`10.10.2.165`), dist at `/home/debian/mps_trm/dist`, `/api/` proxied to the shared ETM API (`10.10.2.163:8081`).
+- **Host**: `http://trm.malterre` — nginx on `mfprod-erp` (`10.10.2.165`), dist at `/home/debian/mps_trm/dist`, `/api/` proxied to the MPS API (`10.10.2.163:8081`).
 - **Deploy ownership**: this repo's `/trm_deploy` skill ships the **TRM web bundle only**. The shared API (and `mpsng.malterre`) is deployed exclusively from the ETM checkout with its `/etm_deploy`. If a TRM feature needed API changes, the API deploy (from ETM) must happen **before or with** the TRM web deploy — and that ETM leg is part of the job: on `/trm_deploy`, go run `/etm_deploy` in the ETM checkout rather than handing the deploy back to the user (see `trm_deploy` §Scope).
 
 ## Branding
@@ -784,7 +805,7 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
 
 Port of ETM's screen (`apps/web/src/pages/SettingsUtilisateurs.tsx`): user list · Profil tab (email / photo / signature — the **shared** `/user-emails` + `/user-profiles` stores, one identity per person across both apps) · **Écrans** tab · **Permissions** tab. Notifications / « Copier les droits » are not ported yet — they arrive with the features that need them.
 
-- **Permissions are TRM's own.** `PermissionsContext` reads **`/api/permissions-trm/me`**, the admin tab talks to `/api/permissions-trm/{keys,users}`; catalog `ETM/apps/api/src/lib/permission-keys-trm.ts`, store `data/permissions-trm.json`. Never point a TRM gate at `/api/permissions` — the two stores are separate so that neither admin screen can strip the other app's grants on save. A new switch = catalog entry (ETM API, paired NG worktree) + `trmUserHasPermission` on the route + `useHasPermission` in the screen. Default closed; effective admins bypass.
+- **Permissions are TRM's own.** `PermissionsContext` reads **`/api/permissions-trm/me`**, the admin tab talks to `/api/permissions-trm/{keys,users}`; catalog `ETM/apps/api/src/lib/permission-keys-trm.ts`, store `data/permissions-trm.json`. Never point a TRM gate at `/api/permissions` — the two stores are separate so that neither admin screen can strip the other app's grants on save. A new switch = catalog entry (MPS API, paired NG worktree) + `trmUserHasPermission` on the route + `useHasPermission` in the screen. Default closed; effective admins bypass.
   - ⚠️ **Une clé nommée par un écran TRM mais absente de `TRM_PERMISSION_KEYS` échoue en SILENCE, et de façon irrattrapable.** Paramètres › Utilisateurs construit son onglet depuis `GET /permissions-trm/keys`, donc aucun interrupteur n'est rendu ; `setTrmUserPermissions` la jetterait comme inconnue si elle arrivait quand même ; `/permissions-trm/me` ne la renvoie jamais. Résultat : **le bouton est invisible pour tout non-admin et aucun admin ne peut l'accorder** — ça se lit comme une restriction voulue, pas comme un bug. C'est arrivé à six clés — `create_stock_fil`, `edit_factures`, `edit_client_info`, `delete_client`, `crud_client_contacts`, `crud_client_adresses` — déclarées seulement dans le catalogue d'**ETM** alors que Fils › Stock, Clients › Facturation et Clients › Gestion s'en servaient : « Nouveau lot » était inaccessible au poste de visitage, et le symptôme se lisait comme un droit qu'on avait simplement oublié d'accorder. Garde : `check-permission-keys-trm.ts --web <chemin absolu vers TRM/apps/web/src>`, le pendant de `check-screen-access-trm.ts` (là le manifeste API suit la nav du web ; ici les littéraux du web doivent tous exister dans le catalogue API).
   - ⚠️ **Le store est un ARGUMENT EXPLICITE des gardes partagées, jamais un défaut.** `requirePermission()` de `lib/clients-common.ts` est importé par `routes/clients.ts` (ETM) **et** par `routes/clients-trm.ts` / `routes/stock-fil-trm.ts` (TRM) ; tant qu'il appelait `userHasPermission` en dur, toute route TRM qu'il gardait demandait à `permissions.json` — celui d'**ETM** — si un utilisateur TRM avait le droit d'écrire. Un droit accordé côté TRM ne faisait rien, un droit accordé côté ETM ouvrait la route TRM. Il prend donc un `PermissionScope` (`ETM_PERMISSIONS` / `TRM_PERMISSIONS`) sans valeur par défaut : un nouvel appelant *doit* nommer son application. Même raison pour `FacturesScope.permissions` et `FinanceScope.hasPermission` — dès qu'une fabrique de routeur sert les deux sociétés, le store fait partie du scope.
   - **Deux routeurs TRM n'ont encore AUCUNE garde** : `expeditions-trm.ts` (6 routes d'écriture) et `planning-atelier.ts` (7). Comme pour `of-trm` avant `edit_of`, n'importe quel appelant joignant l'API peut les appeler — `attachUser()` est best-effort et il n'y a pas de garde globale.
@@ -1131,7 +1152,7 @@ ETM's (spec + upgrade path: the `issue_tracker_integration` skill):
   verbatim mirrors of ETM's `components/tickets/` — improve them **in ETM** and re-copy.
   The single deliberate delta is `useTickets.ts` calling `/api/tickets-trm` instead of
   `/api/tickets`.
-- **Proxy**: the ETM API's `routes/tickets.ts` router factory, mounted at
+- **Proxy**: the MPS API's `routes/tickets.ts` router factory, mounted at
   `/api/tickets-trm` and scoped by env `ISSUE_TRACKER_PRODUCT_SLUG_TRM=trm-erp` —
   a **prod deploy requirement** on the shared API's env (`ETM/claude_doc/dev_setup.md` §4).
   Never point the widget at `/api/tickets`: the tracker key is company-scoped and the
@@ -1381,7 +1402,7 @@ numbers**: the two apps ship independently, so TRM started its own count at **0.
 pnpm install
 pnpm dev          # web on http://localhost:5175
 
-# The ETM API must be running (dev port 8080):
+# The MPS API must be running (dev port 8080):
 #   cd C:\dev\etsmalterre\ETM && pnpm dev
 ```
 

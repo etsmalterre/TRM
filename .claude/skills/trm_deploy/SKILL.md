@@ -18,7 +18,7 @@ ETM's number; never "align" them.
 ## Scope — this skill's *steps* build web only. The *deploy* is both tiers, and it is yours to finish.
 
 **TRM is a frontend-only repo.** Production `trm.malterre` proxies `/api/` to the
-**shared ETM API** (`10.10.2.163:8081`), which is deployed by the **ETM** workflow
+**MPS API** (`10.10.2.163:8081`), which is deployed by the **ETM** workflow
 (`/etm_deploy` in `C:\dev\etsmalterre\ETM`). §Deploy Steps below builds and uploads the
 TRM web bundle and nothing else — never hand-roll an API deploy out of it.
 
@@ -133,7 +133,18 @@ Test with `hostname` first; if the identity file is missing at one path, try the
 
 ## Deploy Steps
 
-0. **Gate on the production API — before building anything:**
+0. **Preflight — one read-only command, before building anything:**
+   ```bash
+   node ../ETM/scripts/deploy/preflight.mjs   # whole platform; exit 1 = blockers
+   ```
+   Stamps for all three tiers, what is behind (runtime `apps/api/**` vs `src/scripts/**`),
+   whether **both** main checkouts are clean and on master, and whether a landed feature
+   still owes a seed on the prod host. It fails closed — unreachable servers exit 2.
+   A blocker means fix it, not proceed: the tree-clean check exists because on 2026-08-27
+   a local `dist/` had been rebuilt from master **plus** an uncommitted edit, and uploading
+   it would have shipped unreviewed code under a `DEPLOYED_SHA` that did not contain it.
+
+0b. **Then the route gate:**
    ```bash
    cd /c/dev/etsmalterre/TRM && node scripts/check-api-routes.mjs
    ```
@@ -189,6 +200,17 @@ Test with `hostname` first; if the identity file is missing at one path, try the
    curl -s http://trm.malterre/api/auth/users | head -c 100             # JSON through the proxy
    ```
 
+## After the deploy — one-off prod scripts
+
+⚠️ **A seed that writes `data/*.json` must be followed by a RESTART, in that order.**
+`lib/permissions-trm.ts` on the MPS API is a *module-load cache*: the running service holds
+the whole file in memory and rewrites all of it on any single admin save. A seed run as a
+separate process therefore lands on disk but is invisible to the API, and the next save in
+Paramètres › Utilisateurs writes the stale copy back over it — wiping every seeded grant at
+once, silently, with nothing in the log. Measured 2026-08-27: 10 `edit_of` grants written at
+10:35 were gone by 10:44 and nobody noticed until `preflight.mjs` checked. **Seed →
+`systemctl restart mps-api` → re-`grep` the file.**
+
 ## Verification Checklist
 
 - [ ] `curl http://trm.malterre/` returns HTML
@@ -206,5 +228,5 @@ Test with `hostname` first; if the identity file is missing at one path, try the
   check the nginx access log for the request; if the browser errors but no request is
   logged, the bundle bakes a wrong API base (Footgun A/B) — it's a bad build, not a cache
   problem. Full triage recipe in `ETM/.claude/skills/etm_deploy/SKILL.md` §Known Issues.
-- **API-side problems** (500s, `HY090`, bridge storms): those are ETM API issues —
+- **API-side problems** (500s, `HY090`, bridge storms): those are MPS API issues —
   investigate/fix/deploy from the ETM checkout, never from here.
