@@ -57,10 +57,38 @@ Migration de l'app Android legacy des bonnetiers/régleurs. **Deuxième app du m
 hôte **`atelier.malterre`**, parc Android. Dossier de conception :
 **`~/.claude/plans/atelier-malterre.md`** — décisions, pièges vérifiés, questions ouvertes.
 
-**État au 2026-08-27** : le squelette et la boucle de lecture tournent contre la vraie base.
-Accueil (grille de visages) → Choix Métier (Actives / Inactives) → Poste (contexte de l'OF).
-**Rien n'écrit encore** : la bande « Actions » du poste liste ce que le legacy proposerait,
-pour vérifier la dérivation, mais le chemin de commit est la prochaine étape.
+**État au 2026-08-27** : Accueil (grille de visages) → Choix Métier (Actives / Inactives) →
+Poste, **saisie comprise**. Les huit actions du legacy s'enregistrent (`POST
+/api/atelier/of/:id/evenement`), sous le droit `saisie_atelier`.
+
+**Ce qui manque encore, dans l'ordre où ça compte :**
+- ⚠️ **Pas d'annulation**, alors que le legacy en a une (`IMG_Annuler` sur la dernière
+  action). Une mauvaise « Terminer OF » n'est donc pas rattrapable depuis le téléphone :
+  elle ferme la pièce, arrête l'OF et passe le métier au suivant via `AutoActivation()`.
+- ⚠️ **Aucun téléphone ne peut écrire aujourd'hui** : le compte-poste n'existe pas et
+  personne ne détient `saisie_atelier` (fermé par défaut). Voir « Identité » plus bas.
+- Les trois écrans secondaires : Consigne (`message_of` + la consigne du régleur),
+  Fils OF, Information (la checklist de nettoyage, littéraux récupérés verbatim).
+- L'hôte de prod (nginx sur `10.10.2.165` + entrée Caddy sur `10.10.2.167`).
+
+**Identité — le point à trancher avant la mise en service.** Le téléphone porte le cookie
+d'un **compte-poste** (le modèle du PC de visitage, `Visitage` IDutilisateur 10), et *qui*
+travaille voyage dans `IDbonnetier`, comme le legacy l'écrit. La grille de visages +
+`localStorage` n'est **pas** une authentification : c'est le modèle de confiance de
+l'atelier, et il ne garde rien. Reste donc à faire : créer ou choisir le compte-poste, lui
+accorder `saisie_atelier` dans Paramètres › Utilisateurs, et poser son cookie sur chaque
+appareil.
+
+**Les trois pièges du portage**, tous vérifiés et tous invisibles dans le code seul :
+- **Le libellé n'est pas la chaîne stockée.** La combo dit « Fin de pièce » et écrit
+  `Fin du tricotage` ; « Interrompre OF » écrit `Interruption OF`. Tout l'historique de
+  `evenement_piece` est clé là-dessus.
+- **« Interrompre OF » et « Relancer OF » sont une paire choisie à l'exécution** selon
+  `arret_prod`, les deux littéraux étant compilés. Le Java de mars ne montre que le second.
+- **La liste des actions offertes est recalculée au serveur** : le client décide de ce
+  qu'il affiche, la route décide de ce qui peut arriver (409 sinon). Les deux dérivations
+  vivent dans `apps/atelier/src/lib/actions.ts` et `ETM/apps/api/src/routes/atelier.ts` —
+  **les changer ensemble**, l'API faisant foi.
 
 - **Une seule app pour les deux rôles** (le régleur est un bonnetier avec plus de droits :
   c'est déjà ce qu'exprime `permissions-trm.json`). Le legacy fait pareil — un seul projet,
