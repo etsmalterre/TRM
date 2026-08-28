@@ -75,50 +75,60 @@ export function Atelier() {
 
         {plan && (
           <>
+            {/* The plan is the floor seen from where the tablet hangs (plan.ts):
+                rows 1 and 2 on top, the transversal walkway under them, row 3
+                along the bottom. The upper block is ONE grid: rows 1 and 2,
+                then the transversal walkway on its last row — and the two
+                longitudinal walkways span all three rows, so they run from
+                the top edge down into the transversal one as one continuous
+                floor lane (the drawing's black lines meet; user's correction
+                2026-08-28). */}
+            <BlocHaut rows={plan.haut} now={now} />
+
             {/* Row 3 — eleven métiers, no walkway inside the row. */}
             <div className="flex-1 min-h-0 basis-0 grid grid-cols-11 gap-[calc(var(--u)*0.5)]">
-              {plan.haut.map((s) => (
+              {plan.bas.map((s) => (
                 <Slot key={s.code} slot={s} now={now} />
               ))}
             </div>
-
-            {/* The lower block is ONE grid: the transversal walkway on its
-                first row, then rows 2 and 1 — and the two longitudinal
-                walkways span all three rows, so they run from the transversal
-                one down to the bottom edge as one continuous floor lane
-                (the drawing's black lines meet; user's correction 2026-08-28). */}
-            <BlocBas rows={plan.bas} now={now} />
           </>
         )}
       </main>
 
-      <footer className="flex-shrink-0 h-[calc(var(--u)*2.3)] px-[calc(var(--u)*1)] flex items-center gap-[calc(var(--u)*1)] border-t border-border/60 bg-zinc-200/50 text-[max(9px,calc(var(--u)*0.85))] text-muted-foreground whitespace-nowrap overflow-hidden">
-        <span>
-          Actualisé <span className="font-medium text-foreground">{fmtHeure(data?.generatedAt, true)}</span>
-        </span>
-        <span>
-          Dernier événement du parc{' '}
-          <span className="font-medium text-foreground">{fmtHeure(data?.dernierEvenement)}</span>
-          {dernierMs !== null && <span> · il y a {fmtDuree(now - dernierMs)}</span>}
-        </span>
-        {silence && (
-          <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-2 py-0.5 font-medium text-slate-900">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Plus aucune transition depuis {fmtDuree(now - dernierMs!)} — automate ou recorder à vérifier
+      {/* Three zones on a 1fr / auto / 1fr grid so the alert pills sit on the
+          true centre of the screen (user's request 2026-08-28), whatever the
+          width of the timestamps on the left and the version on the right. */}
+      <footer className="flex-shrink-0 h-[calc(var(--u)*2.3)] px-[calc(var(--u)*1)] grid grid-cols-[1fr_auto_1fr] items-center gap-[calc(var(--u)*1)] border-t border-border/60 bg-zinc-200/50 text-[max(9px,calc(var(--u)*0.85))] text-muted-foreground whitespace-nowrap overflow-hidden">
+        <div className="min-w-0 flex items-center gap-[calc(var(--u)*1)] overflow-hidden">
+          <span>
+            Actualisé <span className="font-medium text-foreground">{fmtHeure(data?.generatedAt, true)}</span>
           </span>
-        )}
-        {horsLigne && (
-          <span className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2 py-0.5 font-medium text-white">
-            <WifiOff className="h-3.5 w-3.5" />
-            Hors ligne — dernière lecture {fmtHeure(data?.generatedAt, true)}
+          <span>
+            Dernier événement du parc{' '}
+            <span className="font-medium text-foreground">{fmtHeure(data?.dernierEvenement)}</span>
+            {dernierMs !== null && <span> · il y a {fmtDuree(now - dernierMs)}</span>}
           </span>
-        )}
-        {plan && plan.horsPlan.length > 0 && (
-          <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-2 py-0.5 font-medium text-slate-900">
-            Hors plan : {plan.horsPlan.map((m) => m.emplacement || `#${m.id}`).join(', ')}
-          </span>
-        )}
-        <span className="ml-auto tabular-nums flex-shrink-0">v{__APP_VERSION__}</span>
+        </div>
+        <div className="flex items-center justify-center gap-[calc(var(--u)*0.6)]">
+          {silence && (
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-2 py-0.5 font-medium text-slate-900">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Plus aucune transition depuis {fmtDuree(now - dernierMs!)} — automate ou recorder à vérifier
+            </span>
+          )}
+          {horsLigne && (
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2 py-0.5 font-medium text-white">
+              <WifiOff className="h-3.5 w-3.5" />
+              Hors ligne — dernière lecture {fmtHeure(data?.generatedAt, true)}
+            </span>
+          )}
+          {plan && plan.horsPlan.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-2 py-0.5 font-medium text-slate-900">
+              Hors plan : {plan.horsPlan.map((m) => m.emplacement || `#${m.id}`).join(', ')}
+            </span>
+          )}
+        </div>
+        <span className="justify-self-end tabular-nums flex-shrink-0">v{__APP_VERSION__}</span>
       </footer>
     </div>
   )
@@ -127,10 +137,10 @@ export function Atelier() {
 /** Thickness of the walkways, the transversal one and the longitudinal ones alike. */
 const ALLEE = 'calc(var(--u)*1.4)'
 
-/** Grid columns of the lower block: a tile column per slot, plus a walkway
+/** Grid columns of the upper block: a tile column per slot, plus a walkway
  *  column after each slot that has one. Returns the template and, for the
  *  first row's shape, which grid column each slot and each walkway takes. */
-function colonnesBas(row: Emplacement[]): { template: string; slots: number[]; allees: number[] } {
+function colonnesHaut(row: Emplacement[]): { template: string; slots: number[]; allees: number[] } {
   const parts: string[] = []
   const slots: number[] = []
   const allees: number[] = []
@@ -145,23 +155,25 @@ function colonnesBas(row: Emplacement[]): { template: string; slots: number[]; a
   return { template: parts.join(' '), slots, allees }
 }
 
-function BlocBas({ rows, now }: { rows: Emplacement[][]; now: number }) {
-  const cols = colonnesBas(rows[0])
+function BlocHaut({ rows, now }: { rows: Emplacement[][]; now: number }) {
+  const cols = colonnesHaut(rows[0])
+  // Rows 1..n are the tile rows, row n+1 is the transversal walkway.
+  const ligneAllee = rows.length + 1
   return (
     <div
       className="flex-[2] min-h-0 basis-0 grid gap-[calc(var(--u)*0.5)]"
       style={{
         gridTemplateColumns: cols.template,
-        gridTemplateRows: `${ALLEE} ${rows.map(() => 'minmax(0,1fr)').join(' ')}`,
+        gridTemplateRows: `${rows.map(() => 'minmax(0,1fr)').join(' ')} ${ALLEE}`,
       }}
     >
-      <Allee style={{ gridColumn: '1 / -1', gridRow: 1 }} />
+      <Allee style={{ gridColumn: '1 / -1', gridRow: ligneAllee }} />
       {cols.allees.map((c) => (
-        <Allee key={c} style={{ gridColumn: c, gridRow: `1 / ${rows.length + 2}` }} />
+        <Allee key={c} style={{ gridColumn: c, gridRow: `1 / ${ligneAllee + 1}` }} />
       ))}
       {rows.map((row, ri) =>
         row.map((s, ci) => (
-          <div key={s.code} className="min-h-0" style={{ gridColumn: cols.slots[ci], gridRow: ri + 2 }}>
+          <div key={s.code} className="min-h-0" style={{ gridColumn: cols.slots[ci], gridRow: ri + 1 }}>
             <Slot slot={s} now={now} />
           </div>
         )),

@@ -40,8 +40,12 @@ export function teinteVitesse(vitesse: number, cible: number): Teinte {
   return 'vert'
 }
 
-/** A stop's age. ⚠️ The 5-minute step is ours: the photo shows 10' and
- *  « > 15' » in red and nothing shorter. */
+/** A stop's age. The 5-minute step is ours (the photo shows 10' and « > 15' »
+ *  in red and nothing shorter), confirmed by the user on 2026-08-28 with its
+ *  reason: it is a RELIABILITY threshold, not a grant of time — short stops
+ *  and PLC glitches must not paint the wall with false red cards. It is
+ *  deliberately different from the TRS's 1-minute intervention allowance
+ *  (`lib/regles.ts`); the two answer different questions. */
 export function teinteDepuis(ms: number): Teinte {
   return ms < 5 * 60_000 ? 'ambre' : 'rouge'
 }

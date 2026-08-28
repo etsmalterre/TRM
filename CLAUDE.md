@@ -171,11 +171,18 @@ le dépôt TRS, la vitrine vit ici.
   - Cet état initial est **caché par équipe** côté API (30 `TOP 1` une fois par équipe,
     pas à chaque poll).
 - **Le plan du parc est le dessin de l'utilisateur, pas la tablette legacy** — qui
-  dessinait un 1B inexistant et oubliait 3K. Rangée 3 en haut (3A…3K, onze), une allée
+  dessinait un 1B inexistant et oubliait 3K. Au sol : rangée 3 (3A…3K, onze), une allée
   transversale, puis 2A…2J et 1A…1J avec deux allées longitudinales après B et avant I ;
   **1B est un emplacement vide** (la place existe, pas le métier — vérifié en base : 30
   métiers vivants, `adresse_automate` 2 inutilisée). `apps/trs/src/lib/plan.ts`, clé
   `machine.emplacement` ; un métier hors plan n'est pas perdu, le pied de page le nomme.
+  - ⚠️ **À l'écran le plan est TOURNÉ de 180°** (correction utilisateur du 2026-08-28) :
+    la tablette est au mur que l'opérateur regarde, l'allée transversale dans son dos,
+    donc il voit le sol depuis l'autre côté — **1A en haut à droite**, rangées 1 puis 2
+    en haut lues de droite à gauche (1J … 1A), l'allée transversale sous elles (vers le
+    spectateur), rangée 3 le long du bas (3K … 3A), allées longitudinales **après I et
+    après C** dans ce sens de lecture. La rotation vit dans `plan.ts` (`RANGEES_HAUT` /
+    `RANGEE_BAS`), jamais en CSS — un `rotate` retournerait aussi le texte.
 - **Tuile = le jeu legacy** (décision du 2026-08-28) : tr/min en marche ou **« depuis »
   à l'arrêt**, TRS, arrêts ; métier sans OF démarré = tuile grisée, libellé seul.
   **L'état machine colore TOUTE la carte** (bord 2 px, bandeau 20 %, corps 10 % — le
@@ -188,6 +195,13 @@ le dépôt TRS, la vitrine vit ici.
   (90 % / 75 % — la photo montre 18 vert et 14 rouge, donc pas l'absolu `< 20 / < 25`
   de FI_TRS), les arrêts en compte (0–1 / 2–5 / 6+, inféré de la photo), « depuis » rouge
   à 5 min. Tout est dans `lib/affichage.ts`, testé.
+  - **Deux seuils tranchés le 2026-08-28, à ne pas « harmoniser » entre eux** : la minute
+    d'intervention du TRS reste à **1 min** (le « temps de production possible » est celui
+    d'un atelier de bonnetiers idéaux qui réparent aussi vite qu'il est pratiquement
+    possible — le temps de diagnostic est précisément ce que le TRS mesure), et le
+    « depuis » rouge à **5 min** est un seuil de **fiabilité** contre les fausses cartes
+    rouges (micro-arrêts, parasites automate), pas un temps accordé. Le dialogue ⓘ le
+    formule ainsi (« passe au rouge au bout de 5 minutes », jamais « vous avez 5 minutes »).
 - **Le pied de page est un instrument, pas une décoration** : il donne l'heure du dernier
   événement du parc et passe en ambre au-delà d'une heure de silence — le recorder n'a
   aucun battement surveillé (`TRS/docs/recorder.md`), et un automate éteint ressemble
@@ -201,16 +215,36 @@ le dépôt TRS, la vitrine vit ici.
   même plan sur une Galaxy Tab A9+ (~960 × 600 px CSS) et sur une 12" — les paliers
   Tailwind ne servent à rien ici, il n'y a qu'un écran et il doit remplir la dalle. Les
   petits libellés ont un plancher de 9 px (`max(9px, …)`).
-- **Bandeau** : le mot-symbole, l'équipe au centre, le TRS atelier à droite — rien d'autre. Le nom « TRS · Atelier » et les trois compteurs du parc ont été retirés (demande utilisateur du 2026-08-28) ; le `parc` de l'API les porte toujours.
+- **Bandeau** : le mot-symbole, l'équipe au centre, le TRS atelier à droite, puis le ⓘ — rien d'autre. Le nom « TRS · Atelier » et les trois compteurs du parc ont été retirés (demande utilisateur du 2026-08-28) ; le `parc` de l'API les porte toujours.
+- **Le ⓘ ouvre « Comment le TRS est calculé »** (`components/InfoTrsDialog.tsx`, dialogue
+  bandé §18.D fait main — pas de Radix ici — en `--u`), écrit pour les gens de l'atelier :
+  la formule (une seule ligne, « TRS = temps de marche réel ÷ temps de production
+  possible », rien dessous — décision utilisateur), **« Temps de production géré par les
+  régleurs »** (les trois actions du téléphone en chips Démarrer / Interrompre /
+  Terminer + une phrase : un OF oublié en cours fait baisser le TRS — sa propre carte, en
+  premier après la formule), ce qui est déduit (trois lignes nues + la pastille « > 100 % »
+  designée), l'équipe, les couleurs de la tuile — cinq cartes, pas plus : « Les arrêts » et
+  « TRS atelier » ont été retirées, **et il n'y a pas de pied de dialogue** (pas de
+  « Fermer » : le ✕ du bandeau, Échap et le fond suffisent — rien à confirmer). **Aucun
+  chiffre n'y est un littéral** : tout vient de `lib/regles.ts`, dont
+  `regles.test.ts` importe **directement le fichier de l'API**
+  (`ETM/apps/api/src/lib/trs-trm.ts`, sans import, ETM étant déjà un frère obligatoire) et
+  épingle les barèmes de `affichage.ts` — changer l'API d'abord, le test dit quand suivre.
+  Le dialogue montre les forfaits **bruts** que vit le bonnetier (nettoyage 4 / 7 min, fin
+  de pièce 6 / 9 min, la minute d'intervention comprise — les chiffres du commentaire
+  legacy), l'API stockant les nets (3 / 6, 5 / 8).
 - **Logo** : le seul mot-symbole blanc `logo-full.png` dans le bandeau — le vrai logo
   Malterre, pas la lettre M en texte, et pas le badge M non plus (décisions utilisateur
-  du 2026-08-28, en deux temps).
+  du 2026-08-28, en deux temps). **En dev (`import.meta.env.DEV`) c'est le badge DEV**
+  (`public/logo-dev.webp`, celui de la sidebar de l'ERP), centré dans une cellule de la
+  largeur du mot-symbole (8u) pour que le centre du bandeau ne bouge pas entre dev et prod.
 - **Le plan est un sol** : `main` en `bg-sand-darker` (le béton chaud), les cartes
   opaques dessus (blanc cassé pour un métier sans OF, `emerald-50` / `red-50` en
   production), et **les allées en ardoise OPAQUE (`bg-slate-400`), continues** — opaques parce qu'elles se chevauchent aux jonctions, et qu'un lavis y imprimait le recouvrement plus foncé — le bloc bas est
-  UN seul grid où l'allée transversale occupe la première ligne et les deux allées
-  longitudinales s'étendent sur les trois lignes, jusqu'au bord bas, pour que les traits
-  du dessin se rejoignent (`BlocBas` dans `pages/Atelier.tsx`, correction utilisateur du
+  UN seul grid (depuis la rotation : le bloc du HAUT, rangées 1 et 2) où l'allée
+  transversale occupe la dernière ligne et les deux allées longitudinales s'étendent sur
+  les trois lignes, du bord haut jusque dans la transversale, pour que les traits du
+  dessin se rejoignent (`BlocHaut` dans `pages/Atelier.tsx`, correction utilisateur du
   2026-08-28). Ne pas revenir à une allée par rangée : c'est ce qui les coupait.
 - **Dev** : `cd apps/trs && pnpm exec vite --port 5177`, `.env.local` (gitignoré) portant
   `VITE_API_URL=http://localhost:808N/api`. 5176 et 5177 sont dans `TRM_PWA_PORTS` de
