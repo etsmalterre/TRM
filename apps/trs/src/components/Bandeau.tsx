@@ -14,13 +14,9 @@ export function Bandeau({ data }: { data: TrsAtelier | undefined }) {
     <header className="flex-shrink-0 bg-gradient-brand text-white shadow-lg">
       <div style={{ height: 'env(safe-area-inset-top)' }} />
       <div className="h-[calc(var(--u)*4.4)] flex items-stretch">
-        <div className="flex items-center gap-[calc(var(--u)*0.9)] px-[calc(var(--u)*1)] border-r border-white/15">
-          <img
-            src="/logo-m.png"
-            alt=""
-            className="h-[calc(var(--u)*2.9)] w-[calc(var(--u)*2.9)] rounded-[calc(var(--u)*0.6)] flex-shrink-0"
-          />
-          <img src="/logo-full.png" alt="Malterre" className="h-[calc(var(--u)*2.2)] w-auto" />
+        <div className="flex items-center px-[calc(var(--u)*1.2)] border-r border-white/15">
+          {/* The full Malterre wordmark only (user's decision, 2026-08-28). */}
+          <img src="/logo-full.png" alt="Malterre" className="h-[calc(var(--u)*2.6)] w-auto" />
         </div>
         <div className="flex items-baseline gap-[calc(var(--u)*0.6)] px-[calc(var(--u)*1.2)] border-r border-white/15">
           <span className="text-[calc(var(--u)*1.9)] font-heading font-bold tracking-tight leading-none">TRS</span>

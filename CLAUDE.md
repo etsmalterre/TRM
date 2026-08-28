@@ -201,10 +201,16 @@ le dépôt TRS, la vitrine vit ici.
   même plan sur une Galaxy Tab A9+ (~960 × 600 px CSS) et sur une 12" — les paliers
   Tailwind ne servent à rien ici, il n'y a qu'un écran et il doit remplir la dalle. Les
   petits libellés ont un plancher de 9 px (`max(9px, …)`).
-- **Logos** : le badge M doré (`public/logo-m.png`, copie de
-  `ETM/apps/api/src/assets/logo-m-email.png`) et le mot-symbole blanc `logo-full.png`
-  dans le bandeau — les vrais logos Malterre, pas la lettre M en texte (demande
-  utilisateur du 2026-08-28).
+- **Logo** : le seul mot-symbole blanc `logo-full.png` dans le bandeau — le vrai logo
+  Malterre, pas la lettre M en texte, et pas le badge M non plus (décisions utilisateur
+  du 2026-08-28, en deux temps).
+- **Le plan est un sol** : `main` en `bg-sand-darker` (le béton chaud), les cartes
+  opaques dessus (blanc cassé pour un métier sans OF, `emerald-50` / `red-50` en
+  production), et **les allées en navy (`bg-primary/45`), continues** — le bloc bas est
+  UN seul grid où l'allée transversale occupe la première ligne et les deux allées
+  longitudinales s'étendent sur les trois lignes, jusqu'au bord bas, pour que les traits
+  du dessin se rejoignent (`BlocBas` dans `pages/Atelier.tsx`, correction utilisateur du
+  2026-08-28). Ne pas revenir à une allée par rangée : c'est ce qui les coupait.
 - **Dev** : `cd apps/trs && pnpm exec vite --port 5177`, `.env.local` (gitignoré) portant
   `VITE_API_URL=http://localhost:808N/api`. 5176 et 5177 sont dans `TRM_PWA_PORTS` de
   `ETM/scripts/worktree/lib.mjs`, donc dans le CORS de toute API de worktree.

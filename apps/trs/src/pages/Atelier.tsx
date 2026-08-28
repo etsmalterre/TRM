@@ -10,7 +10,7 @@
 // `evenement_machine` has no watched heartbeat (TRS/docs/recorder.md), so a
 // silent PLC looks exactly like an idle workshop unless *something* on a
 // wall says "the last transition was three hours ago".
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, WifiOff } from 'lucide-react'
 import { fetchAtelier } from '@/lib/trs-api'
@@ -18,7 +18,6 @@ import { placer, type Emplacement } from '@/lib/plan'
 import { fmtDuree, fmtHeure } from '@/lib/affichage'
 import { Bandeau } from '@/components/Bandeau'
 import { MetierTile, EmplacementVide } from '@/components/MetierTile'
-import { cn } from '@/lib/utils'
 
 /** How often the plan is re-read. The recorder rewrites `machine.vitesse`
  *  every ~10 s and polls the PLC every second, so 10 s is as fresh as the
@@ -60,7 +59,7 @@ export function Atelier() {
     <div className="h-full flex flex-col bg-background">
       <Bandeau data={data} />
 
-      <main className="flex-1 min-h-0 p-[calc(var(--u)*0.6)] flex flex-col gap-[calc(var(--u)*0.6)]">
+      <main className="flex-1 min-h-0 p-[calc(var(--u)*0.6)] flex flex-col gap-[calc(var(--u)*0.6)] bg-sand-darker">
         {q.isLoading && (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
             Lecture du parc…
@@ -83,23 +82,12 @@ export function Atelier() {
               ))}
             </div>
 
-            {/* The transversal walkway. */}
-            <Allee horizontale />
-
-            {/* Rows 2 and 1 — ten slots each, two longitudinal walkways. */}
-            <div className="flex-[2] min-h-0 basis-0 grid grid-rows-2 gap-[calc(var(--u)*0.6)]">
-              {plan.bas.map((row, i) => (
-                <div
-                  key={i}
-                  className="min-h-0 grid gap-[calc(var(--u)*0.5)]"
-                  style={{ gridTemplateColumns: colonnesBas(row) }}
-                >
-                  {row.map((s) => (
-                    <SlotEtAllee key={s.code} slot={s} now={now} />
-                  ))}
-                </div>
-              ))}
-            </div>
+            {/* The lower block is ONE grid: the transversal walkway on its
+                first row, then rows 2 and 1 — and the two longitudinal
+                walkways span all three rows, so they run from the transversal
+                one down to the bottom edge as one continuous floor lane
+                (the drawing's black lines meet; user's correction 2026-08-28). */}
+            <BlocBas rows={plan.bas} now={now} />
           </>
         )}
       </main>
@@ -136,11 +124,50 @@ export function Atelier() {
   )
 }
 
-/** Column template of a lower row: a tile per slot, plus a walkway column
- *  after B and after H. */
-const ALLEE_W = 'calc(var(--u)*2)'
-function colonnesBas(row: Emplacement[]): string {
-  return row.map((s) => (s.alleeApres ? `minmax(0,1fr) ${ALLEE_W}` : 'minmax(0,1fr)')).join(' ')
+/** Thickness of the walkways, the transversal one and the longitudinal ones alike. */
+const ALLEE = 'calc(var(--u)*1.4)'
+
+/** Grid columns of the lower block: a tile column per slot, plus a walkway
+ *  column after each slot that has one. Returns the template and, for the
+ *  first row's shape, which grid column each slot and each walkway takes. */
+function colonnesBas(row: Emplacement[]): { template: string; slots: number[]; allees: number[] } {
+  const parts: string[] = []
+  const slots: number[] = []
+  const allees: number[] = []
+  for (const s of row) {
+    parts.push('minmax(0,1fr)')
+    slots.push(parts.length)
+    if (s.alleeApres) {
+      parts.push(ALLEE)
+      allees.push(parts.length)
+    }
+  }
+  return { template: parts.join(' '), slots, allees }
+}
+
+function BlocBas({ rows, now }: { rows: Emplacement[][]; now: number }) {
+  const cols = colonnesBas(rows[0])
+  return (
+    <div
+      className="flex-[2] min-h-0 basis-0 grid gap-[calc(var(--u)*0.5)]"
+      style={{
+        gridTemplateColumns: cols.template,
+        gridTemplateRows: `${ALLEE} ${rows.map(() => 'minmax(0,1fr)').join(' ')}`,
+      }}
+    >
+      <Allee style={{ gridColumn: '1 / -1', gridRow: 1 }} />
+      {cols.allees.map((c) => (
+        <Allee key={c} style={{ gridColumn: c, gridRow: `1 / ${rows.length + 2}` }} />
+      ))}
+      {rows.map((row, ri) =>
+        row.map((s, ci) => (
+          <div key={s.code} className="min-h-0" style={{ gridColumn: cols.slots[ci], gridRow: ri + 2 }}>
+            <Slot slot={s} now={now} />
+          </div>
+        )),
+      )}
+    </div>
+  )
 }
 
 function Slot({ slot, now }: { slot: Emplacement; now: number }) {
@@ -148,28 +175,8 @@ function Slot({ slot, now }: { slot: Emplacement; now: number }) {
   return <EmplacementVide code={slot.code} />
 }
 
-function SlotEtAllee({ slot, now }: { slot: Emplacement; now: number }) {
-  return (
-    <>
-      <div className="min-h-0">
-        <Slot slot={slot} now={now} />
-      </div>
-      {slot.alleeApres && <Allee />}
-    </>
-  )
-}
-
-/** A walkway — the floor between the machines, drawn as the warm sand of the
- *  charter's surfaces rather than a black line, so the plan stays a plan and
- *  not a diagram. */
-function Allee({ horizontale = false }: { horizontale?: boolean }) {
-  return (
-    <div
-      aria-hidden
-      className={cn(
-        'rounded-full bg-sand-darker/70',
-        horizontale ? 'flex-shrink-0 h-[calc(var(--u)*1)] mx-[calc(var(--u)*0.3)]' : 'w-full h-full',
-      )}
-    />
-  )
+/** A walkway — a painted lane on the shop floor. Navy on the warm concrete of
+ *  the plan, so the lanes read at a glance from across the room. */
+function Allee({ style }: { style: CSSProperties }) {
+  return <div aria-hidden className="rounded-full bg-primary/45" style={style} />
 }

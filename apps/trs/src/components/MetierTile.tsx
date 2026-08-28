@@ -36,20 +36,20 @@ const PILL: Record<Teinte, string> = {
 type Etat = 'marche' | 'arret' | 'inconnu'
 const CARD: Record<Etat, { frame: string; band: string; code: string; mot: string }> = {
   marche: {
-    frame: 'border-emerald-500/70 bg-emerald-500/10',
-    band: 'bg-emerald-500/20',
+    frame: 'border-emerald-500 bg-emerald-50',
+    band: 'bg-emerald-200',
     code: 'text-emerald-950',
     mot: 'text-emerald-800',
   },
   arret: {
-    frame: 'border-red-500/70 bg-red-500/10',
-    band: 'bg-red-500/20',
+    frame: 'border-red-500 bg-red-50',
+    band: 'bg-red-200',
     code: 'text-red-950',
     mot: 'text-red-800',
   },
   inconnu: {
-    frame: 'border-zinc-400/70 bg-zinc-400/10',
-    band: 'bg-zinc-400/20',
+    frame: 'border-zinc-400 bg-zinc-50',
+    band: 'bg-zinc-200',
     code: 'text-zinc-800',
     mot: 'text-zinc-600',
   },
@@ -78,8 +78,8 @@ export function MetierTile({ machine, nowMs }: { machine: TrsMachine; nowMs: num
 
   if (!enProduction) {
     return (
-      <div className="h-full rounded-[calc(var(--u)*0.9)] border-2 border-zinc-300 bg-zinc-200/60 flex flex-col overflow-hidden text-zinc-500">
-        <div className="bg-zinc-300/50 px-[calc(var(--u)*0.6)] py-[calc(var(--u)*0.3)]">
+      <div className="h-full rounded-[calc(var(--u)*0.9)] border-2 border-zinc-300 bg-zinc-50 flex flex-col overflow-hidden text-zinc-500">
+        <div className="bg-zinc-200 px-[calc(var(--u)*0.6)] py-[calc(var(--u)*0.3)]">
           <div className="text-[calc(var(--u)*1.9)] font-heading font-bold tracking-tight leading-none text-zinc-600">
             {emplacement}
           </div>
@@ -155,7 +155,7 @@ export function MetierTile({ machine, nowMs }: { machine: TrsMachine; nowMs: num
 /** A place on the floor with no métier in it (1B). */
 export function EmplacementVide({ code }: { code: string }) {
   return (
-    <div className="h-full rounded-[calc(var(--u)*0.9)] border-2 border-dashed border-zinc-300/70 px-[calc(var(--u)*0.6)] py-[calc(var(--u)*0.3)] text-zinc-400/70">
+    <div className="h-full rounded-[calc(var(--u)*0.9)] border-2 border-dashed border-zinc-400/60 px-[calc(var(--u)*0.6)] py-[calc(var(--u)*0.3)] text-zinc-500/60">
       <div className="text-[calc(var(--u)*1.9)] font-heading font-bold tracking-tight leading-none">{code}</div>
     </div>
   )
