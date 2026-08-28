@@ -18,11 +18,6 @@ export function Bandeau({ data }: { data: TrsAtelier | undefined }) {
           {/* The full Malterre wordmark only (user's decision, 2026-08-28). */}
           <img src="/logo-full.png" alt="Malterre" className="h-[calc(var(--u)*2.6)] w-auto" />
         </div>
-        <div className="flex items-baseline gap-[calc(var(--u)*0.6)] px-[calc(var(--u)*1.2)] border-r border-white/15">
-          <span className="text-[calc(var(--u)*1.9)] font-heading font-bold tracking-tight leading-none">TRS</span>
-          <span className="text-[calc(var(--u)*1)] text-white/70">Atelier</span>
-        </div>
-
         <div className="flex-1 min-w-0 flex items-center justify-center gap-[calc(var(--u)*2.2)] px-[calc(var(--u)*1)]">
           {data ? (
             <>
@@ -35,9 +30,6 @@ export function Bandeau({ data }: { data: TrsAtelier | undefined }) {
                   </span>
                 </div>
               </div>
-              <Compte n={data.parc.enMarche} label="en marche" point="bg-emerald-400" />
-              <Compte n={data.parc.arret} label="à l'arrêt" point="bg-red-400" />
-              <Compte n={data.parc.inactifs} label="sans OF" point="bg-white/40" />
             </>
           ) : (
             <span className="text-[calc(var(--u)*1)] text-white/70">Lecture du parc…</span>
@@ -55,15 +47,5 @@ export function Bandeau({ data }: { data: TrsAtelier | undefined }) {
         </div>
       </div>
     </header>
-  )
-}
-
-function Compte({ n, label, point }: { n: number; label: string; point: string }) {
-  return (
-    <div className="flex items-center gap-[calc(var(--u)*0.5)] whitespace-nowrap">
-      <span className={`h-[calc(var(--u)*0.8)] w-[calc(var(--u)*0.8)] rounded-full ${point}`} />
-      <span className="text-[calc(var(--u)*1.35)] font-semibold leading-none">{n}</span>
-      <span className="text-[calc(var(--u)*0.95)] text-white/80">{label}</span>
-    </div>
   )
 }

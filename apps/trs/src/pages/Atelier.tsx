@@ -175,8 +175,11 @@ function Slot({ slot, now }: { slot: Emplacement; now: number }) {
   return <EmplacementVide code={slot.code} />
 }
 
-/** A walkway — a painted lane on the shop floor. Navy on the warm concrete of
- *  the plan, so the lanes read at a glance from across the room. */
+/** A walkway — a painted lane on the shop floor. Slate on the warm concrete of
+ *  the plan, so the lanes read at a glance from across the room. OPAQUE on
+ *  purpose: the longitudinal lanes overlap the transversal one at the
+ *  junctions, and a translucent lane would print the overlap darker and show
+ *  its rounded cap through — with one opaque colour the junction is invisible. */
 function Allee({ style }: { style: CSSProperties }) {
-  return <div aria-hidden className="rounded-full bg-primary/45" style={style} />
+  return <div aria-hidden className="rounded-full bg-slate-400" style={style} />
 }

@@ -201,12 +201,13 @@ le dépôt TRS, la vitrine vit ici.
   même plan sur une Galaxy Tab A9+ (~960 × 600 px CSS) et sur une 12" — les paliers
   Tailwind ne servent à rien ici, il n'y a qu'un écran et il doit remplir la dalle. Les
   petits libellés ont un plancher de 9 px (`max(9px, …)`).
+- **Bandeau** : le mot-symbole, l'équipe au centre, le TRS atelier à droite — rien d'autre. Le nom « TRS · Atelier » et les trois compteurs du parc ont été retirés (demande utilisateur du 2026-08-28) ; le `parc` de l'API les porte toujours.
 - **Logo** : le seul mot-symbole blanc `logo-full.png` dans le bandeau — le vrai logo
   Malterre, pas la lettre M en texte, et pas le badge M non plus (décisions utilisateur
   du 2026-08-28, en deux temps).
 - **Le plan est un sol** : `main` en `bg-sand-darker` (le béton chaud), les cartes
   opaques dessus (blanc cassé pour un métier sans OF, `emerald-50` / `red-50` en
-  production), et **les allées en navy (`bg-primary/45`), continues** — le bloc bas est
+  production), et **les allées en ardoise OPAQUE (`bg-slate-400`), continues** — opaques parce qu'elles se chevauchent aux jonctions, et qu'un lavis y imprimait le recouvrement plus foncé — le bloc bas est
   UN seul grid où l'allée transversale occupe la première ligne et les deux allées
   longitudinales s'étendent sur les trois lignes, jusqu'au bord bas, pour que les traits
   du dessin se rejoignent (`BlocBas` dans `pages/Atelier.tsx`, correction utilisateur du
