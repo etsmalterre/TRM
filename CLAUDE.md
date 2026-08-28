@@ -847,6 +847,29 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
   route renvoie la liste des rouleaux réellement créés plutôt qu'un 500 nu. `?dry_run=1`
   renvoie le plan exact sans rien écrire — c'est ce que `check-visitage-trm.ts` exerce, pour
   qu'un passage de garde ne laisse jamais de pièce fantôme en stock.
+- ⚠️ **`POST /valider` est SÉRIALISÉ côté API (`validerLock`, `lib/serial-lock.ts`,
+  testé), et le poste ne tire qu'une fois (`createLatch`, épinglé par
+  `ProductionVisitage.test.ts`).** Le 2026-08-28 à 14:35:38, deux POST identiques sont
+  partis du poste dans la même seconde (pièce 40751, OF 3564) : la garde « pièce déjà
+  visitée » est un COUNT que les deux ont passé avant la première écriture, les numéros
+  un MAX+1 sur lequel les deux étaient d'accord — **quatre rouleaux pour une coupe en
+  deux, et deux lignes par clé primaire dans `evenement_piece`** (HFSQL n'a pas
+  d'index unique dessus, et `newIdAfterInsert` rend le PLUS HAUT id au-dessus du
+  repère, donc les deux réponses ont nommé les mêmes rouleaux). Le fil, lui, n'a été
+  décrémenté qu'une fois : le pont est FIFO, les deux ont lu `avant` bien avant que
+  l'un n'écrive `apres`. Réparé à la main le jour même (56936 / 56938 supprimés, les
+  deux événements réécrits, `stock_fil` intact).
+  - Côté web, `valider.isPending` ne suffit PAS : TanStack notifie React par
+    `setTimeout(0)`, donc pendant une macrotâche après `mutate()` le bouton et
+    Ctrl+Entrée lisent encore « libre ». D'où un verrou synchrone dans le handler,
+    relâché par `onSettled` — `isPending` reste l'affordance de rendu, pas la garde.
+  - Côté API le verrou est **global, pas par pièce** : les PK MAX+1 sont partagées
+    entre pièces, deux pièces validées au même instant se marcheraient dessus aussi.
+    Le second appel attend, puis rencontre les rouleaux du premier → 409
+    `piece_deja_visitee`, le message « déjà visitée ailleurs » du poste.
+  - ⚠️ Le même patron « check, MAX+1, INSERT » sans verrou existe dans les autres routes
+    d'écriture TRM (`of-trm`, `expeditions-trm`, `maintenance-trm`…) : même exposition
+    à un double envoi, non traitée — `createSerialLock` est là pour ça.
 - **Deux séquences de numérotation par OF** : 1er choix `num_piece_OF < 1000`, déclassé
   `1000+` — et le **premier déclassé d'un OF est 1001**, pas 1000 (438 OF vivants contre 167).
 - **La coupe** = un `piece_production` → N `stock_ecru`. Les défauts déclarés au terminal par

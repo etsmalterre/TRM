@@ -178,6 +178,32 @@ function heure(ms: number | null): string {
 
 const VISITEUR_STORAGE_KEY = 'trm.visitage.visiteur'
 
+/** A synchronous single-flight latch for the one write of this screen.
+ *
+ *  `valider.isPending` is NOT enough to stop a second POST: TanStack Query
+ *  notifies React through `setTimeout(0)`, so for a whole macrotask after
+ *  `mutate()` every render-derived guard — the button's `disabled`, the
+ *  `!isPending` in the Ctrl+Entrée handler — still reads "idle". Two triggers
+ *  landing inside that window send two identical requests, and the API's own
+ *  "piece already visited" check is a read that both pass before either
+ *  writes. That is exactly what happened on 2026-08-28 at 14:35:38 (piece
+ *  40751, OF 3564): two `201`s in the same second, four rolls for a two-roll
+ *  cut, and duplicate primary keys in `evenement_piece`. The latch flips
+ *  synchronously, in the handler itself, so the second trigger is dropped
+ *  before anything is scheduled. Released from the mutation's `onSettled`. */
+export function createLatch() {
+  let held = false
+  return {
+    /** Take the latch. False — and nothing else happens — when it is held. */
+    take(): boolean {
+      if (held) return false
+      held = true
+      return true
+    },
+    release(): void { held = false },
+  }
+}
+
 /** How long the "défaut supprimé — Annuler" strip stays up. A misclick is
  *  noticed immediately, so the window only has to cover the glance-and-react;
  *  past that the strip is just a band eating room in the card. */
@@ -456,7 +482,9 @@ export function ProductionVisitage() {
     })
   }, [])
 
+  const [validerLatch] = useState(createLatch)
   const valider = useMutation<ValiderResponse>({
+    onSettled: () => validerLatch.release(),
     mutationFn: () => apiFetch('/visitage-trm/valider', {
       method: 'POST',
       body: JSON.stringify({
@@ -490,18 +518,27 @@ export function ProductionVisitage() {
     },
   })
 
+  // The ONLY way a validation is fired — button and shortcut both come here,
+  // and the latch is what makes a second trigger in the same macrotask a no-op
+  // (see createLatch). `isPending` stays as the render-time affordance.
+  const { mutate: validerMutate } = valider
+  const lancerValidation = useCallback(() => {
+    if (!validerLatch.take()) return
+    validerMutate()
+  }, [validerLatch, validerMutate])
+
   // Ctrl+Entrée validates from anywhere on the poste — the hands are on the
   // keyboard between two weighings.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && canValider && !valider.isPending) {
         e.preventDefault()
-        valider.mutate()
+        lancerValidation()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [canValider, valider])
+  }, [canValider, valider.isPending, lancerValidation])
 
   // Just the métier. The list only holds métiers that have work, so a
   // "1 pièce à visiter" caption on every row said nothing that picking the
@@ -787,7 +824,7 @@ export function ProductionVisitage() {
                 variant="gold"
                 size="sm"
                 disabled={!canValider || valider.isPending}
-                onClick={() => valider.mutate()}
+                onClick={lancerValidation}
                 title={
                   !canSaisir ? 'Droit « Saisir le visitage » requis'
                     : !identified ? 'Identifiez-vous d\'abord'

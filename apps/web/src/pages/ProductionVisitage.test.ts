@@ -13,7 +13,7 @@
 //     without typing wiped the bonnetier's declaration. Empty must mean
 //     "leave it alone"; zero is reachable by typing zero.
 import { describe, expect, it } from 'vitest'
-import { qteCommit, qteDigits } from './ProductionVisitage'
+import { createLatch, qteCommit, qteDigits } from './ProductionVisitage'
 
 describe('qteDigits', () => {
   it('keeps the digits', () => {
@@ -48,5 +48,32 @@ describe('qteCommit', () => {
 
   it('caps at the mask instead of overflowing', () => {
     expect(qteCommit('12345')).toBe(1234)
+  })
+})
+
+// The single-flight latch in front of POST /valider. Both triggers (button,
+// Ctrl+Entrée) go through it because `isPending` is render-derived and lags
+// `mutate()` by a macrotask — on 2026-08-28 two identical POSTs left the poste
+// in the same second and piece 40751 came back as four rolls.
+
+describe('createLatch', () => {
+  it('lets the first trigger through and drops the second', () => {
+    const latch = createLatch()
+    expect(latch.take()).toBe(true)
+    expect(latch.take()).toBe(false)
+    expect(latch.take()).toBe(false)
+  })
+
+  it('opens again once released', () => {
+    const latch = createLatch()
+    expect(latch.take()).toBe(true)
+    latch.release()
+    expect(latch.take()).toBe(true)
+  })
+
+  it('releasing an open latch is harmless', () => {
+    const latch = createLatch()
+    latch.release()
+    expect(latch.take()).toBe(true)
   })
 })
