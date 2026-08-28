@@ -177,8 +177,12 @@ le dépôt TRS, la vitrine vit ici.
   métiers vivants, `adresse_automate` 2 inutilisée). `apps/trs/src/lib/plan.ts`, clé
   `machine.emplacement` ; un métier hors plan n'est pas perdu, le pied de page le nomme.
 - **Tuile = le jeu legacy** (décision du 2026-08-28) : tr/min en marche ou **« depuis »
-  en rouge plein à l'arrêt**, TRS, arrêts ; métier sans OF démarré = tuile grisée,
-  libellé seul. Liseré §41 vert / rouge pour l'état machine. Barème TRS = legacy
+  à l'arrêt**, TRS, arrêts ; métier sans OF démarré = tuile grisée, libellé seul.
+  **L'état machine colore TOUTE la carte** (bord 2 px, bandeau 20 %, corps 10 % — le
+  patron des cartes de rouleau du visitage ; décision utilisateur du 2026-08-28, un simple
+  liseré §41 était trop discret pour un mur lu à travers l'atelier), et donc **les
+  pastilles de valeur sont pleines** (blanc sur la couleur du barème, comme le legacy) :
+  rien de posé sur ce corps ne peut être un lavis de la même teinte. Barème TRS = legacy
   (≤ 0,8 rouge, ≤ 0,9 ambre). ⚠️ **Trois barèmes sont des approximations** (dossier
   §4.3, à trancher) : la vitesse est colorée **relativement à `ref_ecru.vitesse_cible`**
   (90 % / 75 % — la photo montre 18 vert et 14 rouge, donc pas l'absolu `< 20 / < 25`
@@ -192,6 +196,15 @@ le dépôt TRS, la vitrine vit ici.
 - ⚠️ **En dev, les chiffres sont faux et c'est la base** : `ordre_fabrication` y est
   l'instantané de mars alors qu'`evenement_machine` est vivante — d'où des « depuis
   291 j » et des OF à 0 %. Juger la parité sur la prod, avec la sonde.
+- **Tout est dimensionné en `--u`** (`index.css`, `min(1vw, 1.6vh)` — 12,8 px à
+  1280 × 800) : tailles de texte, paddings, allées, bandeau. C'est ce qui fait tenir le
+  même plan sur une Galaxy Tab A9+ (~960 × 600 px CSS) et sur une 12" — les paliers
+  Tailwind ne servent à rien ici, il n'y a qu'un écran et il doit remplir la dalle. Les
+  petits libellés ont un plancher de 9 px (`max(9px, …)`).
+- **Logos** : le badge M doré (`public/logo-m.png`, copie de
+  `ETM/apps/api/src/assets/logo-m-email.png`) et le mot-symbole blanc `logo-full.png`
+  dans le bandeau — les vrais logos Malterre, pas la lettre M en texte (demande
+  utilisateur du 2026-08-28).
 - **Dev** : `cd apps/trs && pnpm exec vite --port 5177`, `.env.local` (gitignoré) portant
   `VITE_API_URL=http://localhost:808N/api`. 5176 et 5177 sont dans `TRM_PWA_PORTS` de
   `ETM/scripts/worktree/lib.mjs`, donc dans le CORS de toute API de worktree.

@@ -3,14 +3,18 @@
 // The legacy tile (Appli_TRS, photo of 2026-08-28): the code on top, then
 // three stacked pills — RPM while running or « Depuis » in red while stopped,
 // TRS, Arrêts — and a métier without an OF shows its code only. Same
-// information architecture here; the look is the Malterre charter (navy /
-// gold / warm neutrals) instead of the legacy's blue-on-yellow, per the same
-// decision that restyled the atelier PWA.
+// information architecture here.
 //
-// Colour is status colour (dataviz): good / warning / critical, and every
-// pill carries its word, so nothing is colour-alone. The frame itself takes
-// the §41 liseré for the machine state — green running, red stopped — and
-// stays neutral otherwise; a métier without an OF is a muted, dashed slot.
+// The machine state colours the WHOLE card (user's decision, 2026-08-28 — a
+// left liseré alone was too quiet for a wall read from across the shop):
+// 2 px border, a header band at 20 % and a body at 10 % of the state hue,
+// the pattern of the visitage roll cards. Consequence, same as there:
+// nothing laid on the body may be a wash of the same hue — so the value
+// pills are SOLID, white text on the ladder colour, which is also what the
+// legacy did. Colour is status colour (dataviz): good / warning / critical,
+// and every pill carries its word, so nothing is colour-alone.
+//
+// Every size is in --u (index.css) so the tile scales with the tablet.
 import { cn } from '@/lib/utils'
 import type { TrsMachine } from '@/lib/trs-api'
 import {
@@ -24,34 +28,43 @@ import {
 } from '@/lib/affichage'
 
 const PILL: Record<Teinte, string> = {
-  vert: 'bg-emerald-500/15 text-emerald-900 border-emerald-500/30',
-  ambre: 'bg-amber-500/15 text-amber-900 border-amber-500/30',
-  rouge: 'bg-red-500/15 text-red-900 border-red-500/30',
-}
-/** The stop pill is solid: a stopped métier in production is THE attention
- *  state of this screen, and the legacy painted it solid red too. */
-const PILL_PLEIN: Record<Teinte, string> = {
-  vert: 'bg-emerald-600 text-white border-emerald-700',
-  ambre: 'bg-amber-500 text-white border-amber-600',
-  rouge: 'bg-destructive text-white border-red-700',
+  vert: 'bg-emerald-600 text-white',
+  ambre: 'bg-amber-500 text-white',
+  rouge: 'bg-red-600 text-white',
 }
 
-const LISERE: Record<'marche' | 'arret' | 'inconnu', string> = {
-  marche: 'shadow-[inset_4px_0_0_0_rgb(16_185_129)]',
-  arret: 'shadow-[inset_4px_0_0_0_rgb(239_68_68)]',
-  inconnu: 'shadow-[inset_4px_0_0_0_rgb(161_161_170)]',
+type Etat = 'marche' | 'arret' | 'inconnu'
+const CARD: Record<Etat, { frame: string; band: string; code: string; mot: string }> = {
+  marche: {
+    frame: 'border-emerald-500/70 bg-emerald-500/10',
+    band: 'bg-emerald-500/20',
+    code: 'text-emerald-950',
+    mot: 'text-emerald-800',
+  },
+  arret: {
+    frame: 'border-red-500/70 bg-red-500/10',
+    band: 'bg-red-500/20',
+    code: 'text-red-950',
+    mot: 'text-red-800',
+  },
+  inconnu: {
+    frame: 'border-zinc-400/70 bg-zinc-400/10',
+    band: 'bg-zinc-400/20',
+    code: 'text-zinc-800',
+    mot: 'text-zinc-600',
+  },
 }
 
-function Pill({ valeur, label, teinte, plein }: { valeur: string; label: string; teinte: Teinte; plein?: boolean }) {
+function Pill({ valeur, label, teinte }: { valeur: string; label: string; teinte: Teinte }) {
   return (
     <div
       className={cn(
-        'rounded-lg border px-1 py-0.5 text-center leading-tight',
-        plein ? PILL_PLEIN[teinte] : PILL[teinte],
+        'flex-1 min-h-0 rounded-[calc(var(--u)*0.6)] px-[calc(var(--u)*0.3)] flex flex-col items-center justify-center leading-none',
+        PILL[teinte],
       )}
     >
-      <div className="text-lg font-semibold whitespace-nowrap">{valeur}</div>
-      <div className={cn('text-[10px] uppercase tracking-wide', plein ? 'text-white/80' : 'opacity-70')}>
+      <div className="text-[calc(var(--u)*1.45)] font-bold whitespace-nowrap">{valeur}</div>
+      <div className="text-[max(9px,calc(var(--u)*0.72))] uppercase tracking-wide text-white/85 mt-[calc(var(--u)*0.2)]">
         {label}
       </div>
     </div>
@@ -65,12 +78,16 @@ export function MetierTile({ machine, nowMs }: { machine: TrsMachine; nowMs: num
 
   if (!enProduction) {
     return (
-      <div className="h-full rounded-xl border border-dashed border-border bg-muted/40 p-2 flex flex-col text-muted-foreground">
-        <div className="text-2xl font-heading font-bold tracking-tight leading-none">{emplacement}</div>
-        <div className="mt-auto text-[11px] leading-tight">
+      <div className="h-full rounded-[calc(var(--u)*0.9)] border-2 border-zinc-300 bg-zinc-200/60 flex flex-col overflow-hidden text-zinc-500">
+        <div className="bg-zinc-300/50 px-[calc(var(--u)*0.6)] py-[calc(var(--u)*0.3)]">
+          <div className="text-[calc(var(--u)*1.9)] font-heading font-bold tracking-tight leading-none text-zinc-600">
+            {emplacement}
+          </div>
+        </div>
+        <div className="mt-auto px-[calc(var(--u)*0.6)] pb-[calc(var(--u)*0.5)] text-[max(9px,calc(var(--u)*0.85))] leading-tight">
           {of ? 'OF non démarré' : 'Sans OF'}
           {marche && (
-            <span className="block text-[10px] opacity-80">
+            <span className="block text-[max(9px,calc(var(--u)*0.75))] opacity-80">
               tourne · {machine.vitesse} tr/min
             </span>
           )}
@@ -79,33 +96,38 @@ export function MetierTile({ machine, nowMs }: { machine: TrsMachine; nowMs: num
     )
   }
 
-  const frame = etat === null ? 'inconnu' : marche ? 'marche' : 'arret'
+  const c = CARD[etat === null ? 'inconnu' : marche ? 'marche' : 'arret']
   return (
     <div
       className={cn(
-        'h-full rounded-xl border border-border bg-card p-2 pl-3 flex flex-col gap-1.5 overflow-hidden',
-        LISERE[frame],
+        'h-full rounded-[calc(var(--u)*0.9)] border-2 flex flex-col overflow-hidden',
+        c.frame,
       )}
     >
-      <div className="flex-shrink-0 flex items-baseline justify-between gap-1">
-        <div className="text-2xl font-heading font-bold tracking-tight leading-none">{emplacement}</div>
-        <span
-          className={cn(
-            'text-[10px] font-medium uppercase tracking-wide',
-            marche ? 'text-emerald-700' : etat === null ? 'text-muted-foreground' : 'text-red-700',
-          )}
-        >
+      <div
+        className={cn(
+          'flex-shrink-0 flex items-baseline justify-between gap-1 px-[calc(var(--u)*0.6)] py-[calc(var(--u)*0.3)]',
+          c.band,
+        )}
+      >
+        <div className={cn('text-[calc(var(--u)*1.9)] font-heading font-bold tracking-tight leading-none', c.code)}>
+          {emplacement}
+        </div>
+        <span className={cn('text-[max(9px,calc(var(--u)*0.72))] font-semibold uppercase tracking-wide', c.mot)}>
           {marche ? 'marche' : etat === null ? '?' : 'arrêt'}
         </span>
       </div>
       {of && (
-        <div className="flex-shrink-0 text-[11px] text-muted-foreground leading-tight truncate" title={`OF ${of.id}`}>
+        <div
+          className="flex-shrink-0 px-[calc(var(--u)*0.6)] pt-[calc(var(--u)*0.3)] text-[max(9px,calc(var(--u)*0.8))] text-foreground/70 leading-tight truncate"
+          title={`OF ${of.id}`}
+        >
           {of.reference}
           {of.coloris ? ` · ${of.coloris}` : ''}
         </div>
       )}
 
-      <div className="mt-auto flex-shrink-0 flex flex-col gap-1">
+      <div className="flex-1 min-h-0 flex flex-col gap-[calc(var(--u)*0.35)] p-[calc(var(--u)*0.5)]">
         {marche ? (
           <Pill
             valeur={String(machine.vitesse)}
@@ -117,7 +139,6 @@ export function MetierTile({ machine, nowMs }: { machine: TrsMachine; nowMs: num
             valeur={depuisMs === null ? '—' : fmtDuree(depuisMs)}
             label="depuis"
             teinte={depuisMs === null ? 'ambre' : teinteDepuis(depuisMs)}
-            plein
           />
         )}
         <Pill
@@ -134,8 +155,8 @@ export function MetierTile({ machine, nowMs }: { machine: TrsMachine; nowMs: num
 /** A place on the floor with no métier in it (1B). */
 export function EmplacementVide({ code }: { code: string }) {
   return (
-    <div className="h-full rounded-xl border border-dashed border-border/60 p-2 text-muted-foreground/50">
-      <div className="text-2xl font-heading font-bold tracking-tight leading-none">{code}</div>
+    <div className="h-full rounded-[calc(var(--u)*0.9)] border-2 border-dashed border-zinc-300/70 px-[calc(var(--u)*0.6)] py-[calc(var(--u)*0.3)] text-zinc-400/70">
+      <div className="text-[calc(var(--u)*1.9)] font-heading font-bold tracking-tight leading-none">{code}</div>
     </div>
   )
 }

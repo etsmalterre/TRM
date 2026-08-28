@@ -60,7 +60,7 @@ export function Atelier() {
     <div className="h-full flex flex-col bg-background">
       <Bandeau data={data} />
 
-      <main className="flex-1 min-h-0 p-3 flex flex-col gap-3">
+      <main className="flex-1 min-h-0 p-[calc(var(--u)*0.6)] flex flex-col gap-[calc(var(--u)*0.6)]">
         {q.isLoading && (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
             Lecture du parc…
@@ -77,7 +77,7 @@ export function Atelier() {
         {plan && (
           <>
             {/* Row 3 — eleven métiers, no walkway inside the row. */}
-            <div className="flex-1 min-h-0 basis-0 grid grid-cols-11 gap-2">
+            <div className="flex-1 min-h-0 basis-0 grid grid-cols-11 gap-[calc(var(--u)*0.5)]">
               {plan.haut.map((s) => (
                 <Slot key={s.code} slot={s} now={now} />
               ))}
@@ -87,11 +87,11 @@ export function Atelier() {
             <Allee horizontale />
 
             {/* Rows 2 and 1 — ten slots each, two longitudinal walkways. */}
-            <div className="flex-[2] min-h-0 basis-0 grid grid-rows-2 gap-3">
+            <div className="flex-[2] min-h-0 basis-0 grid grid-rows-2 gap-[calc(var(--u)*0.6)]">
               {plan.bas.map((row, i) => (
                 <div
                   key={i}
-                  className="min-h-0 grid gap-2"
+                  className="min-h-0 grid gap-[calc(var(--u)*0.5)]"
                   style={{ gridTemplateColumns: colonnesBas(row) }}
                 >
                   {row.map((s) => (
@@ -104,7 +104,7 @@ export function Atelier() {
         )}
       </main>
 
-      <footer className="flex-shrink-0 h-8 px-4 flex items-center gap-4 border-t border-border/60 bg-zinc-200/50 text-xs text-muted-foreground">
+      <footer className="flex-shrink-0 h-[calc(var(--u)*2.3)] px-[calc(var(--u)*1)] flex items-center gap-[calc(var(--u)*1)] border-t border-border/60 bg-zinc-200/50 text-[max(9px,calc(var(--u)*0.85))] text-muted-foreground whitespace-nowrap overflow-hidden">
         <span>
           Actualisé <span className="font-medium text-foreground">{fmtHeure(data?.generatedAt, true)}</span>
         </span>
@@ -130,7 +130,7 @@ export function Atelier() {
             Hors plan : {plan.horsPlan.map((m) => m.emplacement || `#${m.id}`).join(', ')}
           </span>
         )}
-        <span className="ml-auto tabular-nums">v{__APP_VERSION__}</span>
+        <span className="ml-auto tabular-nums flex-shrink-0">v{__APP_VERSION__}</span>
       </footer>
     </div>
   )
@@ -138,7 +138,7 @@ export function Atelier() {
 
 /** Column template of a lower row: a tile per slot, plus a walkway column
  *  after B and after H. */
-const ALLEE_W = '28px'
+const ALLEE_W = 'calc(var(--u)*2)'
 function colonnesBas(row: Emplacement[]): string {
   return row.map((s) => (s.alleeApres ? `minmax(0,1fr) ${ALLEE_W}` : 'minmax(0,1fr)')).join(' ')
 }
@@ -168,7 +168,7 @@ function Allee({ horizontale = false }: { horizontale?: boolean }) {
       aria-hidden
       className={cn(
         'rounded-full bg-sand-darker/70',
-        horizontale ? 'flex-shrink-0 h-3 mx-1' : 'w-full h-full',
+        horizontale ? 'flex-shrink-0 h-[calc(var(--u)*1)] mx-[calc(var(--u)*0.3)]' : 'w-full h-full',
       )}
     />
   )

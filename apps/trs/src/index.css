@@ -158,6 +158,14 @@
 }
 
 @layer base {
+  /* The wall display's size unit: everything on the plan is sized in --u so the
+     whole screen scales with the tablet — a Galaxy Tab A9+ reports ~960×600 CSS
+     px in landscape, a 12" tablet 1280×800. At 1280×800 one unit is 12.8px; the
+     min() keeps a squat viewport from growing the type past its height. */
+  :root {
+    --u: min(1vw, 1.6vh);
+  }
+
   * {
     @apply border-border;
   }
