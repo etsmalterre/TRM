@@ -1471,7 +1471,7 @@ screen reads the very same endpoints. Landing it was the two edits
 - `bonnetier` — accented columns `prénom`/`archivé` (HFSQL accent rules apply). Grid rows = `archivé=0 AND regleur=0`; regleurs are excluded (roles in `role_employe`: apprenti/bonnetier/visiteur/regleur).
 - `desiderata` — `DATE` (reserved word → returns uppercased; 8-char YYYYMMDD), `description`, `IDbonnetier`, `justifie`, `declare`. Writes use positional INSERT (max+1 PK) to avoid naming the reserved column. "En cours" = date ≥ today.
 
-## Ticket widget (LIVA issue tracker) — feature version 1.2.0
+## Ticket widget (LIVA issue tracker) — feature version 1.3.0
 
 In-app bug/feature reporting to the LIVA tracker (product **`trm-erp`**), same widget as
 ETM's (spec + upgrade path: the `issue_tracker_integration` skill):
@@ -1487,7 +1487,25 @@ ETM's (spec + upgrade path: the `issue_tracker_integration` skill):
   Never point the widget at `/api/tickets`: the tracker key is company-scoped and the
   per-mount slug is what keeps ETM's and TRM's "Mes tickets" apart.
 - Read state (unread badge) is `localStorage`-only, keyed per user — no HFSQL change.
-  Reporters need an email mapped in Paramètres › Utilisateurs, or the proxy 400s.
+- **Un compte sans email envoie quand même des tickets (v1.3.0)** — décision utilisateur du
+  2026-08-28 : c'était le poste de visitage (compte-poste `Visitage`) et Mickael Grivelet,
+  qui n'a pas d'adresse société et n'en a pas besoin. Le proxy les identifie sous une
+  adresse synthétique stable `utilisateur-<id>@mps.malterre.invalid`
+  (`ETM/apps/api/src/lib/tickets-reporter.ts` — le tracker clé le rapporteur par email mais
+  n'y *envoie* que le suivi par email), force `follow_up` à faux, refuse `PATCH /:id/follow`,
+  et `GET /tickets-trm/reporter` → `{ name, can_follow }` dit au widget de cacher la case et
+  l'interrupteur de suivi. Avant, le proxy répondait 400 et ces comptes ne pouvaient rien
+  envoyer.
+  - **Le poste nomme la visiteuse** : `ProductionVisitage.tsx` pose son nom dans
+    `components/tickets/reporterHint.ts` (store module, effacé en quittant l'écran) et le
+    widget l'envoie en `reporter_name` ; le proxy ne l'honore que pour un rapporteur
+    synthétique, **accolé** au nom du compte — « Isabelle Dupont (Visitage) » — jamais
+    substitué, et l'ignore pour un compte personnel (l'identité reste la session).
+  - ⚠️ **Associer un email plus tard change l'identité tracker du compte** : les tickets
+    antérieurs restent sous l'adresse synthétique et sortent de « Mes tickets ». Assumé —
+    ne pas fusionner deux identités à chaque poll pour le masquer. Et ne jamais mettre
+    l'adresse d'une vraie personne sur le compte-poste : le tracker réécrit `display_name`
+    à chaque création, ses propres tickets se renommeraient « Visitage ».
 - **Suivi par email (v1.2.0)** — « Me tenir informé par email » : une case **décochée par
   défaut** sur le formulaire, et un interrupteur (§35) dans la fiche du ticket. Le drapeau
   vit côté tracker (`bugs.follow_up`), pas ici : rien à stocker dans HFSQL. Une fois activé,

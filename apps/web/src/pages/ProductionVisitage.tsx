@@ -51,6 +51,7 @@ import { Label } from '@/components/ui/label'
 import { PopoverSelect, type PopoverSelectOption } from '@/components/ui/popover-select'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { ConsigneCallout } from '@/components/of/ConsigneCallout'
+import { setTicketReporterHint } from '@/components/tickets/reporterHint'
 import { TmRollIcon } from '@/components/icons/TmRollIcon'
 import { useHasPermission } from '@/contexts/PermissionsContext'
 import { apiFetch, API_URL } from '@/lib/api'
@@ -391,6 +392,15 @@ export function ProductionVisitage() {
   // defect she adds (defaut_qualite.IDSpotteur). The legacy only checks at
   // Valider — too late, after a full piece has been keyed in.
   const identified = visiteurId > 0
+
+  // Name her on the tickets filed from this poste too: the PC logs in as the
+  // `Visitage` compte-poste, so without this a ticket says which station it
+  // came from, not who was at it. The proxy appends the name to the account
+  // (« Isabelle Dupont (Visitage) »); cleared on leaving the page.
+  useEffect(() => {
+    setTicketReporterHint(visiteur?.label ?? null)
+    return () => setTicketReporterHint(null)
+  }, [visiteur?.label])
 
   // ── Ajout / suppression d'un défaut ───────────────────
   // Port of FEN_Ajout_Défaut: a type picker and one quantity field whose unit
