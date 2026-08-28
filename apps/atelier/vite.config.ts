@@ -40,9 +40,10 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,svg}'],
       },
       manifest: {
-        name: 'Atelier TRM',
-        // Android truncates around 12 characters on the home screen.
-        short_name: 'Atelier TRM',
+        name: 'Atelier',
+        // Android truncates around 12 characters on the home screen — 'Atelier'
+        // fits whole, which 'Atelier TRM' did not.
+        short_name: 'Atelier',
         lang: 'fr',
         description: "Poste bonnetier et régleur — atelier de tricotage Tricotage Malterre",
         theme_color: '#143D6B',

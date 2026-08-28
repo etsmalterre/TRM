@@ -30,7 +30,9 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,svg}'],
       },
       manifest: {
-        name: 'TRS Atelier',
+        // Both just 'TRS' — the tablet is known as "le TRS" on the shop floor, and
+        // 'name' is what the install dialog and Android app-info show.
+        name: 'TRS',
         short_name: 'TRS',
         lang: 'fr',
         description: 'TRS des métiers — écran mural de l’atelier de tricotage Tricotage Malterre',

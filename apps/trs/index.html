@@ -14,10 +14,13 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
     <meta name="theme-color" content="#143D6B" />
-    <meta name="description" content="TRS Atelier - le TRS des métiers de Tricotage Malterre" />
+    <meta name="description" content="Le TRS des métiers de Tricotage Malterre" />
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-    <title>TRS Atelier</title>
+    <!-- iOS names the home-screen icon from this meta, falling back to the page
+         title; Android uses the manifest short_name. Keep all three saying "TRS". -->
+    <meta name="apple-mobile-web-app-title" content="TRS" />
+    <title>TRS</title>
   </head>
   <body>
     <div id="root"></div>
