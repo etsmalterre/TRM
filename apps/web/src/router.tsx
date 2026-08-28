@@ -9,7 +9,6 @@ import { Dashboard } from '@etm/pages/Dashboard'
 import {
   Layers,
   ClipboardList,
-  Gauge,
   HardHat,
   AlertTriangle,
   Undo2,
@@ -83,7 +82,10 @@ import { ProductionVisitage } from '@/pages/ProductionVisitage'
 // Prime — real screen (port of the legacy FI_Prime window). TRM-only: reads
 // TRM knitted production (stock_ecru via OF) through `/prime-trm` on the ETM API.
 import { ProductionPrime } from '@/pages/ProductionPrime'
-const ProductionTrsPage = createPlaceholder('TRS', 'Taux de rendement synthétique', Gauge)
+// TRS — real screen (port of the legacy FI_TRS window): the shift dashboard
+// of the workshop over `/trs/equipe` on the MPS API. Behind `view_trs` — the
+// page renders its own « Accès restreint » state, the API refuses too.
+import { ProductionTrs } from '@/pages/ProductionTrs'
 
 // Atelier
 // Maintenance — real screen (port of the legacy FI_Maintenance.wdw). TRM-only
@@ -150,7 +152,7 @@ export const router = createBrowserRouter([
       { path: 'production/of', element: <ProductionOf /> },
       { path: 'production/visitage', element: <ProductionVisitage /> },
       { path: 'production/prime', element: <ProductionPrime /> },
-      { path: 'production/trs', element: <ProductionTrsPage /> },
+      { path: 'production/trs', element: <ProductionTrs /> },
 
       // Atelier
       { path: 'atelier', element: <Navigate to="/atelier/maintenance" replace /> },

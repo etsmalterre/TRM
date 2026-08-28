@@ -36,13 +36,13 @@
 // the tableau de bord (widgets unmount when navigating away), and the header
 // button — the legacy's refresh icon — refetches on demand.
 
-import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, PackageCheck, RotateCw, ScanEye } from 'lucide-react'
 import { CardContent } from '@/components/ui/card'
 import { apiFetch } from '@/lib/api'
 import { fmtNum } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { useMinuteClock } from '@/hooks/useMinuteClock'
 import { WidgetFrame } from './WidgetFrame'
 
 export type Equipe = 'Matin' | 'Après-Midi' | 'Nuit'
@@ -93,18 +93,6 @@ export function fmtFinTricotage(ms: number): string {
   const d = new Date(ms)
   const p = (x: number) => String(x).padStart(2, '0')
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
-}
-
-/** A clock that ticks once a minute, so the colours advance on their own
- *  between two fetches — a piece crosses 2 h and the row turns amber without
- *  anyone touching the page. One interval for the whole widget. */
-function useMinuteClock(): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 60_000)
-    return () => window.clearInterval(id)
-  }, [])
-  return now
 }
 
 // Raw Tailwind red/amber/emerald rather than the semantic destructive/success

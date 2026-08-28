@@ -204,7 +204,7 @@ export const mainNavigation: MainMenuItem[] = [
       { title: 'Ordres de fabrication', href: '/production/of' },
       { title: 'Visitage', href: '/production/visitage' },
       { title: 'Prime', href: '/production/prime' },
-      { title: 'TRS', href: '/production/trs' },
+      { title: 'TRS', href: '/production/trs', permission: 'view_trs' },
     ],
   },
   {

@@ -11,16 +11,21 @@
 // /of-trm/bonnetiers/:id/photo (binary needs queryRaw — the normal query path
 // UTF-8-mangles it). A 404 is the normal answer for staff without a portrait;
 // the Avatar falls back to initials.
+//
+// « Défaut » is not an `evenement_piece` row: Production › TRS folds the
+// piece's `defaut_qualite` rows into the same list, as the legacy FI_TRS
+// `ZR_Detail` did (UNION, 'Défaut' AS evenement, description AS observation),
+// and paints it red the way the legacy card did.
 
 import type { ComponentType } from 'react'
-import { Brush, Circle, Eye, Flag, Pause, Play, Scale } from 'lucide-react'
+import { Brush, Circle, Eye, Flag, Pause, Play, Scale, TriangleAlert } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { API_URL } from '@/lib/api'
 import { formatHfsqlDate } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 
 export interface PieceEvent {
-  id: number
+  id: number | string
   date: string | null
   evenement: string
   observation: string
@@ -71,7 +76,11 @@ export const EVENT_ICONS: Record<string, ComponentType<{ className?: string }>> 
   'Pesage tombé métier': Scale,
   'Interruption OF': Pause,
   'Reprise OF': Play,
+  'Défaut': TriangleAlert,
 }
+
+/** The one event that is an anomaly rather than a step of the work. */
+const EVENT_ALERTE = new Set(['Défaut'])
 
 export function EventTimeline({
   events,
@@ -98,6 +107,7 @@ export function EventTimeline({
     <div className="space-y-1.5">
       {events.map((e) => {
         const Icon = EVENT_ICONS[e.evenement] ?? Circle
+        const alerte = EVENT_ALERTE.has(e.evenement)
         return (
           <div key={e.id} className="p-2 rounded-lg border bg-card shadow-sm flex items-center gap-2.5">
             <BonnetierAvatar id={e.IDbonnetier} name={e.bonnetier} />
@@ -108,7 +118,7 @@ export function EventTimeline({
                   {fmtEventDateTime(e.date)}
                 </p>
               </div>
-              <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+              <p className={cn('text-xs flex items-center gap-1 truncate', alerte ? 'text-red-700' : 'text-muted-foreground')}>
                 <Icon className="h-3 w-3 flex-shrink-0" />
                 <span className="truncate">
                   {e.evenement}
