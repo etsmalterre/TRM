@@ -34,6 +34,7 @@ this skill exists to prevent.
 `apps/web` reads the root `package.json`. `/trm_deploy trs v0.0.3` bumping the root would
 print a wrong version in the **ERP's** header and leave TRS's unchanged. TRS is already at
 0.0.2 while the root is 0.1.1; the numbers are unrelated and must never be "aligned".
+
 **Optional version argument — `/trm_deploy trs v0.0.3`.** A version means "release this
 version", so **before** building: set `version` in **the target's own file** (Targets table,
 last column — root `package.json` for `web`, `apps/<target>/package.json` for the other two),
