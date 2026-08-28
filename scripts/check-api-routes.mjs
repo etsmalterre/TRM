@@ -19,21 +19,41 @@
  * FAILS CLOSED: an unreachable API is a failure, never a silent pass. Exit 0 =
  * safe to deploy, exit 1 = do not deploy.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import https from 'node:https'
 import http from 'node:http'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const SRC = join(__dirname, '..', 'apps', 'web', 'src')
+// Every app in the monorepo that calls the shared API, with the host its own
+// requests actually travel through. An app missing from this list has NO route
+// gate whatsoever: until 2026-08-28 this scanned apps/web alone, so /api/trs and
+// /api/atelier - the two newest routers, on two brand-new hosts - were exactly
+// the ones it could not see. Add an app here when you add it to the monorepo.
+const APPS = [
+  { name: 'web',     host: 'https://trm.malterre/api' },
+  { name: 'atelier', host: 'https://atelier.malterre/api' },
+  { name: 'trs',     host: 'https://trs.malterre/api' },
+].map((a) => ({ ...a, src: join(__dirname, '..', 'apps', a.name, 'src') }))
+  .filter((a) => existsSync(a.src))
 
 const args = process.argv.slice(2)
 const verbose = args.includes('--verbose')
 const baseArg = args.indexOf('--base')
-// Probe through TRM's OWN proxy by default: that validates the API *and*
-// trm.malterre's nginx, which is the path a TRM user's request actually takes.
-const BASE = baseArg !== -1 ? args[baseArg + 1] : 'https://trm.malterre/api'
+// --app <name> narrows the scan to one app, which is what a per-app deploy wants.
+// With no --app every app is scanned, so a bare run still gates the whole repo.
+const appArg = args.indexOf('--app')
+const APPS_TO_SCAN = appArg !== -1 ? APPS.filter((a) => a.name === args[appArg + 1]) : APPS
+if (!APPS_TO_SCAN.length) {
+  console.error(`Unknown --app "${args[appArg + 1]}". Known: ${APPS.map((a) => a.name).join(', ')}`)
+  process.exit(2)
+}
+// Probe through the app's OWN proxy by default: that validates the API *and*
+// that app's nginx host, which is the path its users' requests actually take.
+// Scanning several apps at once, fall back to TRM's host - they share one API.
+const BASE = baseArg !== -1 ? args[baseArg + 1]
+  : APPS_TO_SCAN.length === 1 ? APPS_TO_SCAN[0].host : 'https://trm.malterre/api'
 
 /** Roots that are infrastructure rather than a feature's backend. Probing them
  *  adds noise, not signal — they have shipped for as long as the app has. */
@@ -72,9 +92,10 @@ function collectTargets() {
   // (c) direct base:         fetch(`${API_URL}/expeditions-trm/…`)
   const reApiUrl = /\$\{API_URL\}(\/[^'"`$\s)]*)/g
 
-  for (const file of walk(SRC)) {
+  for (const app of APPS_TO_SCAN) {
+  for (const file of walk(app.src)) {
     const text = readFileSync(file, 'utf8')
-    const rel = file.slice(SRC.length + 1).replace(/\\/g, '/')
+    const rel = `apps/${app.name}/src/` + file.slice(app.src.length + 1).replace(/\\/g, '/')
     let found = 0
 
     const add = (rawPath, truncated) => {
@@ -104,7 +125,13 @@ function collectTargets() {
       if (consts.has(name)) add(consts.get(name), m[1] !== undefined)
     }
 
-    for (const m of text.matchAll(reApiUrl)) add(m[1], false)
+    for (const m of text.matchAll(reApiUrl)) {
+      // The capture stops at the first dollar sign, so an interpolation right
+      // after it means we hold a PREFIX, not an endpoint. Hardcoding false made
+      // the gate probe /prime-trm/bonnetiers for a real call to
+      // /prime-trm/bonnetiers/<id>/photo, and condemn a router answering 200.
+      add(m[1], text[m.index + m[0].length] === '$')
+    }
 
     // A file that talks to the API but yielded nothing means the extractor has a
     // new blind spot. Warn loudly — a guard that silently under-reports is worse
@@ -112,7 +139,8 @@ function collectTargets() {
     // helper, and `lib/email.ts` names it in a comment while taking its URL as a
     // parameter (the caller supplies the path, and is scanned itself).
     const callsApi = /apiFetch\s*(?:<[^(]*?>)?\s*\(/.test(text) || /\$\{API_URL\}/.test(text)
-    if (found === 0 && callsApi && rel !== 'lib/api.ts') blindSpots.push(rel)
+    if (found === 0 && callsApi && !rel.endsWith('/lib/api.ts')) blindSpots.push(rel)
+  }
   }
 
   // Prefer a fully-literal path (a real endpoint that will answer 200/401);
@@ -134,7 +162,8 @@ function collectTargets() {
     const alts = [...new Set(
       [...literal.map((c) => c.path), ...candidates.map((c) => c.path)],
     )].filter((x) => x !== chosen).slice(0, 4)
-    targets.push({ root, path: chosen, alts, files: [...files] })
+    const chosenTruncated = !literal.length || literal[0].path !== chosen
+    targets.push({ root, path: chosen, alts, files: [...files], chosenTruncated })
   }
   targets.sort((a, b) => a.root.localeCompare(b.root))
   return { targets, blindSpots }
@@ -168,7 +197,7 @@ if (blindSpots.length) {
     `⚠ ${blindSpots.length} file(s) reference apiFetch/API_URL but yielded no path — ` +
       `the extractor may be blind to how they build it:`,
   )
-  for (const f of blindSpots) console.warn(`    apps/web/src/${f}`)
+  for (const f of blindSpots) console.warn(`    ${f}`)
   console.warn('')
 }
 if (targets.length === 0) {
@@ -180,8 +209,10 @@ console.log(`Probing ${targets.length} mount root(s) against ${BASE}\n`)
 
 const missing = []
 const unreachable = []
+// Roots we could neither prove nor disprove - see the truncated-prefix note below.
+const indeterminate = []
 
-for (const { root, path, alts, files } of targets) {
+for (const { root, path, alts, files, chosenTruncated } of targets) {
   let status
   try {
     status = await probe(`${BASE}${path}`)
@@ -209,6 +240,15 @@ for (const { root, path, alts, files } of targets) {
       console.log(
         `  ✓  ${root} — mounted (${path} 404s on GET; ${rescuedBy.alt} → ${rescuedBy.altStatus})`,
       )
+    } else if (chosenTruncated) {
+      // The only path known for this root is a TRUNCATED prefix: every call site
+      // interpolates, so what we probed was never an endpoint. A 404 here proves
+      // nothing - it looks identical whether the router is missing or mounted.
+      // Warn, never fail: condemning it made --app atelier block every deploy
+      // while the real URL answered 200. A false positive is corrosive, as the
+      // note above already says - this is the same lesson one rescue further on.
+      indeterminate.push({ root, path, files })
+      console.log(`  ⚠  ${root} — unproven (only a truncated prefix, ${path}, is probeable)`)
     } else {
       missing.push({ root, path, files })
       console.log(`  ✗  ${path} — 404 NOT ON PROD`)
@@ -216,6 +256,16 @@ for (const { root, path, alts, files } of targets) {
   } else if (verbose) {
     console.log(`  ✓  ${path} — ${status}`)
   }
+}
+
+if (indeterminate.length) {
+  console.warn(
+    `
+⚠ ${indeterminate.length} root(s) could not be proven either way - every known` +
+      ` call site interpolates, so only a truncated prefix was probeable.` +
+      ` Not a failure; check them by hand if they are new.`,
+  )
+  for (const m of indeterminate) console.warn(`    /api${m.path}  (${m.root})`)
 }
 
 if (unreachable.length) {
@@ -230,7 +280,7 @@ if (missing.length) {
   console.error(`\n✗ ${missing.length} route(s) the bundle calls do NOT exist on the production API:\n`)
   for (const { path, files } of missing) {
     console.error(`    /api${path}`)
-    for (const f of files.slice(0, 4)) console.error(`        used by apps/web/src/${f}`)
+    for (const f of files.slice(0, 4)) console.error(`        used by ${f}`)
   }
   console.error(
     `\n  These live in the ETM repo. Land the paired NG branch, then run /etm_deploy\n` +

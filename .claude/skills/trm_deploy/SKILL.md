@@ -2,25 +2,62 @@
 
 ## When to use
 
-Invoke with `/trm_deploy` **from the TRM main checkout** to deploy the TRM webapp
-to production (`http://trm.malterre`).
+Invoke with `/trm_deploy` **from the TRM main checkout** to deploy a TRM web bundle
+to production.
 
-**Optional version argument — `/trm_deploy v0.0.2`.** A version means "release this
-version", so **before** building: set `version` in the **root** `package.json` (the single
-source of truth — see CLAUDE.md §Versioning), commit it as `chore(release): X.Y.Z`, and
-push. The web build bakes it in as `__APP_VERSION__` and the header profile menu shows it,
-so bumping *after* the build ships the old number. Deploy the pushed commit, not the
-pre-bump one. With no argument, deploy `origin/master` as-is and change no version.
-Do NOT touch the per-package `apps/*/package.json` versions; they are displayed nowhere.
-**TRM's version is its own** — it started at 0.0.1 on 2026-08-26 and has no relation to
-ETM's number; never "align" them.
+## Targets — the monorepo ships THREE bundles, to three hosts
 
-## Scope — this skill's *steps* build web only. The *deploy* is both tiers, and it is yours to finish.
+`/trm_deploy [web|atelier|trs|all]`. Everything below is identical per target except
+these four values — which is why this is one skill with a table, not three skills.
+A per-app difference is a **parameter, never a fork**: the rule `createFinanceRouter(scope)`
+and `RapportFinance basePath` already follow, and the one `mps_designer` broke by being
+copied (709 lines of drift, teaching patterns ETM had already replaced).
+
+| target | pnpm filter | dist on 10.10.2.165 | stamp | host | version lives in |
+|---|---|---|---|---|---|
+| `web` | `@mps-trm/web` | `/home/debian/mps_trm/dist` | `mps_trm/DEPLOYED_SHA` | `trm.malterre` | **root** `package.json` |
+| `atelier` | `@mps-trm/atelier` | `/home/debian/mps_atelier/dist` | `mps_atelier/DEPLOYED_SHA` | `atelier.malterre` | `apps/atelier/package.json` |
+| `trs` | `@mps-trm/trs` | `/home/debian/mps_trs/dist` | `mps_trs/DEPLOYED_SHA` | `trs.malterre` | `apps/trs/package.json` |
+
+**With no target, deploy every bundle that is actually BEHIND** — as reported by
+`preflight.mjs`, which compares each tier's stamp against its own `apps/<x>` path.
+Print the plan first (`web current, skipping · trs BEHIND → deploying`), then ship
+exactly those. `all` forces all three regardless.
+
+⚠️ **Do NOT default to `web`.** It is backwards-compatible and silently wrong — the same
+shape as the false green that left `atelier` and `trs` undeployed on 2026-08-28 while
+preflight reported "Everything is current". Under-deploying quietly is the exact failure
+this skill exists to prevent.
+
+⚠️ **A version argument bumps the TARGET's own file** (last column). `apps/atelier` and
+`apps/trs` carry their own versions on purpose — they ship on their own cadence — and only
+`apps/web` reads the root `package.json`. `/trm_deploy trs v0.0.3` bumping the root would
+print a wrong version in the **ERP's** header and leave TRS's unchanged. TRS is already at
+0.0.2 while the root is 0.1.1; the numbers are unrelated and must never be "aligned".
+**Optional version argument — `/trm_deploy trs v0.0.3`.** A version means "release this
+version", so **before** building: set `version` in **the target's own file** (Targets table,
+last column — root `package.json` for `web`, `apps/<target>/package.json` for the other two),
+commit it as `chore(release): X.Y.Z`, and push. Each build bakes its own version in as
+`__APP_VERSION__`, so bumping *after* the build ships the old number. Deploy the pushed
+commit, not the pre-bump one. With no version, deploy `origin/master` as-is and change none.
+
+⚠️ **This used to say "do NOT touch the per-package `apps/*/package.json` versions; they are
+displayed nowhere", and that is now FALSE.** It was true when `apps/web` was the only app.
+`apps/atelier` and `apps/trs` each read their **own** `package.json` in their `vite.config.ts`
+and show it in the UI — deliberately, so an atelier release does not read as a TRM release.
+
+**Every version here is its own.** TRM's root started at 0.0.1 on 2026-08-26 and has no
+relation to ETM's; `apps/trs` and `apps/atelier` have no relation to the root or each other.
+Never "align" any of them.
+
+## Scope — this skill's *steps* build web bundles only. The *deploy* is both tiers, and it is yours to finish.
 
 **TRM is a frontend-only repo.** Production `trm.malterre` proxies `/api/` to the
 **MPS API** (`10.10.2.163:8081`), which is deployed by the **ETM** workflow
 (`/etm_deploy` in `C:\dev\etsmalterre\ETM`). §Deploy Steps below builds and uploads the
-TRM web bundle and nothing else — never hand-roll an API deploy out of it.
+TRM web bundle(s) named by the target and nothing else — never hand-roll an API deploy
+out of it. `atelier.malterre` and `trs.malterre` proxy `/api/` to that same API, so an
+API deploy blips all three fronts and all three want a smoke-check afterwards.
 
 ⚠️ **That is a constraint on *mechanism*, not on *agency*. `/trm_deploy` is a request to
 get TRM live, and you own the whole chain — including the ETM half.** If a gate below shows
@@ -38,10 +75,11 @@ changes were landed on ETM `master` via a **paired NG worktree** (see
 
 1. **Run the gate — do not eyeball this:**
    ```bash
-   cd /c/dev/etsmalterre/TRM && node scripts/check-api-routes.mjs
+   node scripts/check-api-routes.mjs --app <target>
    ```
-   It extracts every `apiFetch` path in `apps/web/src`, picks a concrete endpoint per
-   mount root, and probes production. Exit 0 = safe; exit 1 = **do not deploy**, it
+   It extracts every `apiFetch` path in the target's `apps/<target>/src` (all three apps
+   with no `--app`), picks a concrete endpoint per mount root, and probes production.
+   Exit 0 = safe; exit 1 = **do not deploy**, it
    names the missing routes and the pages that call them.
 2. **Check the API is not merely *present* but *current* — the route gate does NOT cover
    this.** `check-api-routes.mjs` probes one concrete path per mount root and fails only
@@ -146,7 +184,7 @@ Test with `hostname` first; if the identity file is missing at one path, try the
 
 0b. **Then the route gate:**
    ```bash
-   cd /c/dev/etsmalterre/TRM && node scripts/check-api-routes.mjs
+   node scripts/check-api-routes.mjs --app <target>
    ```
    Exit 1 → do **not** build; go deploy the API yourself per §Scope (run `/etm_deploy` in
    the ETM checkout), then come back to this step. This gate is the weaker of the two —
@@ -155,18 +193,21 @@ Test with `hostname` first; if the identity file is missing at one path, try the
    `--base <url>` to point at another API (e.g. `https://mpsng.malterre/api` to test the
    API directly rather than through TRM's nginx).
 
-1. **Build locally — use PowerShell, NOT the Bash tool.** `VITE_API_URL=/api` MUST be set:
+1. **Build locally — use PowerShell, NOT the Bash tool.** `VITE_API_URL=/api` MUST be set,
+   for every target:
    ```powershell
-   cd C:\dev\etsmalterre\TRM; $env:VITE_API_URL='/api'; pnpm --filter web build
+   cd C:\dev\etsmalterre\TRM; $env:VITE_API_URL='/api'; pnpm --filter <filter> build
    ```
-   Produces `apps/web/dist/` with hashed assets.
+   `<filter>` from the Targets table. Produces `apps/<target>/dist/` with hashed assets.
+   All three apps share the same `lib/api.ts` dev fallback, so both footguns below
+   apply to all three identically.
 
    **The two build footguns from ETM apply verbatim** (full write-ups in
    `ETM/.claude/skills/etm_deploy/SKILL.md` — both caused prod outages there):
    - **Footgun A — git-bash path mangling**: `VITE_API_URL=/api` set through the Bash tool
      gets rewritten to `C:/Program Files/Git/api`. Build with PowerShell.
    - **Footgun B — unset var**: the bundle silently bakes in TRM's dev fallback
-     `http://localhost:8080/api` (`apps/web/src/lib/api.ts`).
+     `http://localhost:8080/api` (each app's own `src/lib/api.ts` — all three carry the same fallback).
 
    **Note**: the TRM build imports shared screens from the sibling `ETM` checkout via the
    `@etm` alias — the ETM checkout must be present and on the code you intend to ship
@@ -174,7 +215,7 @@ Test with `hostname` first; if the identity file is missing at one path, try the
 
 2. **Verify the built bundle BEFORE upload — negative AND positive checks:**
    ```bash
-   cd apps/web/dist/assets
+   cd apps/<target>/dist/assets
    grep -l 'localhost:8080'        index-*.js   # must print NOTHING (Footgun B — dev fallback)
    grep -l 'Program Files/Git/api' index-*.js   # must print NOTHING (Footgun A)
    grep -l '="/api"'               index-*.js   # MUST print the main chunk
@@ -187,12 +228,21 @@ Test with `hostname` first; if the identity file is missing at one path, try the
    check the exit code. Only the main chunk carries `="/api"`; that is expected.
    If the positive `="/api"` assertion doesn't match, do NOT deploy.
 
-3. **Upload** (tar for speed; adjust ssh/scp invocation per the SSH Access block):
+3. **Upload** (tar for speed; adjust ssh/scp invocation per the SSH Access block).
+   `<dist>` and `<stamp>` come from the Targets table:
    ```bash
-   tar czf /tmp/mps_trm_dist.tar.gz -C apps/web/dist .
-   # scp the tarball to debian@10.10.2.165:/home/debian/ then:
-   #   rm -rf /home/debian/mps_trm/dist/* && tar xzf /home/debian/mps_trm_dist.tar.gz -C /home/debian/mps_trm/dist/
+   tar czf /tmp/dist.tar.gz -C apps/<target>/dist .
+   # scp to debian@10.10.2.165:/home/debian/ then, on the host:
+   #   rm -rf <dist>.bak && cp -a <dist> <dist>.bak       # rollback point
+   #   rm -rf <dist>/* && tar xzf /home/debian/dist.tar.gz -C <dist>/
+   #   echo <sha> > <stamp>
    ```
+   ⚠️ **Never nest `$(…)` inside `wsl bash -c "ssh … '…'"`** — it silently yields the
+   fallback branch, so a stamp written that way reports success while writing nothing.
+   Substitute locally and send a plain command.
+
+   **Stamp every target you shipped.** A tier with no stamp reads as `none` to
+   `preflight.mjs`, which counts as behind.
 
 4. **No restart needed** — nginx serves static files. Verify:
    ```bash
