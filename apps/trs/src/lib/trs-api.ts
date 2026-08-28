@@ -28,7 +28,13 @@ export interface TrsMachine {
   of: TrsOf | null
   /** Shift TRS as a ratio (1 = 100 %); null when nothing to measure. */
   trs: number | null
-  arrets: number
+  /** Mean « défaut » stops per piece over the last finished pieces of the
+   *  active OF (the tablet's NombreArrets); null until one piece is finished. */
+  arretsParPiece: number | null
+  /** How many finished pieces that mean covers. */
+  arretsPieces: number
+  /** FI_TRS's shift count — not displayed. */
+  arretsEquipe: number
   arretsParHeure: number
   tempsProdS: number
   tempsMarcheS: number

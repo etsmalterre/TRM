@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { teinteTrs, teinteArrets, teinteVitesse, teinteDepuis, fmtDuree, fmtPct } from './affichage'
+import { teinteTrs, teinteArrets, teinteVitesse, teinteDepuis, fmtArrets, fmtDuree, fmtPct } from './affichage'
 
 describe('teinteTrs — FI_TRS ladder', () => {
   it('is red up to 80 %, amber up to 90 %, green above', () => {
@@ -11,12 +11,23 @@ describe('teinteTrs — FI_TRS ladder', () => {
   })
 })
 
-describe('teinteArrets — reproduces the tablet photo', () => {
-  it('0 green, 4 and 5 amber, 9 red', () => {
+describe('teinteArrets — mean per piece, the tablet photo read per piece', () => {
+  it('≤ 1 green, ≤ 3 amber, above red', () => {
     expect(teinteArrets(0)).toBe('vert')
-    expect(teinteArrets(4)).toBe('ambre')
-    expect(teinteArrets(5)).toBe('ambre')
+    expect(teinteArrets(1)).toBe('vert')
+    expect(teinteArrets(1.3)).toBe('ambre')
+    expect(teinteArrets(3)).toBe('ambre')
+    expect(teinteArrets(3.3)).toBe('rouge')
     expect(teinteArrets(9)).toBe('rouge')
+  })
+})
+
+describe('fmtArrets', () => {
+  it('one decimal at most, French comma, — when there is no finished piece', () => {
+    expect(fmtArrets(null)).toBe('—')
+    expect(fmtArrets(0)).toBe('0')
+    expect(fmtArrets(2)).toBe('2')
+    expect(fmtArrets(2.3)).toBe('2,3')
   })
 })
 

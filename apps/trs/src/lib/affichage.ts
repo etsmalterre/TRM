@@ -15,13 +15,22 @@ export function teinteTrs(trs: number): Teinte {
   return 'vert'
 }
 
-/** ⚠️ Inferred from the tablet photo (0 green, 4 and 5 amber, 9 red) — the
- *  legacy tablet's own ladder is compiled away. FI_TRS colours a per-HOUR
+/** Mean « défaut » stops PER PIECE (the API's `arretsParPiece`). ⚠️ Inferred:
+ *  the tablet photo (0 green, 4 and 5 amber, 9 red) showed the legacy's
+ *  NombreArrets, which counts over its last 2 pieces — sum or average is
+ *  compiled away — so per piece those read roughly ≤ 1 / ≤ 3 / > 3. The
+ *  legacy tablet's own ladder is unrecoverable; FI_TRS colours a per-HOUR
  *  count (0–1 / 2 / more) which the tablet visibly does not use. */
-export function teinteArrets(n: number): Teinte {
-  if (n <= 1) return 'vert'
-  if (n <= 5) return 'ambre'
+export function teinteArrets(moyenne: number): Teinte {
+  if (moyenne <= 1) return 'vert'
+  if (moyenne <= 3) return 'ambre'
   return 'rouge'
+}
+
+/** « 2 », « 2,3 », « — » — one decimal at most, French comma. */
+export function fmtArrets(moyenne: number | null): string {
+  if (moyenne === null) return '—'
+  return moyenne.toLocaleString('fr-FR', { maximumFractionDigits: 1 })
 }
 
 /** Live speed against the reference's target when it has one (the photo

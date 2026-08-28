@@ -113,13 +113,13 @@ export function Atelier() {
           {silence && (
             <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-2 py-0.5 font-medium text-slate-900">
               <AlertTriangle className="h-3.5 w-3.5" />
-              Plus aucune transition depuis {fmtDuree(now - dernierMs!)} — automate ou recorder à vérifier
+              Plus aucune transition depuis {fmtDuree(now - dernierMs!)} : automate ou recorder à vérifier
             </span>
           )}
           {horsLigne && (
             <span className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2 py-0.5 font-medium text-white">
               <WifiOff className="h-3.5 w-3.5" />
-              Hors ligne — dernière lecture {fmtHeure(data?.generatedAt, true)}
+              Hors ligne, dernière lecture {fmtHeure(data?.generatedAt, true)}
             </span>
           )}
           {plan && plan.horsPlan.length > 0 && (

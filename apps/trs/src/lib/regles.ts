@@ -49,12 +49,19 @@ export const EQUIPES = [
   { nom: 'Nuit', debut: '21 h', fin: '5 h' },
 ] as const
 
+/** The « arrêts » pill = the tablet's NombreArrets (API `arretsParPiece`):
+ *  per piece, machine stops minus the events declared on the piece, AVERAGED
+ *  over the last ARRETS_PIECES finished pieces of the active OF (user's
+ *  decision, 2026-08-28 — one piece is noise, the whole OF is too slow).
+ *  Mirrors the API constant; pinned by `regles.test.ts`. */
+export const ARRETS_PIECES = 3
+
 /** Colour ladders as the tile applies them (`affichage.ts`). */
 export const SEUILS = {
   /** TRS ratio: red at or under, amber at or under, green above. */
   trs: { rouge: 0.8, ambre: 0.9 },
-  /** Arrêts count: green up to, amber up to, red beyond. */
-  arrets: { vert: 1, ambre: 5 },
+  /** Mean arrêts per piece: green up to, amber up to, red beyond. */
+  arrets: { vert: 1, ambre: 3 },
   /** Speed / target ratio: green from, amber from, red below. */
   vitesse: { vert: 0.9, ambre: 0.75 },
   /** Minutes a stopped métier stays amber before turning red. */

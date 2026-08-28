@@ -22,15 +22,19 @@ import {
   teinteDepuis,
   teinteTrs,
   teinteVitesse,
+  fmtArrets,
   fmtDuree,
   fmtPct,
   type Teinte,
 } from '@/lib/affichage'
 
-const PILL: Record<Teinte, string> = {
+/** `neutre` is for a value that does not exist yet (« — » on arrêts while
+ *  the OF has no finished piece): not a warning, so not amber. */
+const PILL: Record<Teinte | 'neutre', string> = {
   vert: 'bg-emerald-600 text-white',
   ambre: 'bg-amber-500 text-white',
   rouge: 'bg-red-600 text-white',
+  neutre: 'bg-zinc-400 text-white',
 }
 
 type Etat = 'marche' | 'arret' | 'inconnu'
@@ -55,7 +59,7 @@ const CARD: Record<Etat, { frame: string; band: string; code: string; mot: strin
   },
 }
 
-function Pill({ valeur, label, teinte }: { valeur: string; label: string; teinte: Teinte }) {
+function Pill({ valeur, label, teinte }: { valeur: string; label: string; teinte: Teinte | 'neutre' }) {
   return (
     <div
       className={cn(
@@ -135,9 +139,11 @@ export function MetierTile({ machine, nowMs }: { machine: TrsMachine; nowMs: num
             teinte={teinteVitesse(machine.vitesse, of?.vitesseCible ?? 0)}
           />
         ) : (
+          // Reads « 7 min arrêté » — the legacy's « Depuis » under the value
+          // read as a stray word (user, 2026-08-28).
           <Pill
             valeur={depuisMs === null ? '—' : fmtDuree(depuisMs)}
-            label="depuis"
+            label="arrêté"
             teinte={depuisMs === null ? 'ambre' : teinteDepuis(depuisMs)}
           />
         )}
@@ -146,7 +152,13 @@ export function MetierTile({ machine, nowMs }: { machine: TrsMachine; nowMs: num
           label="TRS"
           teinte={machine.trs === null ? 'ambre' : teinteTrs(machine.trs)}
         />
-        <Pill valeur={String(machine.arrets)} label="arrêts" teinte={teinteArrets(machine.arrets)} />
+        {/* Mean per piece over the last finished pieces of the OF (the
+            tablet's NombreArrets, lib/regles.ts) — « — » until one is finished. */}
+        <Pill
+          valeur={fmtArrets(machine.arretsParPiece)}
+          label="arrêts / pièce"
+          teinte={machine.arretsParPiece === null ? 'neutre' : teinteArrets(machine.arretsParPiece)}
+        />
       </div>
     </div>
   )

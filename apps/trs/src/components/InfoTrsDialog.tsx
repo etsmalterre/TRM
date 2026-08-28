@@ -12,11 +12,32 @@
 // rest of the wall, with the phone-and-tablet rules of §40.6 (single
 // scrolling body, `dvh`, never edge-to-edge).
 import { useEffect, useRef } from 'react'
-import { Clock, Divide, Info, Palette, Pause, Play, Smartphone, Square, Timer, X } from 'lucide-react'
+import {
+  ArrowLeftRight,
+  ArrowRight,
+  Clock,
+  Divide,
+  Info,
+  OctagonX,
+  Palette,
+  Pause,
+  Play,
+  RotateCcw,
+  Smartphone,
+  Square,
+  Timer,
+  X,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { EQUIPES, FORFAIT_TOTAL_MIN, INTERVENTION_MAX_MIN, SEUILS } from '@/lib/regles'
+import { ARRETS_PIECES, EQUIPES, FORFAIT_TOTAL_MIN, INTERVENTION_MAX_MIN, SEUILS } from '@/lib/regles'
+import { fmtArrets, teinteArrets } from '@/lib/affichage'
 
 const pct = (r: number) => `${Math.round(r * 100)} %`
+
+/** The value drawn in the « Les arrêts » example pill. A sample, not a rule:
+ *  its colour comes from the real ladder, so 3 shows amber as it would on
+ *  the wall. */
+const EXEMPLE_ARRETS = 3
 
 /** The tile's solid pills, shrunk to a legend swatch — same classes as
  *  MetierTile.PILL so the legend shows the real colours. */
@@ -35,6 +56,24 @@ function Swatch({ teinte, children }: { teinte: keyof typeof SWATCH; children: R
       )}
     >
       {children}
+    </span>
+  )
+}
+
+/** The tile's arrêts pill, verbatim (MetierTile.Pill: value over its word,
+ *  solid ladder colour), drawn at the dialog's scale as a worked example. */
+function ExemplePastille({ valeur }: { valeur: number }) {
+  return (
+    <span
+      className={cn(
+        'flex-shrink-0 inline-flex flex-col items-center justify-center rounded-[calc(var(--u)*0.6)] px-[calc(var(--u)*0.8)] py-[calc(var(--u)*0.35)] leading-none',
+        SWATCH[teinteArrets(valeur)],
+      )}
+    >
+      <span className="text-[calc(var(--u)*1.45)] font-bold tabular-nums">{fmtArrets(valeur)}</span>
+      <span className="text-[max(9px,calc(var(--u)*0.72))] uppercase tracking-wide text-white/85 mt-[calc(var(--u)*0.2)] whitespace-nowrap">
+        arrêts / pièce
+      </span>
     </span>
   )
 }
@@ -80,12 +119,67 @@ function Ligne({ label, valeur, children }: { label: string; valeur: React.React
 
 /** One of the régleur's three phone actions, drawn as the button it is on the
  *  Atelier PWA — navy tint, icon first — so the reader recognises it. */
-function ActionOf({ icon, label }: { icon: React.ReactNode; label: string }) {
+function ActionOf({ icon, label, plein = true }: { icon: React.ReactNode; label: string; plein?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-[calc(var(--u)*0.4)] rounded-md border border-primary/20 bg-primary/5 px-[calc(var(--u)*0.7)] py-[calc(var(--u)*0.35)] font-semibold text-primary whitespace-nowrap [&>svg]:h-[calc(var(--u)*1)] [&>svg]:w-[calc(var(--u)*1)] [&>svg]:fill-current">
+    <span
+      className={cn(
+        'inline-flex items-center gap-[calc(var(--u)*0.4)] rounded-md border border-primary/20 bg-primary/5 px-[calc(var(--u)*0.7)] py-[calc(var(--u)*0.35)] font-semibold text-primary whitespace-nowrap [&>svg]:h-[calc(var(--u)*1)] [&>svg]:w-[calc(var(--u)*1)]',
+        // Play / Pause / Square are solid glyphs; a stroke icon (the restart
+        // arrow) turns into a blob when filled.
+        plein && '[&>svg]:fill-current',
+      )}
+    >
       {icon}
       {label}
     </span>
+  )
+}
+
+/** Who presses the button. The régleur owns the whole clock; the bonnetier
+ *  only closes it, so his tag is the one drawn in gold. */
+const ROLE = {
+  regleur: { label: 'Régleur', className: 'bg-zinc-100 text-muted-foreground border-border/60' },
+  bonnetier: { label: 'Bonnetier', className: 'bg-gold-light text-gold-foreground border-gold/40' },
+} as const
+
+/** One step of the production clock: its action chip(s), an optional word on
+ *  when it happens, and the role tags of whoever may press it. */
+function Etape({
+  roles,
+  legende,
+  children,
+}: {
+  roles: (keyof typeof ROLE)[]
+  legende?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-col items-center gap-[calc(var(--u)*0.35)]">
+      <div className="flex items-center gap-[calc(var(--u)*0.35)]">{children}</div>
+      {legende && (
+        <div className="text-[max(9px,calc(var(--u)*0.75))] text-muted-foreground leading-none">{legende}</div>
+      )}
+      <div className="flex items-center gap-[calc(var(--u)*0.25)]">
+        {roles.map((r) => (
+          <span
+            key={r}
+            className={cn(
+              'inline-flex items-center rounded-full border px-[calc(var(--u)*0.55)] py-[calc(var(--u)*0.1)] text-[max(9px,calc(var(--u)*0.7))] font-semibold uppercase tracking-wide leading-tight',
+              ROLE[r].className,
+            )}
+          >
+            {ROLE[r].label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** The arrow between two steps, aligned with the chips (first row). */
+function Fleche() {
+  return (
+    <ArrowRight className="h-[calc(var(--u)*1.2)] w-[calc(var(--u)*1.2)] flex-shrink-0 text-muted-foreground/70 mt-[calc(var(--u)*0.45)]" />
   )
 }
 
@@ -174,11 +268,28 @@ export function InfoTrsDialog({ open, onClose }: { open: boolean; onClose: () =>
           {/* The production clock is a human act: three phone actions by the
               régleur open and close it. Shown as the three actions, then the
               one consequence — nothing else (user's decision, 2026-08-28). */}
-          <Carte icon={<Smartphone />} titre="Temps de production géré par les régleurs" className="col-span-full">
-            <div className="flex items-center gap-[calc(var(--u)*0.4)]">
-              <ActionOf icon={<Play />} label="Démarrer l'OF" />
-              <ActionOf icon={<Pause />} label="Interrompre" />
-              <ActionOf icon={<Square />} label="Terminer" />
+          <Carte icon={<Smartphone />} titre="Temps de production géré depuis le téléphone" className="col-span-full">
+            {/* Four actions, not three: « Relancer » is the pair of « Interrompre »
+                (chosen at run time on arret_prod). And the régleur is not the only
+                hand on the clock: a bonnetier can terminate an OF at the end of a
+                production (user's precision, 2026-08-28). */}
+            {/* A flow, not a list: the clock opens, may pause and resume, then
+                closes. Each step carries who does it; only the last one also
+                belongs to the bonnetier, and that difference is the point. */}
+            <div className="flex items-start justify-center gap-[calc(var(--u)*0.5)] flex-wrap">
+              <Etape roles={['regleur']} legende="au lancement">
+                <ActionOf icon={<Play />} label="Démarrer l'OF" />
+              </Etape>
+              <Fleche />
+              <Etape roles={['regleur']} legende="pendant la production">
+                <ActionOf icon={<Pause />} label="Interrompre" />
+                <ArrowLeftRight className="h-[calc(var(--u)*0.9)] w-[calc(var(--u)*0.9)] text-muted-foreground" />
+                <ActionOf icon={<RotateCcw />} label="Relancer" plein={false} />
+              </Etape>
+              <Fleche />
+              <Etape roles={['regleur', 'bonnetier']} legende="en fin de production">
+                <ActionOf icon={<Square />} label="Terminer" />
+              </Etape>
             </div>
             {/* The one consequence, as an info strip — the same navy-tint
                 strip as the « > 100 % » one below, with an ⓘ tile where that
@@ -188,7 +299,10 @@ export function InfoTrsDialog({ open, onClose }: { open: boolean; onClose: () =>
             </Note>
           </Carte>
 
-          <Carte icon={<Timer />} titre="Ce qui est déduit" className="col-span-full">
+          {/* « Ce qui est déduit » and « Les arrêts » sit side by side: both
+              say what happens to a stop, and the pair keeps the dialog on one
+              1280 × 800 screen (full-width, the last row fell under the fold). */}
+          <Carte icon={<Timer />} titre="Ce qui est déduit">
             {/* Three bare rows, no prose (user's decision, 2026-08-28). */}
             <Ligne label="Chaque arrêt du métier" valeur={<b>{INTERVENTION_MAX_MIN} min</b>} />
             <Ligne
@@ -224,6 +338,28 @@ export function InfoTrsDialog({ open, onClose }: { open: boolean; onClose: () =>
             </div>
           </Carte>
 
+          {/* The arrêts pill = the legacy tablet's own NombreArrets (per piece,
+              stops minus declared events), averaged over the last finished
+              pieces of the OF — user's decision of 2026-08-28, after nobody
+              could remember whether it was per roll or per 3 rolls. The card
+              answers exactly that. Numbers from lib/regles.ts. */}
+          <Carte icon={<OctagonX />} titre="Les arrêts">
+            {/* The tile's own pill as the example, then what the value IS in one
+                sentence — no mechanics (user, 2026-08-28). The example value is
+                coloured by the real ladder so the swatch never lies. */}
+            <div className="flex items-center gap-[calc(var(--u)*0.8)]">
+              <ExemplePastille valeur={EXEMPLE_ARRETS} />
+              <p>
+                Le nombre d'<b>arrêts anormaux</b> du métier <b>par pièce</b> (ni nettoyage, ni fin
+                de pièce), en moyenne sur les <b>{ARRETS_PIECES} dernières pièces terminées</b> de
+                l'OF.
+              </p>
+            </div>
+            <Note>
+              Mis à jour à chaque fin de pièce. Gris tant qu'aucune pièce de l'OF n'est terminée.
+            </Note>
+          </Carte>
+
           <Carte icon={<Clock />} titre="L'équipe">
             <p>
               Le TRS repart de zéro à chaque équipe et se calcule du début de l'équipe jusqu'à
@@ -256,7 +392,7 @@ export function InfoTrsDialog({ open, onClose }: { open: boolean; onClose: () =>
               }
             />
             <Ligne
-              label="Depuis (métier à l'arrêt)"
+              label="Arrêté (durée de l'arrêt)"
               valeur={
                 <span className="inline-flex gap-[calc(var(--u)*0.3)]">
                   <Swatch teinte="ambre">&lt; {SEUILS.depuisRougeMin} min</Swatch>
@@ -265,6 +401,18 @@ export function InfoTrsDialog({ open, onClose }: { open: boolean; onClose: () =>
               }
             >
               Un métier arrêté passe au rouge au bout de {SEUILS.depuisRougeMin} minutes.
+            </Ligne>
+            <Ligne
+              label="Arrêts / pièce"
+              valeur={
+                <span className="inline-flex gap-[calc(var(--u)*0.3)]">
+                  <Swatch teinte="vert">≤ {SEUILS.arrets.vert}</Swatch>
+                  <Swatch teinte="ambre">≤ {SEUILS.arrets.ambre}</Swatch>
+                  <Swatch teinte="rouge">&gt; {SEUILS.arrets.ambre}</Swatch>
+                </span>
+              }
+            >
+              Gris tant que l'OF n'a pas de pièce terminée.
             </Ligne>
             <Ligne
               label="tr/min (métier en marche)"

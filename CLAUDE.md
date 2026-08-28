@@ -183,8 +183,31 @@ le dépôt TRS, la vitrine vit ici.
     spectateur), rangée 3 le long du bas (3K … 3A), allées longitudinales **après I et
     après C** dans ce sens de lecture. La rotation vit dans `plan.ts` (`RANGEES_HAUT` /
     `RANGEE_BAS`), jamais en CSS — un `rotate` retournerait aussi le texte.
-- **Tuile = le jeu legacy** (décision du 2026-08-28) : tr/min en marche ou **« depuis »
-  à l'arrêt**, TRS, arrêts ; métier sans OF démarré = tuile grisée, libellé seul.
+- **Tuile = le jeu legacy** (décision du 2026-08-28) : tr/min en marche ou **« 7 min
+  arrêté » à l'arrêt** (le libellé est `arrêté` sous la durée — le « depuis » du legacy se
+  lisait comme un mot égaré, correction utilisateur du 2026-08-28), TRS, **arrêts / pièce** ;
+  métier sans OF démarré = tuile grisée, libellé seul.
+  - ⚠️ **La pastille « arrêts » n'est PAS le compte d'équipe de FI_TRS** (`calculerTrs.arrets`,
+    ce qu'elle affichait jusqu'au 2026-08-28, gardé dans le payload comme `arretsEquipe`).
+    C'est le **`NombreArrets` de la tablette legacy**, récupéré dans le cache de
+    compilation (`FEN_Main_App_TRS.CB86C13A.wdw.wcw`, trois requêtes en clair) : **par
+    pièce**, les arrêts machine (`evenement_machine.etat = 0` entre `date_debut` et
+    `date_fin` de la pièce) **moins les événements déclarés sur la pièce** (tout
+    `evenement_piece` sauf « Début du tricotage »), plancher 0. Le legacy prenait les
+    2 dernières pièces (`LIMIT 2`) et son WLanguage est compressé (somme ou moyenne :
+    inconnu). Décision utilisateur du 2026-08-28 : **la MOYENNE par pièce sur les 3
+    dernières pièces TERMINÉES de l'OF actif** (`ARRETS_PIECES`, `lib/trs-trm.ts`
+    § Arrêts par pièce) — une fréquence comparable entre métiers ; pièces terminées
+    seulement (une pièce ouverte a moins d'arrêts parce qu'elle n'est pas finie) ; dans
+    l'OF, comme le legacy (un nouvel OF est une vraie remise à zéro) ; **aucun filtre de
+    faux arrêts** (la tablette n'en avait pas). « — » et pastille grise tant que l'OF n'a
+    pas de pièce terminée. Côté API la moyenne est **cachée par (OF, ids des dernières
+    pièces)** : elle ne peut changer qu'à une fin de pièce, donc elle n'est recalculée
+    qu'à ce moment-là, pas à chaque poll.
+  - En dev la pastille est à 0 partout : les pièces des OF actifs sont celles de mars (ou
+    celles du seed de visitage) et `evenement_machine` n'a rien dans ces fenêtres. Sur
+    octobre 2025 (données denses) le calcul donne 1,7 / 2,7 / 4,7 / 8 / 11 arrêts par
+    pièce selon l'OF — donc le barème ≤ 1 / ≤ 3 / > 3 est à rejuger sur la prod.
   **L'état machine colore TOUTE la carte** (bord 2 px, bandeau 20 %, corps 10 % — le
   patron des cartes de rouleau du visitage ; décision utilisateur du 2026-08-28, un simple
   liseré §41 était trop discret pour un mur lu à travers l'atelier), et donc **les
@@ -193,7 +216,8 @@ le dépôt TRS, la vitrine vit ici.
   (≤ 0,8 rouge, ≤ 0,9 ambre). ⚠️ **Trois barèmes sont des approximations** (dossier
   §4.3, à trancher) : la vitesse est colorée **relativement à `ref_ecru.vitesse_cible`**
   (90 % / 75 % — la photo montre 18 vert et 14 rouge, donc pas l'absolu `< 20 / < 25`
-  de FI_TRS), les arrêts en compte (0–1 / 2–5 / 6+, inféré de la photo), « depuis » rouge
+  de FI_TRS), les arrêts par pièce (≤ 1 / ≤ 3 / > 3 — la photo montrait 0 vert, 4–5 ambre,
+  9 rouge sur le `NombreArrets` legacy à 2 pièces, relu par pièce), « arrêté » rouge
   à 5 min. Tout est dans `lib/affichage.ts`, testé.
   - **Deux seuils tranchés le 2026-08-28, à ne pas « harmoniser » entre eux** : la minute
     d'intervention du TRS reste à **1 min** (le « temps de production possible » est celui
@@ -219,12 +243,21 @@ le dépôt TRS, la vitrine vit ici.
 - **Le ⓘ ouvre « Comment le TRS est calculé »** (`components/InfoTrsDialog.tsx`, dialogue
   bandé §18.D fait main — pas de Radix ici — en `--u`), écrit pour les gens de l'atelier :
   la formule (une seule ligne, « TRS = temps de marche réel ÷ temps de production
-  possible », rien dessous — décision utilisateur), **« Temps de production géré par les
-  régleurs »** (les trois actions du téléphone en chips Démarrer / Interrompre /
-  Terminer + une phrase : un OF oublié en cours fait baisser le TRS — sa propre carte, en
-  premier après la formule), ce qui est déduit (trois lignes nues + la pastille « > 100 % »
-  designée), l'équipe, les couleurs de la tuile — cinq cartes, pas plus : « Les arrêts » et
-  « TRS atelier » ont été retirées, **et il n'y a pas de pied de dialogue** (pas de
+  possible », rien dessous — décision utilisateur), **« Temps de production géré depuis le
+  téléphone »** (un **flux**, pas une liste : Démarrer l'OF → Interrompre ⇄ Relancer →
+  Terminer, chaque étape avec son moment en petit et ses **étiquettes de rôle** dessous,
+  RÉGLEUR partout et BONNETIER en or sur Terminer seulement — précision utilisateur du
+  2026-08-28 : le bonnetier peut aussi terminer l'OF en fin de production ; la carte disait
+  « géré par les régleurs » avec trois chips, puis une phrase posée en ligne après les
+  chips, refusée comme « particulièrement moche » — + la note : un OF oublié en cours fait
+  baisser le TRS — sa propre carte, en premier après la formule), ce qui est déduit (trois lignes nues + la pastille « > 100 % »
+  designée), **« Les arrêts »** (UNE phrase disant ce qu'est la valeur — « arrêts anormaux
+  par pièce, en moyenne sur les 3 dernières pièces terminées de l'OF » — et une note « mis
+  à jour à chaque fin de pièce » ; **pas de mécanique +1 / −1**, retirée à la demande de
+  l'utilisateur le 2026-08-28 ; posée à côté de « Ce qui est déduit » pour tenir sur un
+  écran 1280 × 800), l'équipe, les couleurs de la tuile (quatre pastilles, arrêts / pièce
+  compris) — six cartes, pas plus : « TRS atelier » a été retirée, **et il n'y a pas de
+  pied de dialogue** (pas de
   « Fermer » : le ✕ du bandeau, Échap et le fond suffisent — rien à confirmer). **Aucun
   chiffre n'y est un littéral** : tout vient de `lib/regles.ts`, dont
   `regles.test.ts` importe **directement le fichier de l'API**

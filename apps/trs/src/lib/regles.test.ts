@@ -6,17 +6,22 @@
 // a forfait, this test fails until `regles.ts` follows.
 import { describe, it, expect } from 'vitest'
 import {
+  ARRETS_PIECES as API_ARRETS_PIECES,
   FORFAIT_MIN as API_FORFAIT_MIN,
   INTERVENTION_MAX_S as API_INTERVENTION_MAX_S,
   equipeCourante,
 } from '../../../../../ETM/apps/api/src/lib/trs-trm'
-import { FORFAIT_MIN, FORFAIT_TOTAL_MIN, INTERVENTION_MAX_MIN, SEUILS, EQUIPES } from './regles'
+import { ARRETS_PIECES, FORFAIT_MIN, FORFAIT_TOTAL_MIN, INTERVENTION_MAX_MIN, SEUILS, EQUIPES } from './regles'
 import { teinteArrets, teinteDepuis, teinteTrs, teinteVitesse } from './affichage'
 
 describe('regles — the words on the wall match the calculation', () => {
   it('mirrors the API forfaits and intervention cap', () => {
     expect(FORFAIT_MIN).toEqual(API_FORFAIT_MIN)
     expect(INTERVENTION_MAX_MIN * 60).toBe(API_INTERVENTION_MAX_S)
+  })
+
+  it('names the same number of pieces behind the arrêts pill as the API averages', () => {
+    expect(ARRETS_PIECES).toBe(API_ARRETS_PIECES)
   })
 
   it('shows the operator the gross allowance — the legacy comment’s 4/7 and 6/9', () => {
