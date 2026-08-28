@@ -102,19 +102,19 @@ export function Atelier() {
           {dernierMs !== null && <span> · il y a {fmtDuree(now - dernierMs)}</span>}
         </span>
         {silence && (
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-medium text-amber-800">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-2 py-0.5 font-medium text-slate-900">
             <AlertTriangle className="h-3.5 w-3.5" />
             Plus aucune transition depuis {fmtDuree(now - dernierMs!)} — automate ou recorder à vérifier
           </span>
         )}
         {horsLigne && (
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-0.5 font-medium text-red-800">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2 py-0.5 font-medium text-white">
             <WifiOff className="h-3.5 w-3.5" />
             Hors ligne — dernière lecture {fmtHeure(data?.generatedAt, true)}
           </span>
         )}
         {plan && plan.horsPlan.length > 0 && (
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-medium text-amber-800">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-2 py-0.5 font-medium text-slate-900">
             Hors plan : {plan.horsPlan.map((m) => m.emplacement || `#${m.id}`).join(', ')}
           </span>
         )}

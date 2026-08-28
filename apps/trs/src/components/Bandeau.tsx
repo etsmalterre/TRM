@@ -1,9 +1,9 @@
 // The navy band on top of the wall display — the same role PosteHeader plays
 // on the atelier phones: with no sidebar (§3 is the desk shell), this band is
-// what makes the tablet read as a Malterre app. Left: the Malterre marks —
-// the gold M badge and the white wordmark — then the app name. Centre: the
-// shift and the parc counts. Right: the one hero figure of the view
-// (dataviz: exactly one), the parc's shift TRS.
+// what makes the tablet read as a Malterre app. Left: the Malterre wordmark.
+// Centre: the shift. Right: the one hero figure of the view (dataviz:
+// exactly one), the parc's shift TRS. Nothing else — the app name and the
+// parc counters were removed at the user's request (2026-08-28).
 //
 // Sized in --u (index.css) like the rest of the screen.
 import type { TrsAtelier } from '@/lib/trs-api'
