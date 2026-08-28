@@ -73,3 +73,15 @@ tmpclaude-*
 
 # Per-worktree @etm alias override for tsc (see apps/web/vite.config.ts)
 tsconfig.local.json
+
+# Same rules for the TRS tablet PWA (apps/trs) — see the atelier block above.
+apps/trs/src/**/*.js
+apps/trs/src/**/*.js.map
+apps/trs/src/**/*.d.ts
+apps/trs/src/**/*.d.ts.map
+!apps/trs/src/vite-env.d.ts
+apps/trs/vite.config.js
+apps/trs/vite.config.js.map
+apps/trs/vite.config.d.ts
+apps/trs/vite.config.d.ts.map
+apps/trs/.env.local

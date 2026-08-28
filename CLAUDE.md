@@ -135,6 +135,69 @@ appareil.
   (5176 est déjà dans le `CORS_ORIGIN` de l'API ; 5175 reste à l'ERP). `host: true` est
   activé pour qu'un vrai téléphone du parc puisse taper le serveur de dev sur le LAN.
 
+## TRS — la tablette murale de l'atelier (`apps/trs`)
+
+Port de l'app WinDev `Appli_TRS` (`FEN_Main_App_TRS.wdw`) : **une tablette au mur de
+l'atelier** qui montre le plan du parc, une tuile par métier, avec l'état lu **dans la
+base** — jamais l'automate en direct. **Troisième app du monorepo**, hôte **`trs.malterre`**,
+port dev **5177**, version propre (`apps/trs/package.json`, démarrée à 0.0.1). Dossier de
+conception : **`~/.claude/plans/trs-atelier.md`** — la spec du calcul y est citée verbatim.
+
+**Ce n'est PAS `apps/atelier`** (l'app de saisie des bonnetiers) : écran passif, lecture
+seule, **aucune identité, aucun droit, aucun cookie** — le même statut que consulter le
+poste de visitage. Décision `TRS/CLAUDE.md` du 2026-08-28 : le collecteur Modbus reste dans
+le dépôt TRS, la vitrine vit ici.
+
+- **API** : `GET /api/trs/atelier`, route `ETM/apps/api/src/routes/trs.ts`, calcul pur et
+  testé dans `lib/trs-trm.ts` (18 tests). Sonde `scripts/probe-trs-trm.ts`
+  (`TRS_API_URL=…`, lecture seule — **à rejouer sur la prod après `/etm_deploy`**, c'est
+  le seul exercice du chemin Linux). La tablette interroge toutes les 10 s.
+- **La formule est celle de `FI_TRS`** (procédure `MAJAffichageAtelier`), fournie par
+  l'utilisateur le 2026-08-28 — la fenêtre de la tablette est PCS-compressée et son
+  `TRSEquipeEnCours` irrécupérable. Par métier, sur **l'équipe en cours** (5–13 / 13–21 /
+  21–5, les bornes de `equipeAt`) bornée à maintenant : `TRS = temps en marche /
+  (temps de production − arrêts déductibles)`, où le temps de production est le temps
+  d'OF en cours, le temps en marche vient d'`evenement_machine`, et les déductibles sont
+  `min(60 s, arrêt)` par arrêt machine + **3 min par Nettoyage (6 avec lycra) + 5 min par
+  fin de pièce (8 avec lycra)** — lycra = `asso_fil_matiere.IDMatière IN (4, 13)`. Les
+  « arrêts » sont les arrêts machine **moins un par événement pièce**. ⚠️ **Le TRS dépasse
+  100 %** quand les forfaits dépassent l'arrêt réel — c'est le 106 % / 115 % de la
+  tablette legacy, pas un bug.
+  - **Trois deltas assumés** (dossier §4.2) : le temps de production est l'**union** des
+    fenêtres d'OF (ce que dit le commentaire du code legacy, « 2 + 3 = 5 h », alors que le
+    code n'en gardait qu'une) ; l'état à l'ouverture de l'équipe vient du **dernier
+    événement avant l'équipe** (un métier qui tourne 8 h sans transition est à 100 %, le
+    legacy le mettait à 0) ; tout arrêt commencé en production compte.
+  - Cet état initial est **caché par équipe** côté API (30 `TOP 1` une fois par équipe,
+    pas à chaque poll).
+- **Le plan du parc est le dessin de l'utilisateur, pas la tablette legacy** — qui
+  dessinait un 1B inexistant et oubliait 3K. Rangée 3 en haut (3A…3K, onze), une allée
+  transversale, puis 2A…2J et 1A…1J avec deux allées longitudinales après B et avant I ;
+  **1B est un emplacement vide** (la place existe, pas le métier — vérifié en base : 30
+  métiers vivants, `adresse_automate` 2 inutilisée). `apps/trs/src/lib/plan.ts`, clé
+  `machine.emplacement` ; un métier hors plan n'est pas perdu, le pied de page le nomme.
+- **Tuile = le jeu legacy** (décision du 2026-08-28) : tr/min en marche ou **« depuis »
+  en rouge plein à l'arrêt**, TRS, arrêts ; métier sans OF démarré = tuile grisée,
+  libellé seul. Liseré §41 vert / rouge pour l'état machine. Barème TRS = legacy
+  (≤ 0,8 rouge, ≤ 0,9 ambre). ⚠️ **Trois barèmes sont des approximations** (dossier
+  §4.3, à trancher) : la vitesse est colorée **relativement à `ref_ecru.vitesse_cible`**
+  (90 % / 75 % — la photo montre 18 vert et 14 rouge, donc pas l'absolu `< 20 / < 25`
+  de FI_TRS), les arrêts en compte (0–1 / 2–5 / 6+, inféré de la photo), « depuis » rouge
+  à 5 min. Tout est dans `lib/affichage.ts`, testé.
+- **Le pied de page est un instrument, pas une décoration** : il donne l'heure du dernier
+  événement du parc et passe en ambre au-delà d'une heure de silence — le recorder n'a
+  aucun battement surveillé (`TRS/docs/recorder.md`), et un automate éteint ressemble
+  exactement à un atelier arrêté. Une lecture qui échoue garde le dernier plan à l'écran
+  et le dit (« Hors ligne »), jamais un écran blanc.
+- ⚠️ **En dev, les chiffres sont faux et c'est la base** : `ordre_fabrication` y est
+  l'instantané de mars alors qu'`evenement_machine` est vivante — d'où des « depuis
+  291 j » et des OF à 0 %. Juger la parité sur la prod, avec la sonde.
+- **Dev** : `cd apps/trs && pnpm exec vite --port 5177`, `.env.local` (gitignoré) portant
+  `VITE_API_URL=http://localhost:808N/api`. 5176 et 5177 sont dans `TRM_PWA_PORTS` de
+  `ETM/scripts/worktree/lib.mjs`, donc dans le CORS de toute API de worktree.
+- **Reste à faire** : l'hôte de prod `trs.malterre` (même travail que `atelier.malterre`,
+  ni l'un ni l'autre n'est fait) et la tablette en mode kiosque.
+
 ## Production / deploy
 
 - **Host**: `http://trm.malterre` — nginx on `mfprod-erp` (`10.10.2.165`), dist at `/home/debian/mps_trm/dist`, `/api/` proxied to the MPS API (`10.10.2.163:8081`).
