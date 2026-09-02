@@ -36,7 +36,44 @@ event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell
   1/2 Nettoyages = `Nettoyage` (capital N); Visitage int = 1 « 2 premières pièces et
   toutes les 3 pièces » / 2 « Toutes les pièces » (0 = 20 legacy rows, shown « — »);
   Tricoter = `asso_fil_of`, Incorporer = `fil_incorpore`; nb_pieces derived
-  ceil(quantite/poids_piece); quantité locked once production started.
+  ceil(quantite/poids_piece) **tant qu'on tape quantité ou poids pièce, puis modifiable à
+  la main** ; **quantité et nb pièces restent modifiables après le démarrage de la
+  production** (décision utilisateur du 2026-09-02, ticket LIVA #1110 — le legacy grisait
+  la quantité, et le port répondait 409 `production_lancee`) : c'est en fin de prod que le
+  régleur ajuste, quand le lot a manqué ou que le client se contente de 18 pièces, et
+  `nb_pieces` est ce que l'atelier lit pour proposer « Terminer OF » (`atelier.ts`,
+  `produites + 1 >= nb_pieces`) et garder le métier dans « Actives ». Le formulaire
+  affiche « N Kg déjà tricotés » sous la quantité pour que l'ajustement se fasse contre
+  un chiffre. Seuls `est_termine` (409 `of_termine`) et la suppression (409
+  `production_lancee`) restent gardés. Sous `edit_of`, comme tout le formulaire.
+- **« Finir le fil » = une estimation, pas une consigne de quantité** (2026-09-02, port du
+  comportement de `FEN_Gestion_d_un_OF` : le legacy grise Nb pièces et Quantité dès que
+  la case est cochée). Le régleur demande au bonnetier d'épuiser les lots ; la fiche
+  remplace alors quantité et nb pièces par **réalisé + réalisable**, où réalisable =
+  min sur les lots de `stock ÷ Σ % des lignes nourries par ce lot` (`realisableSurFil`,
+  deux positions d'alimentation sur un même lot tirent ensemble), et grise les deux
+  champs. Le stock des lots est décrémenté au visitage de chaque pièce, l'événement même
+  qui fait grandir `realise` : les deux moitiés ne se comptent jamais deux fois. **Rien
+  côté API** : le formulaire envoie les valeurs estimées comme des valeurs saisies, et le
+  brouillon s'ouvre déjà sur l'estimation (sinon le mode édition serait « modifié » avant
+  toute frappe). Le côté bonnetier existait déjà : `atelier.ts` propose « Dernière
+  pièce » et garde le métier dans « Actives » tant que `finir_fil = 1`. ⚠️ **Écart
+  legacy non tranché** : sur l'OF 3395 le legacy affichait 83,43 kg = 60 (quantité) +
+  23,43 (réalisable) ; ici c'est 0 (réalisé) + 23,43. Le dialogue de création n'est pas
+  concerné (pas de lot connu au lancement).
+- **Le sélecteur de métier de la fiche ne liste que les métiers compatibles** avec la
+  référence de l'OF (`detail.compatibles_ids`, la source du « Compatible sur : … » de
+  l'en-tête de carte) — décision utilisateur du 2026-09-02, à la place du parc entier
+  avec une mention « compatible » sur quelques lignes. Le métier où l'OF est déjà reste
+  listé même hors fiche (sinon le champ montrerait une sélection vide), et une référence
+  sans fiche machine retombe sur le parc complet, comme `CreateOfDialog`.
+  **Le libellé y est `machine.emplacement`** (repli `nom` s'il est vide), comme l'aside
+  et la figure « Métier » du mode lecture — décision utilisateur du 2026-09-02, dans la
+  ligne du ticket LIVA #1102 (« 1G apparaît sous le nom “beck” ») : `nom` est une marque
+  sur 1G (« Beck ») et 1H (« Orizio »), et un régleur nomme un métier par sa place au
+  sol. Le filtre est par **id**, plus par libellé. ⚠️ Le reste de l'écran (liste des OF,
+  pastille de carte, `machineNames` de l'API) est encore sur `nom` : c'est #1102, à
+  traiter à part.
 - **5 sidebar tabs**: Observations = **`obs_ref_ecru` + `message_of`**, empilés (voir
   « Observations régleur » ci-dessous) ; Production = `piece_production` +
   `evenement_piece` timeline (avatars = `bonnetier.photo` blob endpoint, initials

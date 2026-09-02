@@ -27,7 +27,30 @@ shared screen: TRM adds the lifecycle actions ETM's screen doesn't have.
 - **Read-only columns, verified against live data**: `stock` moves only via piece
   declaration (`Δ = stock_ecru.poids × asso_fil_of.pourcentage/100` — can go negative),
   `fil_incorpore`, and archivage (`stock = 0`); `dernier_mouvement` =
-  max(`stock_ecru.date_saisie`) of the lot's OFs (183/183 parity). Never written by the web.
+  max(`stock_ecru.date_saisie`) of the lot's OFs (183/183 parity). Never written by the web
+  — **sauf la correction manuelle ci-dessous**.
+- **Droit `edit_stock_fil` — « Stock actuel » modifiable en mode édition** (catégorie
+  « Fils », décision utilisateur du 2026-09-02, ticket LIVA #1101) : avec la clé, le
+  champ « Stock actuel » du tiroir devient une saisie dans le mode édition existant —
+  **pas un bouton ni un dialogue à part** (première version refusée par l'utilisateur :
+  un contrôle de plus pour un champ qui a déjà son mode édition). À l'enregistrement,
+  `PUT /fil-trm/:id/stock` part **avant** le PATCH des champs légers, et seulement si la
+  valeur a changé ; il **date `dernier_pointage` d'aujourd'hui** (l'opérateur a repesé le
+  lot ; c'est la seule trace que la correction laisse, il n'existe aucun journal de
+  mouvement sur `stock_fil`), et le formulaire fait suivre le champ « Dernier pointage »
+  à aujourd'hui dès qu'on tape un stock, tant que l'opérateur n'a pas choisi une date
+  lui-même — ce qui est écrit est ce qui est montré. `stock_initial` n'est **pas** touché.
+  Le brouillon et l'écriture arrondissent le stock à **deux décimales** (décision
+  utilisateur du 2026-09-02, une balance ne lit pas sous 10 g) : `stock` est un réel
+  4 octets, sinon un champ non touché se lirait comme modifié.
+  **Clé distincte de `create_stock_fil`**, à accorder à la main aux quelques personnes qui
+  repèsent : la correction contourne le grand livre, et **le rapport de freinte ne la voit
+  pas** (freinte = `stock_initial − Σ consommations`, il ne lit jamais `stock`) — le champ
+  le dit avant le bouton. C'est un **palliatif assumé** en attendant que la migration hors
+  HFSQL apporte un vrai journal de mouvements ; ne pas « améliorer » en journalisant
+  quelque part d'autre entre-temps. Refusée en 409 sur un lot archivé. Garde HTTP :
+  `ETM/apps/api/src/scripts/check-stock-fil-edit-trm.ts` (403 sans la clé, 400/404/409,
+  aller-retour restauré).
 - **Lot numbering**: numeric string, unique key, `MAX(numeric lot)+1` computed **in JS**
   (SQL `MAX(lot)` is lexicographic; CAST unverified on the bridge), 3-attempt retry.
 - **Create** writes IDclient, IDMagasin=1, `stock = stock_initial`,

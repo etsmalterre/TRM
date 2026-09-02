@@ -10,6 +10,10 @@
 // API: ETM/apps/api/src/routes/stock-fil-trm.ts (mounted at /api/stock).
 // stock, dernier_mouvement, stock_initial are strictly read-only here — the
 // production flow and the Archivage own them (see the route file's header).
+// One sanctioned exception: with the key edit_stock_fil, « Stock actuel »
+// becomes an input in edit mode and is saved through PUT /fil-trm/:id/stock
+// — a stopgap until the HFSQL migration lands a movement ledger (LIVA #1101);
+// the field says what the correction costs.
 
 import { useState, useMemo, useCallback, useEffect, useRef, useDeferredValue, memo } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -385,6 +389,10 @@ export function FilsStock() {
   // Permission gate — admins always pass; non-admins need create_stock_fil.
   // The same key gates the other stock-mutating actions (diviser, archiver).
   const canCreate = useHasPermission('create_stock_fil')
+  // Its own key, not a sub-right of create_stock_fil: correcting `stock` by
+  // hand overrides the ledger (and blinds the rapport de freinte), so it is
+  // granted to the few people who reweigh lots — see the catalog entry.
+  const canEditStock = useHasPermission('edit_stock_fil')
 
   const { data: rows, isLoading, isError, error } = useStockList(etat)
 
@@ -588,6 +596,7 @@ export function FilsStock() {
       <StockDetailDrawer
         id={selectedId}
         canMutate={canCreate}
+        canEditStock={canEditStock}
         onClose={handleClose}
         onMutationSuccess={onMutationSuccess}
         onSelect={setSelectedId}
@@ -754,6 +763,8 @@ const StockLotCard = memo(function StockLotCard({
 interface DrawerProps {
   id: number | null
   canMutate: boolean
+  /** edit_stock_fil — « Stock actuel » becomes an input in edit mode (see the header). */
+  canEditStock: boolean
   onClose: () => void
   onMutationSuccess: () => void
   onSelect: (id: number) => void
@@ -762,7 +773,7 @@ interface DrawerProps {
   discardRef: React.MutableRefObject<() => void>
 }
 
-function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect, onDirtyChange, saveRef, discardRef }: DrawerProps) {
+function StockDetailDrawer({ id, canMutate, canEditStock, onClose, onMutationSuccess, onSelect, onDirtyChange, saveRef, discardRef }: DrawerProps) {
   const { data: detail, isLoading } = useStockDetail(id)
   const drawerRef = useRef<HTMLDivElement>(null)
   const [searchParams] = useSearchParams()
@@ -775,6 +786,10 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
   const [editLotFrs, setEditLotFrs] = useState('')
   const [editPointage, setEditPointage] = useState('')
   const [editClient, setEditClient] = useState(0)
+  // The manual stock correction (edit_stock_fil) rides the same edit mode:
+  // the field is only rendered as an input when the viewer holds the key, and
+  // only sent (PUT /stock) when it actually changed.
+  const [editStock, setEditStock] = useState('')
 
   const [diviserOpen, setDiviserOpen] = useState(false)
   const [titrageOpen, setTitrageOpen] = useState(false)
@@ -787,6 +802,7 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
     lotFrs: string
     pointage: string
     client: number
+    stock: string
   } | null>(null)
 
   // Reset edit state when selecting a different lot
@@ -826,6 +842,10 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
       lotFrs: detail.lot_frs ?? '',
       pointage: hfsqlDateToInput(detail.dernier_pointage),
       client: detail.IDclient ?? 0,
+      // Two decimals (user decision, 2026-09-02): `stock` is a 4-byte real and
+      // the raw double would make an untouched field read as changed — and a
+      // scale does not read below 10 g anyway.
+      stock: detail.stock != null ? String(Math.round(detail.stock * 100) / 100) : '',
     }
     setEditCommentaire(snapshot.commentaire)
     setEditEmplacement(snapshot.emplacement)
@@ -833,13 +853,35 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
     setEditLotFrs(snapshot.lotFrs)
     setEditPointage(snapshot.pointage)
     setEditClient(snapshot.client)
+    setEditStock(snapshot.stock)
     originalDraftRef.current = snapshot
     setIsEditing(true)
   }, [detail])
 
+  // A typed stock is a reweighing: the pointage date follows it to today
+  // unless the operator already set a date of their own in this edit session.
+  // Visible in the form, so what gets written is what is shown.
+  const stockChanged = canEditStock && isEditing && editStock !== (originalDraftRef.current?.stock ?? '')
+  const handleStockChange = useCallback((v: string) => {
+    setEditStock(v)
+    const o = originalDraftRef.current
+    if (o && v !== o.stock && editPointage === o.pointage) setEditPointage(todayInputDate())
+  }, [editPointage])
+
   const saveMutation = useMutation({
-    mutationFn: () =>
-      apiFetch(`/stock/fil-trm/${id}`, {
+    mutationFn: async () => {
+      // The correction first (its own route and key), then the light fields:
+      // PUT stamps dernier_pointage today, PATCH then writes the date the form
+      // shows — which is today too unless the operator chose otherwise.
+      if (stockChanged) {
+        const stock = parseFloat(editStock)
+        if (!Number.isFinite(stock) || stock < 0) throw new Error('Le stock doit être un nombre positif ou nul')
+        await apiFetch(`/stock/fil-trm/${id}/stock`, {
+          method: 'PUT',
+          body: JSON.stringify({ stock }),
+        })
+      }
+      await apiFetch(`/stock/fil-trm/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           commentaire: editCommentaire,
@@ -849,7 +891,8 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
           IDclient: editClient,
           dernier_pointage: editPointage ? inputDateToHfsql(editPointage) : '',
         }),
-      }),
+      })
+    },
     onSuccess: () => {
       onMutationSuccess()
       setIsEditing(false)
@@ -866,8 +909,9 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
     if (editLotFrs !== o.lotFrs) return true
     if (editPointage !== o.pointage) return true
     if (editClient !== o.client) return true
+    if (editStock !== o.stock) return true
     return false
-  }, [isEditing, editCommentaire, editEmplacement, editNiveau, editLotFrs, editPointage, editClient])
+  }, [isEditing, editCommentaire, editEmplacement, editNiveau, editLotFrs, editPointage, editClient, editStock])
 
   useEffect(() => { onDirtyChange(isDirty) }, [isDirty, onDirtyChange])
   useEffect(() => () => { onDirtyChange(false) }, [onDirtyChange])
@@ -1050,7 +1094,33 @@ function StockDetailDrawer({ id, canMutate, onClose, onMutationSuccess, onSelect
             {/* Stock */}
             <DrawerCard icon={<Package className="h-4 w-4 text-accent" />} title="Stock" highlight={isEditing}>
               <div className="space-y-1.5">
-                <KV label="Stock actuel" value={<span className="font-semibold tabular-nums">{formatKg(detail.stock)}</span>} />
+                <KV
+                  label="Stock actuel"
+                  value={
+                    canEditStock && isEditing ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editStock}
+                          onChange={(e) => handleStockChange(e.target.value)}
+                          className="h-7 w-28 px-2 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring text-right tabular-nums"
+                        />
+                        <span className="text-xs text-muted-foreground">kg</span>
+                      </span>
+                    ) : (
+                      <span className="font-semibold tabular-nums">{formatKg(detail.stock)}</span>
+                    )
+                  }
+                />
+                {/* What the correction costs — said while typing, before Enregistrer. */}
+                {stockChanged && (
+                  <p className="text-xs text-amber-800 leading-snug">
+                    Correction manuelle, non tracée : le rapport de freinte de ce lot deviendra approximatif.
+                    Le stock initial n’est pas modifié ; le pointage est daté d’aujourd’hui.
+                  </p>
+                )}
                 <KV label="Stock initial" value={<span className="tabular-nums">{formatKg(detail.stock_initial)}</span>} />
                 {/* Remaining-yarn gauge — same primitive as the ClientsCommandes
                     production gauge. stock can legitimately be negative

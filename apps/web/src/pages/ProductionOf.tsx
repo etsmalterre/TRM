@@ -146,7 +146,7 @@ interface OfDetail {
   demarrage_prod: string | null
   arret_prod: string | null
   IDmachine: number
-  machine: { id: number; nom: string; jauge: number; diametre: number } | null
+  machine: { id: number; nom: string; emplacement: string; jauge: number; diametre: number } | null
   IDref_ecru: number
   IDcolori_ecru: number
   ref_label: string
@@ -156,6 +156,9 @@ interface OfDetail {
   composition: CompositionRow[]
   incorpore: IncorporeRow[]
   compatibles: string[]
+  /** ref_ecru_machine ids — the picker filters on these, the labels above are
+   *  for the aside (emplacement, falling back to nom). */
+  compatibles_ids: number[]
   commande: {
     IDcommande_client: number
     IDligne_commande_client: number
@@ -625,6 +628,8 @@ interface DraftComp {
   ref_label: string
   coloris_label: string
   lot: string
+  /** Stock of the chosen lot, in Kg — what « Finir le fil » estimates from. */
+  lot_stock: number
   pourcentage: string
   /** Carried through from the detail so the marker survives edit mode. A row
    *  the user adds here starts `false` and gets its real value on the next
@@ -643,6 +648,10 @@ interface Draft {
   IDmachine: number
   quantite: string
   poids_piece: string
+  /** Follows quantité / poids pièce while those are typed, and can then be
+   *  overridden by hand (LIVA #1110: the run stops short, the OF is closed at
+   *  the pieces actually knitted). */
+  nb_pieces: string
   visitage: number
   nettoyage: number
   finir_fil: boolean
@@ -656,11 +665,38 @@ interface Draft {
 }
 
 
+/** « Finir le fil » — what the yarn left still allows, in Kg of fabric: per
+ *  lot, stock ÷ (Σ % of the rows it feeds), the minimum over lots. Two feeding
+ *  positions on one lot draw on it together, hence the grouping. `null` when no
+ *  row has a lot (nothing to estimate from). Shared by draftFromDetail and the
+ *  params card so the snapshot and the live draft agree — otherwise opening
+ *  edit mode on a « finir le fil » OF would read as dirty before any keystroke. */
+function realisableSurFil(rows: Array<{ IDstock_fil: number; lot_stock: number; pourcentage: number | string }>): number | null {
+  const byLot = new Map<number, { stock: number; pct: number }>()
+  for (const c of rows) {
+    const pct = typeof c.pourcentage === 'number' ? c.pourcentage : parseNum(c.pourcentage)
+    if (c.IDstock_fil <= 0 || pct <= 0) continue
+    const cur = byLot.get(c.IDstock_fil) ?? { stock: c.lot_stock, pct: 0 }
+    cur.pct += pct
+    byLot.set(c.IDstock_fil, cur)
+  }
+  if (byLot.size === 0) return null
+  let min = Infinity
+  for (const { stock, pct } of byLot.values()) min = Math.min(min, Math.max(0, stock) / (pct / 100))
+  return Number.isFinite(min) ? min : null
+}
+
 function draftFromDetail(d: OfDetail): Draft {
+  // A « finir le fil » OF opens on the estimate, not on the stored figures —
+  // that is what the form will show and send anyway (see ParamsCard).
+  const realisable = d.finir_fil === 1 ? realisableSurFil(d.composition) : null
+  const quantite = realisable != null ? Math.round((d.realise + realisable) * 100) / 100 : d.quantite
+  const nbPieces = realisable != null && d.poids_piece > 0 ? Math.max(1, Math.ceil(quantite / d.poids_piece)) : d.nb_pieces
   return {
     IDmachine: d.IDmachine,
-    quantite: String(d.quantite),
+    quantite: String(quantite),
     poids_piece: String(d.poids_piece),
+    nb_pieces: String(nbPieces),
     visitage: d.visitage,
     nettoyage: d.nettoyage,
     finir_fil: d.finir_fil === 1,
@@ -677,6 +713,7 @@ function draftFromDetail(d: OfDetail): Draft {
       ref_label: c.ref_label,
       coloris_label: c.coloris_label,
       lot: c.lot,
+      lot_stock: c.lot_stock,
       pourcentage: String(c.pourcentage),
       hors_ref: !!c.hors_ref,
     })),
@@ -783,6 +820,7 @@ export function ProductionOf() {
         IDmachine: draft.IDmachine,
         quantite: parseNum(draft.quantite) || undefined,
         poids_piece: parseNum(draft.poids_piece) || undefined,
+        nb_pieces: Math.round(parseNum(draft.nb_pieces)) >= 1 ? Math.round(parseNum(draft.nb_pieces)) : undefined,
         visitage: draft.visitage,
         nettoyage: draft.nettoyage as 1 | 2,
         finir_fil: draft.finir_fil ? 1 : 0,
@@ -824,7 +862,7 @@ export function ProductionOf() {
 
   const saveMut = useMutation({
     mutationFn: handleSave,
-    onError: () => setWriteError('Enregistrement refusé — l’OF est peut-être terminé, ou la quantité verrouillée par la production.'),
+    onError: () => setWriteError('Enregistrement refusé — l’OF est peut-être terminé, ou le métier cible déjà occupé.'),
   })
 
   const guard = useUnsavedGuard({
@@ -1398,17 +1436,74 @@ function ParamsCard({
     staleTime: 5 * 60_000,
     enabled: isEditing,
   })
-  const machineOptions: PopoverSelectOption[] = useMemo(() => (machines ?? []).map((m) => ({
-    id: m.id,
-    primary: m.nom,
-    secondary: detail.compatibles.includes(m.nom) ? 'compatible' : undefined,
-  })), [machines, detail.compatibles])
+  // Only the métiers compatible with the OF's reference (ref_ecru_machine, the
+  // same source as the « Compatible sur : … » aside) — user decision
+  // 2026-09-02, replacing a full parc with a « compatible » tag on a few rows.
+  // The métier the OF already sits on stays listed even when it is not on the
+  // sheet (otherwise the field would show an empty selection), and a reference
+  // with no sheet at all falls back to the whole parc, like CreateOfDialog.
+  // Labelled by `emplacement` — the floor position a régleur says (« 1G ») —
+  // and not `nom`, which is a brand on two métiers (1G = « Beck », 1H =
+  // « Orizio »; user decision 2026-09-02, LIVA #1102). Matched by id.
+  const machineOptions: PopoverSelectOption[] = useMemo(() => {
+    const all = machines ?? []
+    const compat = new Set(detail.compatibles_ids)
+    const listed = compat.size > 0
+      ? all.filter((m) => compat.has(m.id) || m.id === detail.IDmachine)
+      : all
+    return listed
+      .map((m) => ({ id: m.id, primary: m.emplacement || m.nom }))
+      .sort((a, b) => a.primary.localeCompare(b.primary, 'fr'))
+  }, [machines, detail.compatibles_ids, detail.IDmachine])
 
   const d = isEditing && draft ? draft : null
-  const quantite = d ? parseNum(d.quantite) : detail.quantite
-  const poidsPiece = d ? parseNum(d.poids_piece) : detail.poids_piece
-  const nbPieces = poidsPiece > 0 ? Math.max(1, Math.ceil(quantite / poidsPiece)) : detail.nb_pieces
-  const quantiteLocked = detail.has_production
+  // View mode shows the stored nb_pieces (it can be set by hand, see Draft);
+  // edit mode re-derives it whenever quantité or poids pièce is typed and
+  // lets the régleur overwrite it afterwards.
+  const nbPieces = d ? Math.round(parseNum(d.nb_pieces)) : detail.nb_pieces
+  const derivedNb = (quantite: string, poids: string): string => {
+    const q = parseNum(quantite)
+    const p = parseNum(poids)
+    return p > 0 ? String(Math.max(1, Math.ceil(q / p))) : ''
+  }
+  // Quantité and nb_pieces stay editable after production started (LIVA
+  // #1110): that is when the régleur closes an OF at what was really knitted.
+  // The realised weight is shown next to the field so the adjustment is made
+  // against a number, not from memory.
+  // `realise` is the weighed rolls: an OF whose pieces are knitted but not yet
+  // visited has production and 0 Kg, so the hint names the state instead.
+  const productionHint = detail.has_production
+    ? detail.realise > 0 ? `${fmtNum(detail.realise, 2)} Kg déjà tricotés` : 'Production démarrée'
+    : undefined
+
+  // « Finir le fil » (legacy FEN_Gestion_d_un_OF): the régleur asks the
+  // bonnetier to run the lots down rather than stop at a count. Quantité and
+  // nb pièces then stop being an order and become an ESTIMATE from the yarn
+  // left — greyed in the legacy, greyed here — and the bonnetier closes the
+  // run himself with « Dernière pièce » at the poste (routes/atelier.ts
+  // offers it whenever finir_fil is set). Estimate = weighed so far + what the
+  // scarcest lot still allows: Σ over lots of (stock ÷ Σ % of the rows fed by
+  // that lot), min taken — two feeding positions on one lot draw on it
+  // together. The lots' stock is decremented at the visitage of each piece,
+  // the same event that grows `realise`, so the two halves never double
+  // count. Nothing is written server-side: the form sends the estimated
+  // values like any typed ones (user decision 2026-09-02, ERP only for now).
+  const realisable = useMemo(() => (d ? realisableSurFil(d.composition) : null), [d])
+  const estimation = realisable != null ? Math.round((detail.realise + realisable) * 100) / 100 : null
+  const finirFilLocked = !!d?.finir_fil && estimation != null
+  useEffect(() => {
+    if (!d || !finirFilLocked || estimation == null) return
+    const q = String(estimation)
+    const nb = derivedNb(q, d.poids_piece)
+    if (d.quantite !== q || d.nb_pieces !== nb) set((cur) => ({ ...cur, quantite: q, nb_pieces: nb }))
+    // derivedNb is a pure closure over nothing — re-running on d is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d, finirFilLocked, estimation, set])
+  const finirFilHint = d?.finir_fil
+    ? estimation != null
+      ? `Estimation sur le fil restant : ${fmtNum(realisable ?? 0, 2)} Kg réalisables`
+      : 'Estimation impossible : aucun lot affecté à la composition'
+    : undefined
 
   const checkboxes: Array<{ key: keyof Draft & ('finir_fil' | 'ouvert_visiteuse' | 'maille_ouverture' | 'sonneter' | 'auto_activation'); label: string; view: number }> = [
     { key: 'finir_fil', label: 'Finir le fil', view: detail.finir_fil },
@@ -1457,30 +1552,46 @@ function ParamsCard({
               <input
                 className={inputClass}
                 value={d.poids_piece}
-                onChange={(e) => set((cur) => ({ ...cur, poids_piece: e.target.value }))}
+                onChange={(e) => set((cur) => ({ ...cur, poids_piece: e.target.value, nb_pieces: derivedNb(cur.quantite, e.target.value) }))}
                 inputMode="decimal"
               />
             </KV>
             <KV label="Quantité (Kg)">
               <input
-                className={cn(inputClass, quantiteLocked && 'opacity-60 cursor-not-allowed bg-muted')}
+                className={cn(inputClass, finirFilLocked && 'opacity-60 cursor-not-allowed bg-muted')}
                 value={d.quantite}
-                onChange={(e) => set((cur) => ({ ...cur, quantite: e.target.value }))}
-                disabled={quantiteLocked}
-                title={quantiteLocked ? 'La production a démarré — la quantité est verrouillée.' : undefined}
+                onChange={(e) => set((cur) => ({ ...cur, quantite: e.target.value, nb_pieces: derivedNb(e.target.value, cur.poids_piece) }))}
+                disabled={finirFilLocked}
+                title={finirFilHint ?? productionHint}
                 inputMode="decimal"
               />
+              {(finirFilHint ?? productionHint) && (
+                <span className="block text-[11px] text-muted-foreground tabular-nums mt-0.5">{finirFilHint ?? productionHint}</span>
+              )}
             </KV>
             <KV label="Nb pièces">
-              <span className="tabular-nums leading-8">{fmtNum(nbPieces)} pièce{nbPieces > 1 ? 's' : ''}</span>
+              <input
+                className={cn(inputClass, finirFilLocked && 'opacity-60 cursor-not-allowed bg-muted')}
+                value={d.nb_pieces}
+                onChange={(e) => set((cur) => ({ ...cur, nb_pieces: e.target.value.replace(/\D/g, '') }))}
+                disabled={finirFilLocked}
+                title={finirFilLocked ? 'Estimé sur le fil restant (Finir le fil)' : 'Suit la quantité et le poids pièce ; modifiable à la main'}
+                inputMode="numeric"
+              />
             </KV>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <Figure label="Métier" value={detail.machine?.nom ?? '—'} mono />
+            <Figure label="Métier" value={detail.machine ? (detail.machine.emplacement || detail.machine.nom) : '—'} mono />
             <Figure label="Poids pièce" value={fmtNum(detail.poids_piece, 2)} unit="Kg" />
             <Figure label="Quantité" value={fmtNum(detail.quantite, 2)} unit="Kg" />
             <Figure label="Nb pièces" value={fmtNum(nbPieces)} unit={nbPieces > 1 ? 'pièces' : 'pièce'} />
+            {detail.finir_fil === 1 && (
+              <p className="col-span-2 sm:col-span-4 text-[11px] text-muted-foreground -mt-1">
+                Finir le fil : quantité et nb pièces estimés sur le fil restant — le bonnetier clôt la
+                production par « Dernière pièce » au poste.
+              </p>
+            )}
           </div>
         )}
 
@@ -1656,6 +1767,7 @@ function TricoterCard({
                   ref_label: pair.ref_label,
                   coloris_label: pair.coloris_label,
                   lot: lot?.lot ?? '',
+                  lot_stock: lot?.stock ?? 0,
                   pourcentage: cur.composition.length === 0 ? '100' : '',
                   hors_ref: false,
                 }],
@@ -1769,7 +1881,7 @@ function CompositionEditRow({
             value={row.IDstock_fil}
             onChange={(id) => {
               const lot = (lots ?? []).find((l) => l.id === id)
-              onChange({ ...row, IDstock_fil: id, lot: lot?.lot ?? '' })
+              onChange({ ...row, IDstock_fil: id, lot: lot?.lot ?? '', lot_stock: lot?.stock ?? 0 })
             }}
             emptyLabel="Sans lot"
             size="sm"
