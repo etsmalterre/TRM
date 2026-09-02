@@ -172,6 +172,18 @@ Test with `hostname` first; if the identity file is missing at one path, try the
 
 ## Deploy Steps
 
+0a. **Bring both main checkouts to `origin/master` first — the build reads these trees.**
+   Since 2026-09-02 `/feature-complete` lands by pushing the branch to `origin/master` and
+   only best-effort fast-forwards the main checkout, so a checkout that is behind after a
+   morning of landings is the *normal* case, not a fault. Self-heal it before preflight:
+   ```bash
+   git -C /c/dev/etsmalterre/TRM fetch -q origin && git -C /c/dev/etsmalterre/TRM merge --ff-only origin/master
+   git -C /c/dev/etsmalterre/ETM fetch -q origin && git -C /c/dev/etsmalterre/ETM merge --ff-only origin/master
+   ```
+   Both must print `Already up to date.` or a fast-forward. Anything else (a dirty tree the
+   merge refuses to overwrite, a diverged `master`) is a real stop that preflight will name;
+   never `reset` or `stash` your way past it.
+
 0. **Preflight — one read-only command, before building anything:**
    ```bash
    node ../ETM/scripts/deploy/preflight.mjs   # whole platform; exit 1 = blockers

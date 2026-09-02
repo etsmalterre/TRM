@@ -43,12 +43,22 @@ the TRM worktree still launches but every screen shows
 
 This is not only a spin-up concern: the worktree's web server is detached and outlives
 sessions, but the `:8080` API has its own independent lifetime — the same banner can appear
-days later. Whenever you see it, check the API first:
-```powershell
-Test-NetConnection localhost -Port 8080 -InformationLevel Quiet
+days later. Whenever you see it, check the API first — and check **who** answers, not just
+that something does:
+```bash
+curl -s http://localhost:8080/api/health     # must contain "app":"MPS API"
 ```
-If it's down and no ETM session is around for `/serve-main`, starting it directly works:
-`cd C:\dev\etsmalterre\ETM\apps\api && pnpm dev` (verify `/api/health` returns 200).
+⚠️ **A port that answers is not the MPS API.** On 2026-09-02 `:8080` was held by the
+**MFPROD API** (another project on this workstation): `/api/health` was a 200, cookie auth
+failed on every screen, and the old script printed « reachable » plus a CORS rejection that
+read like a `CORS_ORIGIN` bug. `up.mjs` now probes identity (`probeApiIdentity`) and, when
+no `--api` is given, **falls back by itself to `:8087`** if the MPS API answers there
+(`MAIN_API_FALLBACK_PORTS` in `lib.mjs`) — the summary line says which port it chose. When
+neither port is the MPS API, start it on the fallback port and never kill the stranger:
+```powershell
+cd C:\dev\etsmalterre\ETM\apps\api; $env:PORT='8087'; pnpm dev
+```
+(`/serve-main` refuses slot 0 outright when `:8080` is foreign, with the same instruction.)
 Note the ports 5171–5176 are all already in the API's `CORS_ORIGIN` — the web port is
 never the cause of this banner.
 
