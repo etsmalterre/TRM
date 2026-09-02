@@ -203,7 +203,10 @@ All other screens are `PagePlaceholder`s for now. Legacy references for each dom
 « Créer un OF », confirmation Imprimer / Email).
 
 - ⚠️ **`IDcommande_ETM > 0` = miroir d'une commande sous-traitant ETM, LECTURE SEULE ici**
-  (93 % du registre) ; l'API refuse en 409 `commande_miroir_etm`.
+  (93 % du registre) ; l'API refuse en 409 `commande_miroir_etm`. **Sauf l'état** (LIVA #1100,
+  2026-09-02) : TRM solde un miroir une fois tous ses OF terminés et tous ses rouleaux expédiés
+  (`cloture` sur le détail, 409 `commande_non_terminee`) ; ETM le voit « Soldée par TRM » et
+  clôture sa propre commande — personne n'écrit le drapeau de l'autre société.
 - ⚠️ **Tarif suggéré = `max(PrixDeRevientTRM, ref_ecru.prix) / 0,7`** (`'cost-floor'`),
   **pas** `trmLinePrix` (`'price-floor'`, sous-traitance ETM → TRM, colle au WinDev). Ne pas
   unifier sans trancher le prix de transfert intercompany.
@@ -228,12 +231,17 @@ All other screens are `PagePlaceholder`s for now. Legacy references for each dom
 avis d'expédition = `BonLivraisonPdf` `variant: 'trm'` (`companyTrm`).
 **Dossier : `claude_doc/clients-expeditions.md`.**
 
-- ⚠️ **Handover rule** : la réception ETM bascule `stock_ecru.IDsociete` 2 → 1 et stampe
-  `lot = 'trm<IDexpedition>'`. **Les lectures ne filtrent jamais `IDsociete`**, les écritures
-  exigent `IDsociete = 2`, 409 pour retirer une pièce reçue.
+- ⚠️ **Handover rule** : c'est **« Expédier » côté TRM** (pas la réception ETM — sondé sur le
+  legacy le 2026-09-02) qui stampe `lot = 'trm<IDexpedition>'` sur tout rouleau expédié et
+  bascule `stock_ecru.IDsociete` 2 → 1 quand le client est Ets Malterre
+  (`stampShippedPieces` / `releaseShippedPieces`). **Les lectures ne filtrent jamais
+  `IDsociete`** ; un rouleau ne revient à TRM que si ETM n'y a pas touché, sinon 409.
+- **« Expédier » depuis Clients › Commandes** (LIVA #1109) : tiroir Progression › Affectation,
+  sélection §44, `POST /commandes-trm/:id/lignes/:ligneId/expedier` — un avis, une ligne.
 - Validé / dévalider retiré ; « facturée » ⇒ toute écriture 409. `envoyé_client` /
   `envoyé_sst` accentués, jamais nommés en SQL.
-- ⚠️ **Six routes d'écriture sans aucune garde de droit** (voir Paramètres › Utilisateurs).
+- **Écritures sous `edit_expeditions`** (fermé par défaut — `seed-edit-expeditions-trm.ts --write`
+  sur le serveur avant le déploiement web), « Expédier » compris.
 
 ### Clients › Facturation — partitioned, but the SAME object as ETM's
 

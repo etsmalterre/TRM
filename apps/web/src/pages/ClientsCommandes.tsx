@@ -157,6 +157,30 @@ interface CommandeDetail {
   adresse_facturation: AdresseLite | null
   lignes: LigneCommande[]
   phase: TrmPhase
+  /** Set on a mirror only (null on a native order): whether TRM may solder
+   *  it, and what still blocks — the API enforces the same rule. */
+  cloture: ClotureCheck | null
+}
+
+interface ClotureCheck {
+  possible: boolean
+  of_ouverts: number
+  rouleaux_non_expedies: number
+}
+
+/** What still prevents a mirror from being soldée, as short French labels
+ *  (empty when it can be, or already is). A mirror's état is TRM's own —
+ *  « the knitting for this order is done » — but it may only be set once
+ *  every OF is terminé and every roll has left on an avis d'expédition
+ *  (decision of 2026-09-02 with the atelier, LIVA #1100). */
+function clotureBlockers(c: CommandeDetail): string[] {
+  if (c.est_soldee === 1 || !c.cloture || c.cloture.possible) return []
+  const out: string[] = []
+  const of = c.cloture.of_ouverts
+  const r = c.cloture.rouleaux_non_expedies
+  if (of > 0) out.push(`${of} OF non terminé${of > 1 ? 's' : ''}`)
+  if (r > 0) out.push(`${r} rouleau${r > 1 ? 'x' : ''} non expédié${r > 1 ? 's' : ''}`)
+  return out
 }
 
 interface ClientLite { IDclient: number; nom: string; IDmode_paiement?: number; IDecheance?: number }
@@ -497,7 +521,7 @@ export function ClientsCommandes() {
       body: JSON.stringify({ est_soldee: newEtat }),
     }),
     onSuccess: invalidateAll,
-    onError: () => setWriteError("Changement d'état refusé — cette commande est pilotée par ETM."),
+    onError: () => setWriteError("Changement d'état refusé — une commande ETM ne se solde qu'une fois tous ses OF terminés et tous ses rouleaux expédiés."),
   })
 
   const handleSelect = useCallback((id: number) => {
@@ -1068,6 +1092,8 @@ function LignesSection({
               key={drawerLigne.IDligne_commande_client}
               commandeId={commande.IDcommande_client}
               ligne={drawerLigne}
+              clientNom={commande.client_nom}
+              soldee={commande.est_soldee === 1}
               onClose={() => onOpenProgression(null)}
             />
           </div>
@@ -1337,10 +1363,13 @@ function PanelTable<T extends { id: number }>({
 }
 
 function ProgressionDrawer({
-  commandeId, ligne, onClose,
+  commandeId, ligne, clientNom, soldee, onClose,
 }: {
   commandeId: number
   ligne: LigneCommande
+  clientNom: string
+  /** A soldée order ships nothing — the API 409s, the button is not offered. */
+  soldee: boolean
   onClose: () => void
 }) {
   const [tab, setTab] = useState<ProgressionTab>('affectation')
@@ -1365,6 +1394,87 @@ function ProgressionDrawer({
     queryFn: () => apiFetch(`/commandes-trm/${commandeId}/lignes/${lineId}/pieces`),
     enabled: tab === 'affectation',
   })
+
+  // Affectation → « Expédier » (LIVA #1109): the ticked, unshipped rolls of
+  // this line leave on ONE new avis for the commande — port of the legacy
+  // tab's bottom-right button and its « Non Expédiées » / « Aucun » helpers.
+  // A roll shipped to Ets Malterre changes owner at that instant (API side),
+  // which is what makes it "arrive" in ETM's stock. Selection is §44 over the
+  // rendered shippable order; shipped rows are not selectable.
+  const canShip = useHasPermission('edit_expeditions') && !soldee
+  const [shipSel, setShipSel] = useState<Set<number>>(new Set())
+  const lastShipIdRef = useRef<number | null>(null)
+  const [confirmShip, setConfirmShip] = useState(false)
+  const [shipError, setShipError] = useState<string | null>(null)
+  const shippable = useMemo(() => (pieces?.pieces ?? []).filter((p) => !p.expedie), [pieces])
+  // Re-filtered against the live payload so a refetch can never leave stale ids.
+  const shipSelected = shippable.filter((p) => shipSel.has(p.id))
+  const shipQty = shipSelected.reduce((s, p) => s + p.poids, 0)
+  const shipMut = useMutation({
+    mutationFn: (stockIds: number[]) =>
+      apiFetch<{ IDexpedition: number; shipped: number }>(`/commandes-trm/${commandeId}/lignes/${lineId}/expedier`, {
+        method: 'POST',
+        body: JSON.stringify({ stockIds }),
+      }),
+    onSuccess: () => {
+      setConfirmShip(false)
+      setShipSel(new Set())
+      lastShipIdRef.current = null
+      // The line's Expédié column, the order's list card, the Affectation tab
+      // and the Expédition tab all change.
+      queryClient.invalidateQueries({ queryKey: ['commandes-trm'] })
+      queryClient.invalidateQueries({ queryKey: ['commande-trm', commandeId] })
+      queryClient.invalidateQueries({ queryKey: ['commande-trm-pieces', commandeId, lineId] })
+      queryClient.invalidateQueries({ queryKey: ['commande-trm-expeditions', commandeId] })
+      setTab('expedition')
+    },
+    onError: (e: Error & { status?: number }) => {
+      setConfirmShip(false)
+      setShipError(
+        e.status === 403
+          ? "Vous n'avez pas le droit d'expédier des pièces (droit « Édition des expéditions »)."
+          : e.status === 409
+            ? 'Commande soldée — rouvrez-la pour expédier.'
+            : "L'expédition a échoué : aucune pièce expédiable dans la sélection, ou erreur serveur.",
+      )
+    },
+  })
+  const toggleShip = useCallback((id: number, shiftKey: boolean) => {
+    const ids = shippable.map((p) => p.id)
+    const anchor = lastShipIdRef.current
+    if (shiftKey && anchor !== null && anchor !== id) {
+      const a = ids.indexOf(anchor)
+      const b = ids.indexOf(id)
+      if (a >= 0 && b >= 0) {
+        const [lo, hi] = a < b ? [a, b] : [b, a]
+        setShipSel((prev) => {
+          const next = new Set(prev)
+          const deselect = prev.has(id)
+          for (let i = lo; i <= hi; i++) {
+            if (deselect) next.delete(ids[i]); else next.add(ids[i])
+          }
+          return next
+        })
+        return
+      }
+    }
+    setShipSel((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+    lastShipIdRef.current = id
+  }, [shippable])
+  // Legacy « Non Expédiées »: tick every unshipped roll; the anchor goes to the
+  // last one so a following Shift+click narrows from the end (§44).
+  const selectNonExpediees = useCallback(() => {
+    setShipSel(new Set(shippable.map((p) => p.id)))
+    lastShipIdRef.current = shippable[shippable.length - 1]?.id ?? null
+  }, [shippable])
+  const clearShip = useCallback(() => {
+    setShipSel(new Set())
+    lastShipIdRef.current = null
+  }, [])
   const { data: stockFil, isLoading: filLoading } = useQuery<StockFilPayload>({
     queryKey: ['commande-trm-stock-fil', commandeId, lineId],
     queryFn: () => apiFetch(`/commandes-trm/${commandeId}/lignes/${lineId}/stock-fil`),
@@ -1483,7 +1593,19 @@ function ProgressionDrawer({
               emptyLabel="Aucune pièce produite"
               emptyIcon={Package}
               rowClassName={(p) => (p.expedie ? 'text-muted-foreground' : undefined)}
+              onRowClick={canShip ? (p, e) => { if (!p.expedie) toggleShip(p.id, e.shiftKey) } : undefined}
+              selectedIds={canShip ? shipSel : undefined}
               columns={[
+                ...(canShip ? [{
+                  key: 'sel', label: '', align: 'left' as const,
+                  render: (p: AffectationPiece) => p.expedie ? null : (
+                    <Checkbox
+                      checked={shipSel.has(p.id)}
+                      onClick={(e) => { e.stopPropagation(); toggleShip(p.id, (e as React.MouseEvent).shiftKey) }}
+                      title="Sélectionner cette pièce (MAJ + clic pour une plage)"
+                    />
+                  ),
+                }] : []),
                 { key: 'num', label: 'Pièce N°', align: 'left', render: (p) => <span className="font-medium tabular-nums">{p.numero || `#${p.id}`}</span> },
                 { key: 'poids', label: 'Poids', align: 'right', render: (p) => `${fmtNum(p.poids, 1)} Kg` },
                 {
@@ -1524,10 +1646,39 @@ function ProgressionDrawer({
             <span>{pieces?.pieces.length ?? 0} pièce{(pieces?.pieces.length ?? 0) > 1 ? 's' : ''}</span>
             <span>Produit <span className="font-semibold text-foreground">{fmtNum(pieces?.produit ?? 0, 1)} Kgs</span></span>
             <span>Expédié <span className="font-semibold text-foreground">{fmtNum(pieces?.expedie ?? 0, 1)} Kgs</span></span>
-            <span className="ml-auto">
-              Stock disponible 1er choix{' '}
-              <span className="font-semibold text-accent">{fmtNum(pieces?.disponible_1er_choix ?? 0, 1)} Kgs</span>
-            </span>
+            {shipSelected.length === 0 ? (
+              <span className="ml-auto flex items-center gap-2">
+                <span>
+                  Stock disponible 1er choix{' '}
+                  <span className="font-semibold text-accent">{fmtNum(pieces?.disponible_1er_choix ?? 0, 1)} Kgs</span>
+                </span>
+                {canShip && shippable.length > 0 && (
+                  <Button variant="ghost" size="sm" className="h-7 text-[11px] text-accent hover:text-accent" onClick={selectNonExpediees} title="Sélectionner toutes les pièces non expédiées">
+                    Non expédiées
+                  </Button>
+                )}
+              </span>
+            ) : (
+              /* Legacy « Quantité Sélectionnée : X Kgs » + Expédier. */
+              <span className="ml-auto flex items-center gap-2">
+                <span>
+                  {shipSelected.length} pièce{shipSelected.length > 1 ? 's' : ''} ·{' '}
+                  <span className="font-semibold text-foreground">{fmtNum(shipQty, 1)} Kgs</span>
+                </span>
+                {shipSelected.length < shippable.length && (
+                  <Button variant="ghost" size="sm" className="h-7 text-[11px]" onClick={selectNonExpediees}>
+                    Non expédiées
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" className="h-7 text-[11px]" onClick={clearShip} disabled={shipMut.isPending}>
+                  Aucun
+                </Button>
+                <Button size="sm" className="h-7 text-[11px]" onClick={() => setConfirmShip(true)} disabled={shipMut.isPending}>
+                  {shipMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Truck className="h-3.5 w-3.5 mr-1.5" />}
+                  Expédier
+                </Button>
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -1689,6 +1840,27 @@ function ProgressionDrawer({
           queryClient.invalidateQueries({ queryKey: ['commandes-trm'] })
           setTab('of')
         }}
+      />
+
+      {/* Legacy prompt, verbatim: « Confirmez-vous l'expédition de cette commande ? » */}
+      <ConfirmDialog
+        open={confirmShip}
+        variant="default"
+        title="Confirmez-vous l'expédition de cette commande ?"
+        description={`${shipSelected.length} pièce${shipSelected.length > 1 ? 's' : ''} (${fmtNum(shipQty, 1)} Kgs) parte${shipSelected.length > 1 ? 'nt' : ''} sur un nouvel avis d'expédition pour ${clientNom || 'le client'}.`}
+        confirmLabel="Expédier"
+        isPending={shipMut.isPending}
+        onCancel={() => setConfirmShip(false)}
+        onConfirm={() => shipMut.mutate(shipSelected.map((p) => p.id))}
+      />
+      <ConfirmDialog
+        open={shipError !== null}
+        variant="default"
+        title="Expédition impossible"
+        description={shipError ?? ''}
+        confirmLabel="Fermer"
+        onCancel={() => setShipError(null)}
+        onConfirm={() => setShipError(null)}
       />
 
       <ConfirmDialog
@@ -2149,9 +2321,13 @@ function DetailSidebar({
         etat={commande.est_soldee}
         onToggle={onToggleEtat}
         isToggling={isTogglingEtat}
-        // Mirrors are closed/reopened from ETM — never from here.
-        disabled={isEditing || commande.is_mirror}
-        disabledReason={commande.is_mirror ? "L'état est piloté par ETM" : undefined}
+        // A mirror's état is TRM's own (its content stays ETM's): it can be
+        // soldée here once every OF is terminé and every roll shipped. The
+        // API enforces it; the Info tab names what still blocks.
+        disabled={isEditing || clotureBlockers(commande).length > 0}
+        disabledReason={clotureBlockers(commande).length > 0
+          ? `Solder impossible : ${clotureBlockers(commande).join(' · ')}`
+          : undefined}
       />
     </div>
   )
@@ -2224,10 +2400,22 @@ function InfoTab({
       {commande.is_mirror && (
         <div className="flex items-start gap-2 p-3 rounded-lg border border-border/60 bg-zinc-200/40 text-[11px] text-muted-foreground">
           <Lock className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-          <span>
-            Commande pilotée par ETM (commande sous-traitant n° {commande.IDcommande_ETM}).
-            Elle est en lecture seule ici — modifiez-la depuis ETM.
-          </span>
+          <div className="space-y-1">
+            <p>
+              Commande pilotée par ETM (commande sous-traitant n° {commande.IDcommande_ETM}).
+              Son contenu est en lecture seule ici — modifiez-le depuis ETM.
+            </p>
+            {commande.est_soldee !== 1 && (clotureBlockers(commande).length > 0 ? (
+              <p className="text-amber-800 font-medium">
+                Solder impossible : {clotureBlockers(commande).join(' · ')}.
+              </p>
+            ) : (
+              <p>
+                Elle peut être soldée ici — ses OF sont terminés et ses rouleaux
+                expédiés. ETM la verra « Soldée par TRM » et clôturera sa propre commande.
+              </p>
+            ))}
+          </div>
         </div>
       )}
 

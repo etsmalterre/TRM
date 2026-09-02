@@ -19,14 +19,49 @@ screen (`apps/web/src/pages/ClientsExpeditions.tsx`) over its own endpoints
 | Documents | avis d'expédition + rapport de contrôle + info matières (3-item print menu) | avis d'expédition only — the visitage findings ride in its Défauts column |
 
 **The handover rule (the one real footgun).** When TRM ships to ETS Malterre —
-which is most shipments — ETM's reception takes **ownership** of the piece: the
-legacy flow flips `stock_ecru.IDsociete` from 2 to 1 and stamps
-`lot = 'trm<IDexpedition>'`. So a delivered avis's pieces are no longer TRM rows.
-Reads therefore **never filter on IDsociete** (filtering would make every
-delivered avis read "0 pièces"); writes **require `IDsociete = 2`** and the API
-409s on any attempt to pull a received piece back off an avis, or to delete an
-avis holding one. Shipments to a third-party client (e.g. Bonneterie Gautier)
-keep their pieces at `IDsociete = 2`.
+which is most shipments — the piece changes **owner at « Expédier »**, not at some
+later reception step: the legacy stamps `lot = 'trm<IDexpedition>'` on every
+shipped roll (whatever the client) and flips `stock_ecru.IDsociete` from 2 to 1
+when the client is Ets Malterre. Probed on 2026-09-02 against avis 11686, created
+with the WinDev app on the dev base: rolls at société 1 the same minute (the
+earlier wording here, « ETM's reception takes ownership », was wrong — and the
+PWA did neither, so a roll shipped from Clients › Expéditions stayed TRM's in
+ETM's stock screens). Both write paths now go through `stampShippedPieces()` in
+`expeditions-trm.ts`; the reverse, `releaseShippedPieces()`, brings a roll back
+to TRM on « retirer » or on deleting an avis **only while ETM has done nothing
+with it** (not affected to an ETM order, not at a dyer, not shipped on, no
+`stock_fini` child) — otherwise 409, all-or-nothing. Reads therefore **never
+filter on IDsociete** (filtering would make every delivered avis read
+"0 pièces"); the stamp **requires `IDsociete = 2`**. Shipments to a third-party
+client (e.g. Bonneterie Gautier) keep their pieces at `IDsociete = 2`, lot
+stamped all the same.
+
+**« Expédier » from Clients › Commandes** (LIVA #1109, 2026-09-02) — the way the
+atelier actually ships: in the Progression drawer › Affectation tab, tick the
+unshipped rolls (§44: checkbox, MAJ+clic range, « Non expédiées » selects them
+all, « Aucun » clears), read « N pièces · X Kgs », click **Expédier**, confirm
+the legacy prompt verbatim (« Confirmez-vous l'expédition de cette commande ? »),
+and the drawer jumps to its Expédition tab where the new avis sits with its
+rolls at `trm<n°>`. API `POST /commandes-trm/:id/lignes/:ligneId/expedier`
+(`{ stockIds }`): ONE avis for the commande with ONE `ligne_expedition` for
+this line, header defaulted like the Expéditions screen's create (livraison
+address from the commande, carrier from the client, `est_valide` 0 — the legacy
+writes 1 there, the PWA retired the flag), rolls stamped through
+`stampShippedPieces()`. Mirrors ARE shippable (shipping is TRM's act, the one
+thing a mirrored order exists for); a soldée order 409s; rolls not reserved to
+the line or already shipped are ignored and counted back as `ignored`.
+Serialised on `expedierLock` (every id is MAX+1). No « Tous » button: shipped
+rows are not selectable. Guard: `check-expedier-trm.ts`
+(`API_BASE=http://localhost:808N/api`) — creates then deletes an avis on the
+dev base, **never against prod**.
+- **Droit `edit_expeditions`** (catalogue TRM, catégorie Commandes client) : garde
+  « Expédier » ET les six routes d'écriture d'`expeditions-trm.ts` — qui n'en
+  avaient **aucune** jusque-là — et cache Nouveau / Modifier / Supprimer et le
+  lien-retrait de pièces dans Clients › Expéditions. Consultation, impression et
+  envoi de l'avis restent ouverts. ⚠️ **Fermé par défaut : `seed-edit-expeditions-trm.ts
+  --write` sur le serveur AVANT le déploiement web TRM**, sinon seul l'admin
+  expédie ; les postes partagés (Visitage, Regleur, eloise) sont laissés en
+  lecture seule, comme pour `edit_of`.
 
 Like ETM, the legacy **validé / dévalider** concept stays retired: an expedition
 is "non facturée" (editable) or "facturée" (`est_facture = 1`, or a definitive

@@ -31,6 +31,7 @@ import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tansta
 import { UnsavedChangesDialog } from '@/components/shared/UnsavedChangesDialog'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
+import { useHasPermission } from '@/contexts/PermissionsContext'
 import {
   Truck,
   Search,
@@ -245,8 +246,11 @@ export function ClientsExpeditions() {
     enabled: selectedId !== null,
   })
 
-  // A shipment is editable only while no definitive facture is attached.
-  const editable = !!detail && !detail.locked
+  // A shipment is editable only while no definitive facture is attached —
+  // and only under `edit_expeditions` (TRM key, closed by default; LIVA
+  // #1109): the six write routes 403 without it, so the buttons go too.
+  const canEdit = useHasPermission('edit_expeditions')
+  const editable = canEdit && !!detail && !detail.locked
 
   const invalidateAll = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['expeditions-trm'] })
@@ -372,7 +376,7 @@ export function ClientsExpeditions() {
             onSearchChange={setSearchQuery}
             stateFilter={stateFilter}
             onStateFilterChange={handleStateFilterChange}
-            onNew={() => setCreateOpen(true)}
+            onNew={canEdit ? () => setCreateOpen(true) : undefined}
             isEditing={isEditing}
             hasMore={!!hasNextPage}
             onLoadMore={() => fetchNextPage()}
@@ -491,7 +495,8 @@ function ExpeditionListPanel({
   onSearchChange: (q: string) => void
   stateFilter: 'nonfacture' | 'facture'
   onStateFilterChange: (s: 'nonfacture' | 'facture') => void
-  onNew: () => void
+  /** Absent when the viewer may not create an avis — the button is not rendered. */
+  onNew?: () => void
   isEditing: boolean
   hasMore: boolean
   onLoadMore: () => void
@@ -602,7 +607,7 @@ function ExpeditionListPanel({
 
       <div className="p-3 border-t text-xs text-muted-foreground flex items-center justify-between rounded-b-lg bg-zinc-200/50">
         <span>{rows.length} expédition{rows.length !== 1 ? 's' : ''}{hasMore ? '+' : ''}</span>
-        {!isEditing && (
+        {!isEditing && onNew && (
           <Button size="sm" variant="ghost" onClick={onNew} className="text-accent hover:text-accent hover:bg-accent/10">
             <Plus className="h-3.5 w-3.5 mr-1" />Nouveau
           </Button>
