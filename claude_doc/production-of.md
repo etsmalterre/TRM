@@ -71,9 +71,16 @@ event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell
   et la figure « Métier » du mode lecture — décision utilisateur du 2026-09-02, dans la
   ligne du ticket LIVA #1102 (« 1G apparaît sous le nom “beck” ») : `nom` est une marque
   sur 1G (« Beck ») et 1H (« Orizio »), et un régleur nomme un métier par sa place au
-  sol. Le filtre est par **id**, plus par libellé. ⚠️ Le reste de l'écran (liste des OF,
-  pastille de carte, `machineNames` de l'API) est encore sur `nom` : c'est #1102, à
-  traiter à part.
+  sol. Le filtre est par **id**, plus par libellé. Depuis le 2026-09-02 (#1102) c'est
+  **toute la chaîne** : `machineLabel()` dans `ETM/apps/api/src/lib/production-trm.ts`
+  (miroir web `apps/web/src/lib/machine.ts`), que `resolveMachineNames` d'`of-trm.ts`
+  emprunte — donc la liste des OF, la pastille de carte, les observations, « Compatible
+  sur » et la recherche Terminés (qui répond aussi à « beck ») disent tous « 1G » ; la
+  fiche reçoit `machine.label` (`nom` et `emplacement` restent dans le payload), et les
+  sélecteurs de `CreateOfDialog` / `ObsRefEcru` passent par le même repli. ⚠️ Les autres
+  écrans TRM qui nomment un métier — Tombé Métier › Stock, Expéditions, le tiroir
+  Progression de Commandes, Atelier › Maintenance (délibérément : `nom` y est la marque) —
+  sont restés sur `machine.nom`.
 - **5 sidebar tabs**: Observations = **`obs_ref_ecru` + `message_of`**, empilés (voir
   « Observations régleur » ci-dessous) ; Production = `piece_production` +
   `evenement_piece` timeline (avatars = `bonnetier.photo` blob endpoint, initials
@@ -141,9 +148,10 @@ confirmation de suppression), CRUD `ETM/apps/api/src/routes/of-trm.ts`
   ligne** : les deux tables trient par `date`, une correction de faute ne doit pas remonter
   en tête. Un coloris non nul doit appartenir à la référence (400 sinon), comme la combo
   legacy qui est paramétrée dessus.
-- Le libellé du métier vient de `machine.nom`, pas de `machine.emplacement` que le legacy
-  utilise ici : `emplacement` est **vide sur 4 métiers** (Vignoni, jersey 1F, terrot, RAY),
-  qui s'affichaient donc sans nom. Delta assumé, cohérent avec le reste de l'écran.
+- Le libellé du métier est `machine.emplacement`, `nom` en repli (`machineLabel()`, voir
+  le sélecteur de métier plus haut) — jusqu'au 2026-09-02 c'était `nom` seul, parce
+  qu'`emplacement` est vide sur les métiers archivés (Vignoni, jersey 1F, terrot, RAY) ;
+  le repli couvre ce cas sans afficher « Beck » pour le 1G.
 - ⚠️ **Une composition est une liste de POSITIONS D'ALIMENTATION, pas de fils.** Un mélange
   peut alimenter deux fois le même couple (fil, coloris) : la réf. 119/ecru, c'est
   71 % + 14,5 % + 14,5 % de deux fils seulement, et il faut les trois lignes pour faire les

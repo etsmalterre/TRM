@@ -71,6 +71,7 @@ import { fmtNum } from '@/lib/format'
 import { formatHfsqlDate } from '@/lib/dates'
 import { niceScale } from '@/lib/chart-scale'
 import { cn } from '@/lib/utils'
+import { machineLabel } from '@/lib/machine'
 
 // ── Types (API payloads) ───────────────────────────────
 
@@ -146,7 +147,8 @@ interface OfDetail {
   demarrage_prod: string | null
   arret_prod: string | null
   IDmachine: number
-  machine: { id: number; nom: string; emplacement: string; jauge: number; diametre: number } | null
+  /** `label` = emplacement (nom as fallback) — what the list shows too (LIVA #1102). */
+  machine: { id: number; nom: string; emplacement: string; label: string; jauge: number; diametre: number } | null
   IDref_ecru: number
   IDcolori_ecru: number
   ref_label: string
@@ -1452,7 +1454,7 @@ function ParamsCard({
       ? all.filter((m) => compat.has(m.id) || m.id === detail.IDmachine)
       : all
     return listed
-      .map((m) => ({ id: m.id, primary: m.emplacement || m.nom }))
+      .map((m) => ({ id: m.id, primary: machineLabel(m) }))
       .sort((a, b) => a.primary.localeCompare(b.primary, 'fr'))
   }, [machines, detail.compatibles_ids, detail.IDmachine])
 
@@ -1582,7 +1584,7 @@ function ParamsCard({
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <Figure label="Métier" value={detail.machine ? (detail.machine.emplacement || detail.machine.nom) : '—'} mono />
+            <Figure label="Métier" value={detail.machine?.label ?? '—'} mono />
             <Figure label="Poids pièce" value={fmtNum(detail.poids_piece, 2)} unit="Kg" />
             <Figure label="Quantité" value={fmtNum(detail.quantite, 2)} unit="Kg" />
             <Figure label="Nb pièces" value={fmtNum(nbPieces)} unit={nbPieces > 1 ? 'pièces' : 'pièce'} />

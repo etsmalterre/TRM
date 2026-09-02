@@ -298,6 +298,9 @@ recherche, onglets, Observations régleur).
 
 - File : `priorite` par métier (1 = en cours, 0 = terminé), un `est_actif` par métier ;
   Terminer re-classe et active la tête si `auto_activation = 1`.
+- **Un métier est libellé par `machine.emplacement`, `nom` en repli** (`machineLabel()`,
+  API + `lib/machine.ts` ; LIVA #1102 : le 1G s'affichait « Beck »). Les autres écrans
+  TRM (Stock TM, Expéditions, Commandes, Maintenance) restent sur `nom`.
 - **Recherche identique dans les trois onglets** ; Terminés via `?q=`, `searchTermineIds`
   en JS (LIKE HFSQL ne replie pas les accents). ⚠️ Un nombre est à la fois n° d'OF et
   référence plausible : l'OF exact en tête, puis les libellés.

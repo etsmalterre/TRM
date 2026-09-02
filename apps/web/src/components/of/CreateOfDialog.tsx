@@ -63,6 +63,7 @@ import { apiFetch } from '@/lib/api'
 import { fmtNum } from '@/lib/format'
 import { formatHfsqlDate } from '@/lib/dates'
 import { cn } from '@/lib/utils'
+import { machineLabel } from '@/lib/machine'
 
 const inputClass = 'w-full h-8 px-2.5 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring'
 
@@ -519,9 +520,9 @@ export function CreateOfDialog({
   const machineOptions: PopoverSelectOption[] = useMemo(() => (
     [...(machines ?? [])]
       .filter((m) => compatIds.size === 0 || compatIds.has(m.id))
-      .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))
+      .sort((a, b) => machineLabel(a).localeCompare(machineLabel(b), 'fr'))
       // No "compatible" tag any more: with the list filtered, every row is.
-      .map((m) => ({ id: m.id, primary: m.nom }))
+      .map((m) => ({ id: m.id, primary: machineLabel(m) }))
   ), [machines, compatIds])
 
   const machine = (machines ?? []).find((m) => m.id === machineId) ?? null

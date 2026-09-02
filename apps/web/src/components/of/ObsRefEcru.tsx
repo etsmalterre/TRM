@@ -33,6 +33,7 @@ import {
 import { PopoverSelect } from '@/components/ui/popover-select'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { apiFetch } from '@/lib/api'
+import { machineLabel } from '@/lib/machine'
 import { useHasPermission } from '@/contexts/PermissionsContext'
 import { formatHfsqlDate } from '@/lib/dates'
 import { cn } from '@/lib/utils'
@@ -51,7 +52,7 @@ export interface ObsRefRow {
   cible_coloris: boolean
 }
 
-interface MachineLookup { id: number; nom: string }
+interface MachineLookup { id: number; nom: string; emplacement: string }
 interface ColorisLookup { id: number; reference: string }
 
 // ── One observation card (§8.1 sidebar item card) ──────
@@ -184,9 +185,9 @@ function ObsDialog({
   const coloriLabel = coloriId === 0
     ? 'Tout coloris'
     : (colorisQ.data?.find((c) => c.id === coloriId)?.reference ?? '…')
-  const machineLabel = machineId === 0
+  const machineText = machineId === 0
     ? 'toutes les machines'
-    : (machinesQ.data?.find((m) => m.id === machineId)?.nom ?? '…')
+    : (() => { const m = machinesQ.data?.find((x) => x.id === machineId); return m ? machineLabel(m) : '…' })()
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
@@ -197,7 +198,7 @@ function ObsDialog({
             Observation
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Réf. {refLabel || '—'} — {coloriLabel} sur {machineLabel}
+            Réf. {refLabel || '—'} — {coloriLabel} sur {machineText}
           </p>
         </DialogHeader>
         <div className="mt-4 space-y-3">
@@ -205,7 +206,7 @@ function ObsDialog({
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Métier</label>
               <PopoverSelect
-                options={(machinesQ.data ?? []).map((m) => ({ id: m.id, primary: m.nom }))}
+                options={(machinesQ.data ?? []).map((m) => ({ id: m.id, primary: machineLabel(m) }))}
                 value={machineId}
                 onChange={setMachineId}
                 emptyLabel="Toutes"
