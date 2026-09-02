@@ -51,239 +51,99 @@ When implementing a feature here you will therefore usually touch **two repos**:
 
 **Paired-worktree rule for API changes**: API work is done in an **ETM worktree** (never in the ETM main checkout — that's NG's integration tree) and lands through NG's own pipeline (`feat/*` → NG `master` → `/etm_deploy`). A TRM feature needing endpoints = a pair of same-named worktrees, the TRM one spun up with `--api 808N` pointing at the NG one. Landing order: NG branch first, then TRM. Full rule: `ETM/claude_doc/worktrees.md` §"Shared-API changes"; the `/feature-complete` skill enforces the guardrail.
 
+**The main checkout (`C:\dev\etsmalterre\TRM`) stays committed-clean between turns.** It is the
+integration tree: several worktree sessions run at once and each expects to land whenever it
+is done. `/feature-complete` lands on **`origin/master`** by a plain push, so a dirty main
+checkout can no longer block a landing — but `/trm_deploy` **builds from this tree** and its
+preflight blocks on a dirty or behind-`origin/master` checkout. So: an edit made here (a doc
+split, a skill fix, a `CLAUDE.md` line) is **committed and pushed in the same turn** it is
+made, never parked for review. (2026-09-02: a `CLAUDE.md` extraction sat uncommitted here for
+a morning and stopped another session's landing one step short.) Feature work never happens
+here at all — worktrees only.
+
+## Feature dossiers — `claude_doc/`
+
+`CLAUDE.md` is loaded into every session and is capped at **150 k characters**; it hit
+157 k on 2026-09-02. Since then the detailed per-feature knowledge (data models, recovered
+legacy SQL, formulas, user decisions and their dates, the footguns found along the way)
+lives in **`claude_doc/<feature>.md`**, one file per screen or app, and `CLAUDE.md` keeps
+a **short summary per feature** (what it is, where the code lives, the two or three
+warnings that would bite in the first hour) with a pointer to the dossier.
+
+- **Before touching a screen, `Read` its dossier** — the summary here is not enough to
+  work on the feature, it is only enough to know the dossier exists and what it guards.
+- **New feature knowledge goes in the dossier, not here.** Add or update a summary here
+  only for a new feature or a new load-bearing footgun, and keep it under ~1 000 chars.
+  `/feature-complete` and `learn_and_improve` write there too.
+- ETM has the same folder (`ETM/claude_doc/`) for platform-wide topics (HFSQL, worktrees,
+  deploy). TRM's holds TRM screens only.
+
+| Dossier | Covers |
+|---|---|
+| `claude_doc/atelier-pwa.md` | `apps/atelier`, the bonnetier/régleur phone PWA |
+| `claude_doc/trs-tablette.md` | `apps/trs`, the wall tablet (plan du parc, TRS formula, tile colours) |
+| `claude_doc/commandes-clients.md` | Clients › Commandes: data model, mirror orders, pricing rules, « Créer un OF », confirmation PDF/email |
+| `claude_doc/clients-expeditions.md` | Clients › Expéditions and the ETM handover rule |
+| `claude_doc/clients-facturation.md` | Clients › Facturation (router factory, code comptable) |
+| `claude_doc/tombe-metier-stock.md` | Tombé Métier › Stock (TRM écru partition, Dymo reprint) |
+| `claude_doc/clients-gestion.md` | Clients › Gestion (TRM fiche client) |
+| `claude_doc/production-of.md` | Production › Ordres de fabrication + Observations régleur (`obs_ref_ecru`) |
+| `claude_doc/atelier-maintenance.md` | Atelier › Maintenance (rouloir, garniture, jauges) |
+| `claude_doc/production-visitage.md` | Production › Visitage (le poste, `POST /valider`, étiquette Dymo, kiosk Chrome) |
+| `claude_doc/production-trs.md` | Production › TRS (tableau de bord d'équipe, timeline) |
+| `claude_doc/parametres-utilisateurs.md` | Paramètres › Utilisateurs: permission store, Écrans axis, comptes-postes |
+| `claude_doc/qualite-retour-client.md` | Qualité › Retour client + boucle FNC avec ETM |
+| `claude_doc/fils-stock.md` | Fils › Stock (lots, diviser, archivage, freinte, titrage) |
+| `claude_doc/production-prime.md` | Production › Prime (semestres, barèmes datés, répartition) |
+| `claude_doc/rapports-finance.md` | Rapports › Finance (ETM screen on TRM partition) |
+| `claude_doc/tickets.md` | Ticket widget (LIVA), comptes sans email |
+| `claude_doc/dashboard-widgets.md` | Widgets finance, « Poids des pièces », « Pièces à visiter » |
+
 ## Atelier — la PWA mobile de l'atelier (`apps/atelier`)
 
-Migration de l'app Android legacy des bonnetiers/régleurs. **Deuxième app du monorepo**,
-hôte **`atelier.malterre`**, parc Android. Dossier de conception :
-**`~/.claude/plans/atelier-malterre.md`** — décisions, pièges vérifiés, questions ouvertes.
+Migration de l'app Android legacy des bonnetiers/régleurs : **deuxième app du monorepo**,
+hôte **`atelier.malterre`** (en ligne depuis le 2026-08-28), port dev **5176**, version
+propre (`apps/atelier/package.json`). Accueil (grille de visages) → Choix Métier → Poste
+avec saisie : les huit actions du legacy s'enregistrent via `POST /api/atelier/of/:id/evenement`
+sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réutilise
+`lib/production-trm.ts`. Conception : `~/.claude/plans/atelier-malterre.md`.
+**Dossier complet : `claude_doc/atelier-pwa.md`** — à lire avant tout travail dessus.
 
-**État au 2026-08-27** : Accueil (grille de visages) → Choix Métier (Actives / Inactives) →
-Poste, **saisie comprise**. Les huit actions du legacy s'enregistrent (`POST
-/api/atelier/of/:id/evenement`), sous le droit `saisie_atelier`.
-
-**Ce qui manque encore, dans l'ordre où ça compte :**
-- ⚠️ **Pas d'annulation**, alors que le legacy en a une (`IMG_Annuler` sur la dernière
-  action). Une mauvaise « Terminer OF » n'est donc pas rattrapable depuis le téléphone :
-  elle ferme la pièce, arrête l'OF et passe le métier au suivant via `AutoActivation()`.
-- ⚠️ **Aucun téléphone ne peut écrire aujourd'hui** : le compte-poste n'existe pas et
-  personne ne détient `saisie_atelier` (fermé par défaut). Voir « Identité » plus bas.
-- Les trois écrans secondaires : Consigne (`message_of` + la consigne du régleur),
-  Fils OF, Information (la checklist de nettoyage, littéraux récupérés verbatim).
-- L'hôte de prod (nginx sur `10.10.2.165` + entrée Caddy sur `10.10.2.167`).
-
-**Identité — le point à trancher avant la mise en service.** Le téléphone porte le cookie
-d'un **compte-poste** (le modèle du PC de visitage, `Visitage` IDutilisateur 10), et *qui*
-travaille voyage dans `IDbonnetier`, comme le legacy l'écrit. La grille de visages +
-`localStorage` n'est **pas** une authentification : c'est le modèle de confiance de
-l'atelier, et il ne garde rien. Reste donc à faire : créer ou choisir le compte-poste, lui
-accorder `saisie_atelier` dans Paramètres › Utilisateurs, et poser son cookie sur chaque
-appareil.
-
-**Les trois pièges du portage**, tous vérifiés et tous invisibles dans le code seul :
-- **Le libellé n'est pas la chaîne stockée.** La combo dit « Fin de pièce » et écrit
-  `Fin du tricotage` ; « Interrompre OF » écrit `Interruption OF`. Tout l'historique de
-  `evenement_piece` est clé là-dessus.
-- **« Interrompre OF » et « Relancer OF » sont une paire choisie à l'exécution** selon
-  `arret_prod`, les deux littéraux étant compilés. Le Java de mars ne montre que le second.
-- **La liste des actions offertes est recalculée au serveur** : le client décide de ce
-  qu'il affiche, la route décide de ce qui peut arriver (409 sinon). Les deux dérivations
-  vivent dans `apps/atelier/src/lib/actions.ts` et `ETM/apps/api/src/routes/atelier.ts` —
-  **les changer ensemble**, l'API faisant foi.
-
-- **Une seule app pour les deux rôles** (le régleur est un bonnetier avec plus de droits :
-  c'est déjà ce qu'exprime `permissions-trm.json`). Le legacy fait pareil — un seul projet,
-  des configurations `Appli_Bonnetier` / `Appli_Regleur` — et **l'écart de rôle y tient en
-  UNE entrée de combo**, à retenir avant de sur-concevoir les pouvoirs du régleur.
-- **API** : `ETM/apps/api/src/routes/atelier.ts`, monté `/api/atelier`. Lecture seule.
-  Réutilise `lib/production-trm.ts` (`selectMachines`, `selectBonnetiers`, `loadOf`,
-  `parseDtMs`) — améliorer ce fichier, ne jamais en forker une copie.
-- **Version propre** (`apps/atelier/package.json`, démarrée à 0.0.1), **pas** celle de la
-  racine comme `apps/web` : les deux bundles se déploient indépendamment.
-- **Service worker `injectManifest`** (`src/sw.ts`), pas le `generateSW` d'`apps/web` :
-  c'est le seul endroit où un handler `push` peut vivre, et basculer après coup toucherait
-  le chemin de mise à jour déjà corrigé une fois (`lib/sw-refresh.ts`). Éteint en dev.
-- **Design** : `mps_designer` §45 « Poste », à l'échelle du téléphone — l'écran Action
-  Machine remplit les trois tests du §45.1. **Pas un cinquième layout.** Le legacy est
-  or-sur-crème ; on est navy + or comme toutes les apps Malterre (décision du 2026-08-27).
-- ⚠️ **Le libellé d'un métier est `machine.emplacement`, l'INVERSE d'Atelier › Maintenance**
-  (qui prend `nom`). Les 4 métiers à `emplacement` vide sont **archivés** et n'arrivent
-  jamais ici : les 30 métiers vivants en portent tous un. Et deux ont un `nom` qui est une
-  marque, pas une position (« Beck » = 1G, « Orizio » = 1H) — un bonnetier envoyé au 1G ne
-  reconnaîtrait pas une tuile « Orizio ». Vérifié en base le 2026-08-27.
-- ⚠️ **Le legacy Android n'est PAS PCS-compressé** : `C:\Mes Projets\MPS\Android\dbg\Compile\`
-  contient les 45 fichiers Java générés, WLanguage en commentaires et SQL en clair. C'est la
-  spec, sans sonde — la première chose à ouvrir (`GWDCPCOL_Appli.java` d'abord).
-  **MAIS c'est un instantané du 24/03/2026** : son `info.build` liste 12 fenêtres et l'app
-  qui tourne en a au moins une de plus (un écran Production/Visitage atteint par une 4ᵉ
-  icône ronde). Autorité sur ce qu'il contient, pas sur l'inventaire.
-- ⚠️ **`bonnetier` n'a pas de colonne `IDutilisateur`** alors que les droits sont clés
-  dessus. Décision du 2026-08-27 : le lien sera un **store JSON côté API**
-  (`data/bonnetier-utilisateur.json`, à côté de `permissions-trm.json`), **pas un
-  ALTER TABLE** — la table appartient à WinDev, le `.xdd` en est l'autorité, et ~15 lignes
-  à mapper ne valent pas une modification de schéma partagée difficile à annuler.
-- ⚠️ **`signUserId()` rend la même chaîne pour toujours, sur tout appareil** — donc un cookie
-  de compte privilégié serait copiable et irrévocable. La charge doit porter un `deviceId`
-  avant qu'un compte régleur existe. `cookieOptions()` est aussi `secure: false` : à épingler
-  sur `Secure` pour ce hôte le jour où le cookie porte un privilège.
-- ⚠️ **`atelier.malterre` a son PROPRE bocal à cookies** : `res.cookie()` ne pose pas de
-  `domain`, donc la session de `trm.malterre` ne suit pas. Bonne isolation, mais l'app porte
-  son propre chemin d'identification depuis le premier jour.
-- **L'identité bonnetier n'est PAS une authentification** : grille de visages +
-  `localStorage`, exactement le modèle de confiance du legacy (`SauveParamètre`) et du poste
-  de visitage (§45.4). Le garde-fou réel viendra de l'enrôlement d'appareil côté régleur.
-- **Dev** : `cd apps/atelier && VITE_API_URL=http://localhost:808N/api pnpm exec vite --port 5176`
-  (5176 est déjà dans le `CORS_ORIGIN` de l'API ; 5175 reste à l'ERP). `host: true` est
-  activé pour qu'un vrai téléphone du parc puisse taper le serveur de dev sur le LAN.
+- ⚠️ **Pas d'annulation** (le legacy en a une) ; **aucun téléphone ne peut écrire** tant
+  que le compte-poste n'existe pas et que personne ne détient `saisie_atelier`.
+- ⚠️ **Le libellé n'est pas la chaîne stockée** (« Fin de pièce » écrit `Fin du tricotage`),
+  et **la liste des actions est recalculée au serveur** : `apps/atelier/src/lib/actions.ts`
+  et `routes/atelier.ts` se changent ensemble, l'API faisant foi.
+- ⚠️ Le libellé d'un métier est `machine.emplacement`, l'**inverse** d'Atelier › Maintenance.
+- ⚠️ `signUserId()` rend la même chaîne pour toujours (cookie copiable) ; à traiter avant
+  qu'un compte régleur existe. `atelier.malterre` a son propre bocal à cookies.
+- Le legacy Android n'est pas PCS-compressé : `C:\Mes Projets\MPS\Android\dbg\Compile\`
+  est la spec (instantané du 24/03/2026).
 
 ## TRS — la tablette murale de l'atelier (`apps/trs`)
 
-Port de l'app WinDev `Appli_TRS` (`FEN_Main_App_TRS.wdw`) : **une tablette au mur de
-l'atelier** qui montre le plan du parc, une tuile par métier, avec l'état lu **dans la
-base** — jamais l'automate en direct. **Troisième app du monorepo**, hôte **`trs.malterre`**,
-port dev **5177**, version propre (`apps/trs/package.json`, démarrée à 0.0.1). Dossier de
-conception : **`~/.claude/plans/trs-atelier.md`** — la spec du calcul y est citée verbatim.
+Port de `Appli_TRS` : **une tablette au mur** montrant le plan du parc, une tuile par métier,
+état lu **dans la base** (jamais l'automate). **Troisième app**, hôte **`trs.malterre`**
+(en ligne), port dev **5177**, version propre. Passive, lecture seule, **aucune identité ni
+cookie**. API `GET /api/trs/atelier` (`routes/trs.ts`), calcul pur et testé dans
+`lib/trs-trm.ts`, poll 10 s. Conception : `~/.claude/plans/trs-atelier.md`.
+**Dossier complet : `claude_doc/trs-tablette.md`** (formule, deltas assumés, plan du parc,
+tuile, barèmes, ⓘ, bandeau, logo, `--u`).
 
-**Ce n'est PAS `apps/atelier`** (l'app de saisie des bonnetiers) : écran passif, lecture
-seule, **aucune identité, aucun droit, aucun cookie** — le même statut que consulter le
-poste de visitage. Décision `TRS/CLAUDE.md` du 2026-08-28 : le collecteur Modbus reste dans
-le dépôt TRS, la vitrine vit ici.
-
-- **API** : `GET /api/trs/atelier`, route `ETM/apps/api/src/routes/trs.ts`, calcul pur et
-  testé dans `lib/trs-trm.ts` (18 tests). Sonde `scripts/probe-trs-trm.ts`
-  (`TRS_API_URL=…`, lecture seule — **à rejouer sur la prod après `/etm_deploy`**, c'est
-  le seul exercice du chemin Linux). La tablette interroge toutes les 10 s.
-- **La formule est celle de `FI_TRS`** (procédure `MAJAffichageAtelier`), fournie par
-  l'utilisateur le 2026-08-28 — la fenêtre de la tablette est PCS-compressée et son
-  `TRSEquipeEnCours` irrécupérable. Par métier, sur **l'équipe en cours** (5–13 / 13–21 /
-  21–5, les bornes de `equipeAt`) bornée à maintenant : `TRS = temps en marche /
-  (temps de production − arrêts déductibles)`, où le temps de production est le temps
-  d'OF en cours, le temps en marche vient d'`evenement_machine`, et les déductibles sont
-  `min(60 s, arrêt)` par arrêt machine + **3 min par Nettoyage (6 avec lycra) + 5 min par
-  fin de pièce (8 avec lycra)** — lycra = `asso_fil_matiere.IDMatière IN (4, 13)`. Les
-  « arrêts » sont les arrêts machine **moins un par événement pièce**. ⚠️ **Le TRS dépasse
-  100 %** quand les forfaits dépassent l'arrêt réel — c'est le 106 % / 115 % de la
-  tablette legacy, pas un bug.
-  - **Trois deltas assumés** (dossier §4.2) : le temps de production est l'**union** des
-    fenêtres d'OF (ce que dit le commentaire du code legacy, « 2 + 3 = 5 h », alors que le
-    code n'en gardait qu'une) ; l'état à l'ouverture de l'équipe vient du **dernier
-    événement avant l'équipe** (un métier qui tourne 8 h sans transition est à 100 %, le
-    legacy le mettait à 0) ; tout arrêt commencé en production compte.
-  - Cet état initial est **caché par équipe** côté API (30 `TOP 1` une fois par équipe,
-    pas à chaque poll).
-- **Le plan du parc est le dessin de l'utilisateur, pas la tablette legacy** — qui
-  dessinait un 1B inexistant et oubliait 3K. Au sol : rangée 3 (3A…3K, onze), une allée
-  transversale, puis 2A…2J et 1A…1J avec deux allées longitudinales après B et avant I ;
-  **1B est un emplacement vide** (la place existe, pas le métier — vérifié en base : 30
-  métiers vivants, `adresse_automate` 2 inutilisée). `apps/trs/src/lib/plan.ts`, clé
-  `machine.emplacement` ; un métier hors plan n'est pas perdu, le pied de page le nomme.
-  - ⚠️ **À l'écran le plan est TOURNÉ de 180°** (correction utilisateur du 2026-08-28) :
-    la tablette est au mur que l'opérateur regarde, l'allée transversale dans son dos,
-    donc il voit le sol depuis l'autre côté — **1A en haut à droite**, rangées 1 puis 2
-    en haut lues de droite à gauche (1J … 1A), l'allée transversale sous elles (vers le
-    spectateur), rangée 3 le long du bas (3K … 3A), allées longitudinales **après I et
-    après C** dans ce sens de lecture. La rotation vit dans `plan.ts` (`RANGEES_HAUT` /
-    `RANGEE_BAS`), jamais en CSS — un `rotate` retournerait aussi le texte.
-- **Tuile = le jeu legacy** (décision du 2026-08-28) : tr/min en marche ou **« 7 min
-  arrêté » à l'arrêt** (le libellé est `arrêté` sous la durée — le « depuis » du legacy se
-  lisait comme un mot égaré, correction utilisateur du 2026-08-28), TRS, **arrêts / pièce** ;
-  métier sans OF démarré = tuile grisée, libellé seul.
-  - ⚠️ **La pastille « arrêts » n'est PAS le compte d'équipe de FI_TRS** (`calculerTrs.arrets`,
-    ce qu'elle affichait jusqu'au 2026-08-28, gardé dans le payload comme `arretsEquipe`).
-    C'est le **`NombreArrets` de la tablette legacy**, récupéré dans le cache de
-    compilation (`FEN_Main_App_TRS.CB86C13A.wdw.wcw`, trois requêtes en clair) : **par
-    pièce**, les arrêts machine (`evenement_machine.etat = 0` entre `date_debut` et
-    `date_fin` de la pièce) **moins les événements déclarés sur la pièce** (tout
-    `evenement_piece` sauf « Début du tricotage »), plancher 0. Le legacy prenait les
-    2 dernières pièces (`LIMIT 2`) et son WLanguage est compressé (somme ou moyenne :
-    inconnu). Décision utilisateur du 2026-08-28 : **la MOYENNE par pièce sur les 3
-    dernières pièces TERMINÉES de l'OF actif** (`ARRETS_PIECES`, `lib/trs-trm.ts`
-    § Arrêts par pièce) — une fréquence comparable entre métiers ; pièces terminées
-    seulement (une pièce ouverte a moins d'arrêts parce qu'elle n'est pas finie) ; dans
-    l'OF, comme le legacy (un nouvel OF est une vraie remise à zéro) ; **aucun filtre de
-    faux arrêts** (la tablette n'en avait pas). « — » et pastille grise tant que l'OF n'a
-    pas de pièce terminée. Côté API la moyenne est **cachée par (OF, ids des dernières
-    pièces)** : elle ne peut changer qu'à une fin de pièce, donc elle n'est recalculée
-    qu'à ce moment-là, pas à chaque poll.
-  - En dev la pastille est à 0 partout : les pièces des OF actifs sont celles de mars (ou
-    celles du seed de visitage) et `evenement_machine` n'a rien dans ces fenêtres. Sur
-    octobre 2025 (données denses) le calcul donne 1,7 / 2,7 / 4,7 / 8 / 11 arrêts par
-    pièce selon l'OF — donc le barème ≤ 1 / ≤ 3 / > 3 est à rejuger sur la prod.
-  **L'état machine colore TOUTE la carte** (bord 2 px, bandeau 20 %, corps 10 % — le
-  patron des cartes de rouleau du visitage ; décision utilisateur du 2026-08-28, un simple
-  liseré §41 était trop discret pour un mur lu à travers l'atelier), et donc **les
-  pastilles de valeur sont pleines** (blanc sur la couleur du barème, comme le legacy) :
-  rien de posé sur ce corps ne peut être un lavis de la même teinte. Barème TRS = legacy
-  (≤ 0,8 rouge, ≤ 0,9 ambre). ⚠️ **Trois barèmes sont des approximations** (dossier
-  §4.3, à trancher) : la vitesse est colorée **relativement à `ref_ecru.vitesse_cible`**
-  (90 % / 75 % — la photo montre 18 vert et 14 rouge, donc pas l'absolu `< 20 / < 25`
-  de FI_TRS), les arrêts par pièce (≤ 1 / ≤ 3 / > 3 — la photo montrait 0 vert, 4–5 ambre,
-  9 rouge sur le `NombreArrets` legacy à 2 pièces, relu par pièce), « arrêté » rouge
-  à 5 min. Tout est dans `lib/affichage.ts`, testé.
-  - **Deux seuils tranchés le 2026-08-28, à ne pas « harmoniser » entre eux** : la minute
-    d'intervention du TRS reste à **1 min** (le « temps de production possible » est celui
-    d'un atelier de bonnetiers idéaux qui réparent aussi vite qu'il est pratiquement
-    possible — le temps de diagnostic est précisément ce que le TRS mesure), et le
-    « depuis » rouge à **5 min** est un seuil de **fiabilité** contre les fausses cartes
-    rouges (micro-arrêts, parasites automate), pas un temps accordé. Le dialogue ⓘ le
-    formule ainsi (« passe au rouge au bout de 5 minutes », jamais « vous avez 5 minutes »).
-- **Le pied de page est un instrument, pas une décoration** : il donne l'heure du dernier
-  événement du parc et passe en ambre au-delà d'une heure de silence — le recorder n'a
-  aucun battement surveillé (`TRS/docs/recorder.md`), et un automate éteint ressemble
-  exactement à un atelier arrêté. Une lecture qui échoue garde le dernier plan à l'écran
-  et le dit (« Hors ligne »), jamais un écran blanc.
-- ⚠️ **En dev, les chiffres sont faux et c'est la base** : `ordre_fabrication` y est
-  l'instantané de mars alors qu'`evenement_machine` est vivante — d'où des « depuis
-  291 j » et des OF à 0 %. Juger la parité sur la prod, avec la sonde.
-- **Tout est dimensionné en `--u`** (`index.css`, `min(1vw, 1.6vh)` — 12,8 px à
-  1280 × 800) : tailles de texte, paddings, allées, bandeau. C'est ce qui fait tenir le
-  même plan sur une Galaxy Tab A9+ (~960 × 600 px CSS) et sur une 12" — les paliers
-  Tailwind ne servent à rien ici, il n'y a qu'un écran et il doit remplir la dalle. Les
-  petits libellés ont un plancher de 9 px (`max(9px, …)`).
-- **Bandeau** : le mot-symbole, l'équipe au centre, le TRS atelier à droite, puis le ⓘ — rien d'autre. Le nom « TRS · Atelier » et les trois compteurs du parc ont été retirés (demande utilisateur du 2026-08-28) ; le `parc` de l'API les porte toujours.
-- **Le ⓘ ouvre « Comment le TRS est calculé »** (`components/InfoTrsDialog.tsx`, dialogue
-  bandé §18.D fait main — pas de Radix ici — en `--u`), écrit pour les gens de l'atelier :
-  la formule (une seule ligne, « TRS = temps de marche réel ÷ temps de production
-  possible », rien dessous — décision utilisateur), **« Temps de production géré depuis le
-  téléphone »** (un **flux**, pas une liste : Démarrer l'OF → Interrompre ⇄ Relancer →
-  Terminer, chaque étape avec son moment en petit et ses **étiquettes de rôle** dessous,
-  RÉGLEUR partout et BONNETIER en or sur Terminer seulement — précision utilisateur du
-  2026-08-28 : le bonnetier peut aussi terminer l'OF en fin de production ; la carte disait
-  « géré par les régleurs » avec trois chips, puis une phrase posée en ligne après les
-  chips, refusée comme « particulièrement moche » — + la note : un OF oublié en cours fait
-  baisser le TRS — sa propre carte, en premier après la formule), ce qui est déduit (trois lignes nues + la pastille « > 100 % »
-  designée), **« Les arrêts »** (UNE phrase disant ce qu'est la valeur — « arrêts anormaux
-  par pièce, en moyenne sur les 3 dernières pièces terminées de l'OF » — et une note « mis
-  à jour à chaque fin de pièce » ; **pas de mécanique +1 / −1**, retirée à la demande de
-  l'utilisateur le 2026-08-28 ; posée à côté de « Ce qui est déduit » pour tenir sur un
-  écran 1280 × 800), l'équipe, les couleurs de la tuile (quatre pastilles, arrêts / pièce
-  compris) — six cartes, pas plus : « TRS atelier » a été retirée, **et il n'y a pas de
-  pied de dialogue** (pas de
-  « Fermer » : le ✕ du bandeau, Échap et le fond suffisent — rien à confirmer). **Aucun
-  chiffre n'y est un littéral** : tout vient de `lib/regles.ts`, dont
-  `regles.test.ts` importe **directement le fichier de l'API**
-  (`ETM/apps/api/src/lib/trs-trm.ts`, sans import, ETM étant déjà un frère obligatoire) et
-  épingle les barèmes de `affichage.ts` — changer l'API d'abord, le test dit quand suivre.
-  Le dialogue montre les forfaits **bruts** que vit le bonnetier (nettoyage 4 / 7 min, fin
-  de pièce 6 / 9 min, la minute d'intervention comprise — les chiffres du commentaire
-  legacy), l'API stockant les nets (3 / 6, 5 / 8).
-- **Logo** : le seul mot-symbole blanc `logo-full.png` dans le bandeau — le vrai logo
-  Malterre, pas la lettre M en texte, et pas le badge M non plus (décisions utilisateur
-  du 2026-08-28, en deux temps). **En dev (`import.meta.env.DEV`) c'est le badge DEV**
-  (`public/logo-dev.webp`, celui de la sidebar de l'ERP), centré dans une cellule de la
-  largeur du mot-symbole (8u) pour que le centre du bandeau ne bouge pas entre dev et prod.
-- **Le plan est un sol** : `main` en `bg-sand-darker` (le béton chaud), les cartes
-  opaques dessus (blanc cassé pour un métier sans OF, `emerald-50` / `red-50` en
-  production), et **les allées en ardoise OPAQUE (`bg-slate-400`), continues** — opaques parce qu'elles se chevauchent aux jonctions, et qu'un lavis y imprimait le recouvrement plus foncé — le bloc bas est
-  UN seul grid (depuis la rotation : le bloc du HAUT, rangées 1 et 2) où l'allée
-  transversale occupe la dernière ligne et les deux allées longitudinales s'étendent sur
-  les trois lignes, du bord haut jusque dans la transversale, pour que les traits du
-  dessin se rejoignent (`BlocHaut` dans `pages/Atelier.tsx`, correction utilisateur du
-  2026-08-28). Ne pas revenir à une allée par rangée : c'est ce qui les coupait.
-- **Dev** : `cd apps/trs && pnpm exec vite --port 5177`, `.env.local` (gitignoré) portant
-  `VITE_API_URL=http://localhost:808N/api`. 5176 et 5177 sont dans `TRM_PWA_PORTS` de
-  `ETM/scripts/worktree/lib.mjs`, donc dans le CORS de toute API de worktree.
-- **Reste à faire** : l'hôte de prod `trs.malterre` (même travail que `atelier.malterre`,
-  ni l'un ni l'autre n'est fait) et la tablette en mode kiosque.
+- **La formule est celle de `FI_TRS`** : `TRS = marche / (temps d'OF − déductibles)` sur
+  l'équipe en cours (5–13 / 13–21 / 21–5), déductibles = min(60 s, arrêt) + 3 min par
+  Nettoyage (6 avec lycra) + 5 min par fin de pièce (8 avec lycra). ⚠️ **Le TRS dépasse
+  100 %** quand les forfaits dépassent l'arrêt réel — pas un bug.
+- ⚠️ **Le plan est tourné de 180°** à l'écran (1A en haut à droite) et la rotation vit dans
+  `plan.ts`, jamais en CSS. **1B est un emplacement vide.**
+- ⚠️ La pastille « arrêts / pièce » n'est **pas** le compte d'équipe : moyenne sur les 3
+  dernières pièces terminées de l'OF actif, cachée par (OF, ids). Trois barèmes sont des
+  approximations (`lib/affichage.ts`, dossier §4.3) ; les seuils 1 min / 5 min ne
+  s'harmonisent pas.
+- ⚠️ **Aucun chiffre du dialogue ⓘ n'est un littéral** : `lib/regles.ts`, dont le test
+  importe directement `ETM/apps/api/src/lib/trs-trm.ts`.
+- En dev les chiffres sont faux (instantané de mars) : juger la parité sur la prod avec
+  `scripts/probe-trs-trm.ts`.
 
 ## Production / deploy
 
@@ -336,1134 +196,254 @@ All other screens are `PagePlaceholder`s for now. Legacy references for each dom
 
 ### Commandes clients data model (legacy, shared HFSQL)
 
-- Le registre TRM, c'est `commande_client` / `ligne_commande_client` **scopés `IDsociete = 2`** — les mêmes tables que l'écran ETM, autre partition. Une ligne TRM est toujours `TYPE = 1` (écru) et se compte en Kg : TRM tricote du tombé métier, rien d'autre.
-- ⚠️ **Une commande dont `IDcommande_ETM > 0` est un miroir d'une commande sous-traitant ETM, et elle est en LECTURE SEULE ici.** ETM pilote son entête et ses lignes et les redescend ; il n'y a **pas** de synchro retour, donc une écriture côté TRM diverge en silence. C'est le cas courant, pas le cas limite : 93 % du registre. L'écran masque Modifier / l'édition des lignes / la clôture, et l'API refuse en 409 (`commande_miroir_etm`). Seules les commandes natives (`IDcommande_ETM = 0`) sont éditables.
-- Le suivi d'une ligne passe par la **production**, pas par la réservation de stock comme côté ETM : `ordre_fabrication.IDligne_commande_client` → pièces sur **`stock_ecru.IDLigne_Commande_TRM`** (surtout pas `IDligne_commande_client`, qui reste à 0 sur les lignes TRM) → `ligne_expedition` via `IDligne_expedition_TRM`. « Produit » = somme des poids de ces pièces ; « expédié » = celles dont `IDligne_expedition_TRM > 0`.
-- La pastille « 37 % » de la fiche ligne du legacy est la **marge** : `(prix − PrixDeRevientTRM) / prix`. Elle vit dans `ETM/apps/api/src/lib/pricing-trm.ts`, comme le calcul du tarif suggéré — mais ce sont deux fonctions distinctes, pas interchangeables.
-- **Le tarif suggéré à la saisie d'une ligne = `max(PrixDeRevientTRM, ref_ecru.prix) / 0,7`** (règle `'cost-floor'`, décision utilisateur du 2026-08-26). `ref_ecru.prix` est la **base sûre** : c'est un plancher sur le *coût*, donc la plus haute des deux assiettes porte les 30 % de marge et une commande client TRM ne sort jamais sous base + 30 %. Le dialogue affiche laquelle des deux a été retenue — sans ça les deux apps annoncent des chiffres différents sans explication.
-  - ⚠️ **Ce n'est PAS `trmLinePrix`**, qui reste sur la règle legacy `'price-floor'` (`max(cost / 0,7 ; base)`, la base gagne à plat quand elle est la plus haute). `trmLinePrix` price les lignes de **sous-traitance ETM → TRM** et doit continuer à coller au WinDev qui les écrit encore (vérifié 15/15 sur les lignes miroir récentes, ex. réf. 4 @500 kg stockée à 2,07 € = la base nue). Les deux règles diffèrent de ~+39 % en valeur : ne pas les « unifier » sans trancher aussi le prix de transfert intercompany.
-  - ⚠️ **Le legacy, lui, ne calcule rien sur cet écran** : l'événement « sélection d'une ligne » de `COMBO_Reference` dans `FEN_Gestion_d_une_référence_de_commande_client` lit `ref_ecru.prix` et s'arrête là (récupéré du cache de compilation WinDev). D'où un tarif proposé visiblement plus bas côté legacy — c'est attendu, pas une régression. Les lignes natives historiques sont de toute façon négociées : sur 491 lignes type 1 avec prix, 315 sont *sous* le prix catalogue et 158 au-dessus.
-- `ligne_commande_client.prix` est un **réel 4 octets** : un prix enregistré à 2,88 se relit 2.880000114440918. Tout champ de saisie qui le réaffiche doit arrondir le bruit flottant (4 décimales suffisent — les lignes miroir ETM portent de vrais prix à 4 décimales).
-- Autres sources du tiroir Progression : `composition_ecru` → `stock_fil` (onglet Stock de fil ; le « potentiel » est borné par le composant le plus rare du mélange) et `ref_ecru_machine` → `machine.nom` (le « Compatible sur : 1H, 3F… » du pied de page).
-- ⚠️ **L'onglet Stock de fil est scopé au CLIENT DE LA COMMANDE.** TRM tricote **à façon** :
-  le fil est fourni par le client, donc une commande ne peut tourner que sur les lots que
-  *son* client possède. `stock_fil` n'est pas partitionné par société — `IDclient` est la
-  seule chose qui dit à qui appartient un lot. Les trois filtres sont ceux de la requête
-  legacy, verbatim : `IDclient = <client de la commande>`, `IDMagasin = 1` (le magasin
-  TRM), `terminé = 0`. Sans eux, l'onglet proposait le lot 10131 (Ets Malterre) sur la
-  commande 2799 (Bonneterie Gautier) — et l'inverse aussi, des lots Gant Maille ou La
-  Gentle Factory sur des commandes Ets Malterre (remonté par l'utilisateur le 2026-08-26,
-  garde `ETM/apps/api/src/scripts/check-stock-fil-commande-trm.ts` : 5 lots retirés sur
-  4 des 15 lignes ouvertes, tous appartenant à un autre client).
-  - ⚠️ **`stock > 0` n'équivaut PAS à `terminé = 0`** : 3 lots sont archivés avec du stock
-    dessus. Les deux filtres sont nécessaires.
-  - `terminé` est accentué, donc lecture **scindée par plateforme** (`archivedLotIds`) :
-    Windows accepte l'identifiant dans un WHERE mais rend zéro ligne sur `SELECT *` (colonnes
-    memo-binaires), le pont Linux est l'exact inverse. Aucune forme ne marche des deux côtés.
-  - Conséquence assumée : sur ces 4 lignes l'onglet est désormais **vide**, et c'est la
-    vérité (le client n'a pas fourni de fil pour cette référence). L'état vide nomme donc le
-    client — « Aucun lot de fil de Bonneterie Gautier pour cette composition » — sinon il se
-    lit comme un écran cassé, le fil étant bien au magasin mais sous un autre propriétaire.
+`commande_client` / `ligne_commande_client` scopés `IDsociete = 2` ; une ligne TRM est
+`TYPE = 1` en Kg. Suivi par la production : `ordre_fabrication.IDligne_commande_client` →
+`stock_ecru.IDLigne_Commande_TRM` → `ligne_expedition` via `IDligne_expedition_TRM`.
+**Dossier complet : `claude_doc/commandes-clients.md`** (modèle, tarif, tiroir Progression,
+« Créer un OF », confirmation Imprimer / Email).
 
-#### « Créer un OF » depuis l'onglet Stock de fil
-
-Le tiroir Progression d'une ligne : on coche les lots de fil à tricoter dans l'onglet
-**Stock de fil**, un bouton **Créer un OF** apparaît dans le pied de l'onglet, et il ouvre le
-dialogue de création avec la ligne imposée et les lots affectés aux positions de la
-composition qu'ils peuvent alimenter. Port du bouton legacy en bas à droite du même onglet.
-
-- **Le bouton est sous `edit_of`**, la clé de Production › Gestion des OF — pas
-  `edit_commandes_client`, qui garde la commande et non la production. C'est la même clé que
-  `POST /of-trm` exige, sinon le bouton ouvrirait le dialogue pour finir en 403.
-- **Le bouton n'apparaît que si CHAQUE fil de la composition a un lot coché** (décision
-  utilisateur du 2026-08-26) : un OF à qui il manque un de ses fils n'est pas tricotable, et
-  le dialogue s'ouvrirait avec un composant sans lot. La couverture se teste contre
-  `composants` — la liste complète des couples (fil, coloris) de la référence renvoyée par
-  `/stock-fil`, **y compris ceux dont ce client n'a aucun lot**, cas que `lots` ne sait pas
-  exprimer. Tant que ce n'est pas couvert, le pied de l'onglet nomme le fil manquant au lieu
-  de laisser le bouton mystérieusement absent.
-- **Le dialogue est partagé, pas dupliqué** : `apps/web/src/components/of/CreateOfDialog.tsx`,
-  ouvert aussi par Production › Gestion des OF (« Nouveau », où l'utilisateur choisit la
-  ligne). La différence entre les deux entrées est une prop (`presetLigneId` +
-  `presetLotIds`), jamais une copie. Il a été sorti de `ProductionOf.tsx` pour ça et porte
-  toute la fenêtre legacy : visitage, nettoyage, finir le fil, ouvert au large, maille
-  d'ouverture, sonneter, consigne, **Ajouter un fil** et **Incorporer un fil**. Les deux
-  sélecteurs de fil vivent dans `components/of/FilPickers.tsx`, partagés avec la fiche OF.
-- **Écran scindé, comme la fenêtre legacy** (`mps_designer` §18.C, `max-w-5xl`) : à gauche
-  **l'OF lui-même** — ses réglages (métier, poids/pièce, quantité, nb pièces, visitage,
-  nettoyage, options) et ses fils ; à droite **ce que le régleur lit puis écrit** — les
-  « Commentaires historiques » de la référence, la consigne au bonnetier et l'activation
-  automatique. La consigne est juste sous les commentaires : elle s'écrit le plus souvent
-  en réponse à eux. Sous `lg`, les colonnes s'empilent et le corps défile d'un bloc.
-- **Trois niveaux de fond, tous chauds** (décision utilisateur du 2026-08-26, après deux
-  essais refusés — corps zinc « nulle part dans les logiciels Malterre », puis blanc pur
-  « agressif ») : feuille de gauche `bg-secondary` (38 12% 96 %), panneau de droite
-  `bg-sand` (38 20% 93 %, un cran plus foncé pour qu'il se lise comme un panneau), et
-  **blanc pur par-dessus** — les cartes, les champs, les tableaux. Les bandeaux d'en-tête
-  et de total des tableaux sont en `bg-sand`, jamais en zinc : le gris froid est le langage
-  des tiroirs et des panneaux d'écran, il vire boueux sur une feuille chaude.
-- **Chaque section est une `Card` `card-premium` de l'app**, pas une mise en page maison :
-  même surface blanche arrondie, même ombre bleutée, même en-tête (icône dorée 4×4 +
-  `CardTitle text-sm font-semibold`), mêmes libellés de champ que le `KV` de la fiche OF.
-  Une version intermédiaire regroupait par « titre + filet », ce qui organisait la même
-  chose correctement mais dans un vocabulaire que l'app n'emploie nulle part — c'est ce qui
-  faisait que le dialogue ne ressemblait pas au reste. Les deux déclencheurs « Ajouter »
-  vivent dans l'en-tête de leur carte (`action`), à la manière de la barre d'outils legacy.
-- **Le sélecteur de métier ne liste que les métiers compatibles** (`ref_ecru_machine`, la
-  même source que le « Compatible sur : … » du tiroir). Sur les 11 références des commandes
-  ouvertes, aucune n'est sans fiche machine et 8 en listent 1 à 3 — contre 37 métiers au
-  parc : proposer le parc entier revenait à faire chercher 3 lignes dans 37. Repli s'il
-  n'existe aucune fiche pour la référence : le parc complet, et le champ dit pourquoi
-  (sinon l'OF serait tout simplement impossible à créer).
-- **La composition est un brouillon éditable, pas le seed relu.** % modifiable, ligne
-  retirable, fil ajoutable hors fiche écru — et c'est nécessaire : `POST /of-trm` exige au
-  moins une ligne, donc une référence sans `composition_ecru` ne serait **pas lançable** si
-  le dialogue ne servait que le seed. Le total des pourcentages passe en ambre dès qu'il
-  s'écarte de 100 (le legacy affiche le même total).
-- **Les fils incorporés se posent à la création** : `POST /of-trm` accepte un tableau
-  `incorpore` (mêmes lignes que `PUT /:id/incorpore`), sinon il aurait fallu créer l'OF
-  puis le modifier dans la foulée.
-- **« Observations Régleur » = `obs_ref_ecru`, PAS `message_of`.** Ce sont les consignes
-  durables portées par la **référence écru** (« Attention risque de trous », « Faire
-  impérativement des pièces de 21 kgs minimum »), écrites dans l'onglet « Obs OF » de la
-  fiche référence du legacy, et **portées par métier et par coloris** — `IDmachine = 0` vaut
-  « Toutes », `IDcolori_ecru = 0` vaut « Tout coloris ». Le lancement est le moment où elles
-  comptent : le régleur voit l'historique de cette référence sur ce métier et le répercute
-  aux bonnetiers. Endpoint `GET /of-trm/lookups/observations?ligne=&machine=`, dont le
-  prédicat est celui du legacy récupéré **verbatim dans le cache de compilation WinDev**
-  (`FEN_Gestion_d_un_OF` / `FI_Gestion_OF`) :
-  `IDref_ecru = :ref AND (IDmachine = :machine OR IDmachine = 0) AND (IDcolori_ecru = :colori
-  OR IDcolori_ecru = 0) ORDER BY date DESC`. Tant qu'aucun métier n'est choisi, `machine = 0`
-  ne fait donc remonter que les observations « Toutes » — le dialogue le dit au lieu de
-  laisser croire qu'il n'y en a aucune. `date` est un mot réservé (aliasé au SELECT), et les
-  libellés sont résolus à plat, jamais par le JOIN du legacy (le pont Linux mange les accents
-  en jointure).
-  - **La saisie est portée depuis le 2026-08-27** — voir « Observations régleur » plus bas.
-    Le dialogue de création, lui, reste en **lecture seule** sur ce bloc : on lance un OF,
-    on n'écrit pas la doctrine de la référence au même moment.
-- ⚠️ **« Ajouter un fil » sert à DEUX choses**, confirmées par le régleur puis dans le
-  registre (2026-08-26) — la seconde avait été ratée au premier port :
-  1. **Tricoter un fil absent de la fiche écru**, comme variation volontaire de la
-     référence (souvent pour écouler du stock interne sans impact client). 271 OF sur
-     3 175 en portent un ; par année 37 % en 2020, puis 2,8 / 4,7 / 1,6 / 5,5 % de 2023 à
-     2026 — le pic ancien est surtout de la dérive de composition, le résidu récent est du
-     vrai écart. La traçabilité que ça demande **existe déjà** : l'OF fige sa propre
-     `asso_fil_of` et ne relit jamais `composition_ecru`.
-  2. **Servir une même part du mélange depuis PLUSIEURS lots.** Sur 105 groupes
-     (OF, fil, coloris) à 2 lignes ou plus dans `asso_fil_of`, **83 sont sur le même lot**
-     (vraies positions d'alimentation dupliquées, cf. la règle ci-dessous) et **22 sur des
-     lots différents**, dont 18 portent plus de lignes que la référence n'en déclare, le
-     pourcentage étant **éclaté** et non dupliqué : réf 97 % → OF 70 + 27 ; réf 95 % →
-     47,5 + 47,5 ; réf 31 % → 15,5 + 15,5. Le dialogue le permet déjà (ajouter deux fois
-     le même fil, un lot par ligne).
-  Ne pas confondre le cas 2 avec la règle des positions d'alimentation plus bas : les deux
-  produisent des lignes en double sur le même couple (fil, coloris), et c'est **le lot**
-  qui les distingue.
-- **Les deux usages ont chacun leur affordance** (livrés le 2026-08-26, à la demande de
-  l'utilisateur après retour du régleur) :
-  - **« compléter » sur une ligne courte** (icône `Split`, le vocabulaire de « Diviser »
-    de Fils › Stock) : quand le lot choisi ne couvre pas le besoin, le bouton éclate la
-    ligne en deux — la première garde ce que le lot couvre (`stock / quantité × 100`,
-    arrondi au centième), la seconde reçoit le reste sans lot, et **hérite de la liste de
-    lots de sa source** pour que son sélecteur soit prêt sans second appel. La sœur
-    s'insère juste sous sa source, pas en fin de tableau. N'existe **que dans le dialogue
-    de création** : la ligne d'édition de la fiche OF ne connaît pas la quantité, donc ni
-    le besoin ni « court ».
-  - ⚠️ **Le test de manque est par LOT, jamais par ligne.** Deux lignes peuvent
-    légitimement tirer du même lot (positions d'alimentation : 83 des 105 groupes en
-    double du registre), donc « ce lot est-il pris deux fois ? » est la mauvaise question ;
-    la bonne est « les lignes lui demandent-elles ensemble plus qu'il ne contient ? ».
-    Tant que le test était par ligne, un « compléter » repointé sur son propre lot source
-    s'affichait au vert alors que les deux moitiés tiraient sur le même stock — 54,2 +
-    45,8 Kg pris à un lot de 54,2 Kg (remonté par l'utilisateur le 2026-08-26). D'où
-    `besoinParLot` / `besoinAilleursParRow` dans le dialogue : une ligne dont le lot est
-    partagé affiche **« reste X Kg »** (ce qu'il lui laisse) au lieu de « stock X Kg », et
-    le sélecteur annonce « déjà N Kg pris par une autre ligne » sur les lots concernés.
-    **Ne jamais “corriger” ça en interdisant le doublon** : ça casserait les positions
-    d'alimentation.
-  - Reste ouvert : la même surconsommation reste possible depuis l'onglet composition de
-    la **fiche OF** (`CompositionEditRow`), qui n'a aujourd'hui aucun contrôle de stock —
-    lacune préexistante, pas une régression.
-  - **badge « hors réf »** (`components/of/HorsRefBadge.tsx`, partagé par le dialogue et
-    la fiche) sur tout fil absent de `composition_ecru`. Sans lui l'information n'existait
-    que dans la base : l'OF fige bien sa composition, mais rien ne la montrait, ni au
-    lancement ni six mois après — or c'est précisément l'intérêt de tracer une variation.
-    Côté fiche c'est l'API qui décide (`composition[].hors_ref` dans `GET /of-trm/:id`,
-    porté dans le brouillon d'édition) ; côté dialogue c'est calculé sur le seed, parce
-    qu'une ligne peut devenir hors réf et le redevenir pendant la saisie.
-    - **Neutre (`bg-accent/10`), jamais ambre** : une variation est une décision normale,
-      pas une anomalie — et sur les OF d'avant 2022 le marqueur attrape surtout de la
-      dérive de composition (la fiche de la référence a changé depuis), donc l'ambre
-      crierait au loup sur l'historique.
-    - **`false`, jamais `null`, quand la référence ne déclare aucune composition** :
-      « tout est hors réf » serait du bruit, pas de l'information.
-    - Garde : `ETM/apps/api/src/scripts/check-hors-ref-trm.ts` — 316 lignes marquées sur
-      5 064, 271 OF sur 3 175, et par année 37 % en 2020 → 1,6 / 5,5 % en 2025-2026.
-- **Le champ Lot ne porte que le numéro de lot ; son poids est un libellé à droite du
-  champ** (« stock 168,8 Kg », en rouge + ⚠ « · manque » quand le lot ne couvre pas le
-  besoin). Décision utilisateur du 2026-08-26 : on choisit un lot, et *ensuite* on lit son
-  poids comme une information. Concrètement le poids voyage en **`description`** de
-  `PopoverSelect` (rendu dans les lignes du popover seulement), **jamais en `secondary`**
-  — `secondary` est aussi concaténé sur le bouton, ce qui donnait un champ fermé lisant
-  « 10131 — 168,8 Kg ». Même règle dans les trois endroits qui listent des lots :
-  `CreateOfDialog`, `FilPickers.LotPickerPanel` et le `CompositionEditRow` de la fiche OF.
-- Sélection multi-lignes = **`mps_designer` §44** (ancre en `useRef`, MAJ+clic pour une
-  plage, `select-none` sur la ligne). `PanelTable` a gagné `selectedIds` + l'événement
-  transmis à `onRowClick` pour ça.
-- L'OF naît **en attente, en fin de file du métier** (c'est `POST /of-trm` qui le décide,
-  comme le flux legacy) : la création ne démarre rien, l'activation reste un acte distinct.
-- Un lot coché qui n'entre dans aucune position de la composition est **annoncé et ignoré**
-  (le cas normal : la sélection couvre deux écrus différents).
-
-#### Confirmation de commande (Imprimer · Envoyer par email)
-
-Les deux boutons de l'entête de la fiche, sur `GET /commandes-trm/:id/pdf`,
-`GET /:id/email-defaults`, `POST /:id/email`.
-
-- **Le PDF n'est PAS un template TRM** : les deux sociétés confirment une commande de la
-  même façon, donc c'est `ETM/apps/api/src/lib/pdf/CommandeClientPdf.tsx` — celui de l'écran
-  ETM — rendu avec **`company: companyTrm`** (obligation légale : TRM signe, donc pied de
-  page au SIRET / TVA / capital de Tricotage Malterre). Le composant a gagné pour ça deux
-  champs optionnels, `company` et la `designation` par ligne : améliorer ce fichier dans ETM,
-  ne jamais en forker une copie TRM. Précédent identique : `FacturePdf.data.company`.
-- **Deux écarts assumés avec le legacy** (ce sont les choix du document ETM) : le tableau
-  porte une colonne montant et un bloc de totaux (HT · remise · TVA · TTC) que le legacy
-  n'imprime pas, et la désignation écru s'affiche sous la référence à la place de la ligne
-  « V/ref ». La TVA vient de la fiche client (`loadClientTvaRate`) — un client export à 0 %
-  doit être confirmé à 0 %.
-- **Disponible aussi sur les commandes miroir.** La règle du miroir porte sur les
-  *écritures* : lire ce qu'ETM a commandé à TRM et le lui confirmer, c'est exactement ce
-  qu'est une confirmation de sous-traitance, et le legacy les imprime aussi. Les trois
-  routes 404 en revanche sur un id de société 1 — `commande_client` est un seul espace d'ids,
-  donc c'est le seul garde-fou de partition (script `check-commande-trm-pdf.ts`).
-- **Pas de CGV en pièce jointe**, contrairement à la confirmation ETM : ce sont les
-  conditions d'ETS Malterre, TRM n'a pas les siennes. L'envoi journalise dans `envoi_email`
-  avec `IDtype_doc = 7` (`notes` vide, comme la confirmation ETM) — aucun écran TRM ne le
-  relit aujourd'hui, c'est de la traçabilité.
+- ⚠️ **`IDcommande_ETM > 0` = miroir d'une commande sous-traitant ETM, LECTURE SEULE ici**
+  (93 % du registre) ; l'API refuse en 409 `commande_miroir_etm`.
+- ⚠️ **Tarif suggéré = `max(PrixDeRevientTRM, ref_ecru.prix) / 0,7`** (`'cost-floor'`),
+  **pas** `trmLinePrix` (`'price-floor'`, sous-traitance ETM → TRM, colle au WinDev). Ne pas
+  unifier sans trancher le prix de transfert intercompany.
+- ⚠️ **L'onglet Stock de fil est scopé au client de la commande** (`IDclient`, `IDMagasin = 1`,
+  `terminé = 0` — les trois, `stock > 0` ≠ `terminé = 0`). TRM tricote à façon.
+- ⚠️ **Une composition est une liste de POSITIONS D'ALIMENTATION, pas de fils** : lignes en
+  double légitimes, clés par `IDcomposition_ecru`, jamais regroupées par couple (fil,
+  coloris). Le test de manque de lot est **par lot**, jamais par ligne.
+- « Créer un OF » (`CreateOfDialog.tsx`, partagé avec Production › OF, sous `edit_of`)
+  n'apparaît que si chaque fil de la composition a un lot coché ; « Ajouter un fil » sert à
+  tricoter hors fiche **et** à servir une part depuis plusieurs lots (badge « hors réf »
+  neutre). `obs_ref_ecru` y est en lecture seule.
+- `ligne_commande_client.prix` est un réel 4 octets : arrondir le bruit flottant à l'affichage.
+- Le PDF de confirmation est `CommandeClientPdf.tsx` d'ETM rendu avec `company: companyTrm`,
+  disponible aussi sur les miroirs, pas de CGV, journal `envoi_email` `IDtype_doc = 7`.
 
 ### Clients › Expéditions data model — why it is NOT a shared screen
 
-`expedition` / `ligne_expedition` are shared tables partitioned by
-`expedition.IDsociete` (**TRM = 2**), but the two companies ship different
-merchandise, so the ETM screen could not take a `societe` param. TRM has its own
-screen (`apps/web/src/pages/ClientsExpeditions.tsx`) over its own endpoints
-(`ETM/apps/api/src/routes/expeditions-trm.ts`, mounted at `/api/expeditions-trm`):
+`expedition` partitionné `IDsociete = 2` mais marchandise différente d'ETM : écran propre
+(`ClientsExpeditions.tsx`, `routes/expeditions-trm.ts` → `/api/expeditions-trm`). Pièces =
+`stock_ecru.IDligne_expedition_TRM`, pool libre `IDLigne_Commande_TRM`, Textile seulement,
+avis d'expédition = `BonLivraisonPdf` `variant: 'trm'` (`companyTrm`).
+**Dossier : `claude_doc/clients-expeditions.md`.**
 
-| | ETM expédition (IDsociete 1) | TRM expédition (IDsociete 2) |
-|---|---|---|
-| Merchandise | finished rolls (`stock_fini.IDligne_expedition`) or bought écru (`stock_ecru.IDligne_expedition_ETM`); the line's `TYPE` decides | always tombé de métier it knitted: **`stock_ecru.IDligne_expedition_TRM`** |
-| Piece identity | lot + numéro + métrage + magasin | numéro + poids + **métier** (`ordre_fabrication.IDmachine` → `machine.nom`) + visitage défauts. `lot`, `metrage` are empty, `IDmagasin` is 0 |
-| Free-stock pool | `stock_*.IDligne_commande_client` | **`IDLigne_Commande_TRM`** — `IDligne_commande_client` is 0 on every TRM row |
-| Buckets | Textile / Diverses | Textile only — `expedition_divers` has **no** `IDsociete` column, so misc shipments are ETM-only |
-| Documents | avis d'expédition + rapport de contrôle + info matières (3-item print menu) | avis d'expédition only — the visitage findings ride in its Défauts column |
-
-**The handover rule (the one real footgun).** When TRM ships to ETS Malterre —
-which is most shipments — ETM's reception takes **ownership** of the piece: the
-legacy flow flips `stock_ecru.IDsociete` from 2 to 1 and stamps
-`lot = 'trm<IDexpedition>'`. So a delivered avis's pieces are no longer TRM rows.
-Reads therefore **never filter on IDsociete** (filtering would make every
-delivered avis read "0 pièces"); writes **require `IDsociete = 2`** and the API
-409s on any attempt to pull a received piece back off an avis, or to delete an
-avis holding one. Shipments to a third-party client (e.g. Bonneterie Gautier)
-keep their pieces at `IDsociete = 2`.
-
-Like ETM, the legacy **validé / dévalider** concept stays retired: an expedition
-is "non facturée" (editable) or "facturée" (`est_facture = 1`, or a definitive
-facture references one of its `ligne_expedition` rows) and then every write 409s.
-`est_valide` is written once at INSERT (0) and ignored. The accented
-`envoyé_client` / `envoyé_sst` columns (the legacy list's two checkboxes) are
-never named in SQL — that storms the Linux bridge — so they are not surfaced.
-
-The avis d'expédition PDF is the shared `BonLivraisonPdf` with `variant: 'trm'`
-(ports `ETAT_Expédition_TRM`): Tricotage Malterre's own footer (`companyTrm` in
-`lib/pdf/theme.ts` — its own SIRET/TVA/capital, a legal requirement), a Défauts
-column, no Métrage, and lots identified by *métier + lots Malterre + lots
-fournisseur* rather than a lot code. Grouping is per `ordre_fabrication`: every
-piece of an OF shares the machine and the yarn lots (`asso_fil_of` → `stock_fil`
-`lot` / `lot_frs`), which is exactly that header line. The legacy **CSV TAD**
-export is deliberately not ported.
+- ⚠️ **Handover rule** : la réception ETM bascule `stock_ecru.IDsociete` 2 → 1 et stampe
+  `lot = 'trm<IDexpedition>'`. **Les lectures ne filtrent jamais `IDsociete`**, les écritures
+  exigent `IDsociete = 2`, 409 pour retirer une pièce reçue.
+- Validé / dévalider retiré ; « facturée » ⇒ toute écriture 409. `envoyé_client` /
+  `envoyé_sst` accentués, jamais nommés en SQL.
+- ⚠️ **Six routes d'écriture sans aucune garde de droit** (voir Paramètres › Utilisateurs).
 
 ### Clients › Facturation — partitioned, but the SAME object as ETM's
 
-`facture` / `facture_prov` are partitioned by `IDsociete` like `stock_ecru`, but unlike it
-the two halves are the **same object** (same columns, same lifecycle, same screen). So the
-API is **one router factory mounted twice** — `createFacturesRouter(scope)` in
-`ETM/apps/api/src/routes/factures.ts` → `/api/factures` (ETM) + **`/api/factures-trm`**
-(TRM) — not a second route file. Everything société-dependent lives in one `FacturesScope`.
-When a future TRM screen hits a partitioned table, pick between the two shapes on that
-"same object?" test; don't default to copying `stock-ecru-trm.ts`.
+`facture` / `facture_prov` : même objet des deux côtés, donc **une fabrique montée deux
+fois** — `createFacturesRouter(scope)` → `/api/factures` + `/api/factures-trm`. Écran
+`ClientsFacturation.tsx`. **Dossier : `claude_doc/clients-facturation.md`.**
 
-The screen (`apps/web/src/pages/ClientsFacturation.tsx`) mirrors ETM's, with two
-deliberate deltas:
-- **Code comptable is exposed** in the Info tab (editable on a proforma). The legacy TRM
-  facture window shows it and TRM really varies it — 478 of its 512 invoices on "Vente à
-  façon", 33 on "Vente à façon internationale". It decides which sales account the XImport
-  export posts the HT half to. ETM's screen leaves it implicit.
-- **No "non envoyé" red liseré / counter pill.** TRM does not email its invoices: 511 of
-  512 definitive factures have no `envoi_email` row (ETM has 1 517 that do), so the
-  attention state would paint the whole list red — the noise `mps_designer` §41 rules out.
-  If TRM ever starts sending from this screen, reintroduce it **with a go-live date cutoff**
-  so the historical ledger stays neutral.
-
-Proforma generation reads the rolls through `stock_ecru.IDligne_expedition_TRM` (ETM uses
-`IDligne_expedition_ETM`) — the same physical roll carries both over its life, so reading
-the wrong column invoices the wrong shipment's weight.
+- Deltas : code comptable exposé (« Vente à façon » vs « … internationale ») ; **pas de
+  liseré « non envoyé »** (TRM n'envoie pas ses factures par email).
+- ⚠️ La proforma lit `stock_ecru.IDligne_expedition_TRM` (ETM : `_ETM`) — la mauvaise
+  colonne facture le poids d'une autre expédition.
+- Test pour tout futur écran sur table partitionnée : « même objet ? » → fabrique de
+  routeur ; sinon route propre (patron `stock-ecru-trm.ts`).
 
 ### Tombé Métier › Stock data model — why it is NOT a shared screen
 
-`stock_ecru` is partitioned by `IDsociete`, and the two halves are **different objects**,
-so the ETM screen could not simply take a `societe` param. TRM has its own screen
-(`apps/web/src/pages/TombeMetierStock.tsx`) over its own endpoints
-(`ETM/apps/api/src/routes/stock-ecru-trm.ts`, mounted at `/api/stock/ecru-trm`):
+`stock_ecru` société 2 est un **autre objet** que la moitié ETM (tricoté en interne, OF →
+métier, pas de magasin, expédié au client). Écran `TombeMetierStock.tsx`, API
+`routes/stock-ecru-trm.ts` → `/api/stock/ecru-trm`, lecture seule.
+**Dossier : `claude_doc/tombe-metier-stock.md`.**
 
-| | ETM écru (IDsociete 1) | TRM écru (IDsociete 2) |
-|---|---|---|
-| Origin | bought from a tricoteur | knitted in-house: `IDordre_fabrication` → `ordre_fabrication.IDmachine` → `machine.nom` (the métier), `IDpiece_production` for the visitage timings |
-| Storage | `IDmagasin` → `sous_traitant` | always 0 — TRM has no magasin dimension |
-| Next step | affected to an ennoblisseur (`IDref_commande_affectation`), then becomes a `stock_fini` | shipped to the customer, usually ETM |
-| "Still in stock" | `IDligne_expedition_ETM = 0` + no `stock_fini` child | `IDligne_expedition_TRM = 0` (~1k of ~6.7k rows) |
-| Client reservation | `IDligne_commande_client` | **`IDLigne_Commande_TRM`** — `IDligne_commande_client` is 0 on every TRM row |
-| Status filter | Disponible / En teinture / Tous | Disponible / Affecté / Tous — there is no teinture step in TRM's ledger |
-
-`lot` and `metrage` are empty on TRM rows, so neither gets a column. The chain
-`ligne_commande_client → commande_client → client` is identical, so
-`resolveClientReservations` is **exported** from `stock-ecru.ts` and reused rather than
-duplicated — same for `fetchDefectsByEcru` / `defautSummary`.
-
-The screen is read-only: pieces are created and closed by the production/visitage flow,
-never edited from here. **Une exception : le tiroir réimprime l'étiquette Dymo du
-rouleau** (bouton imprimante de l'en-tête), sur le même
-`GET /visitage-trm/etiquettes?ids=<IDstock_ecru>` que le poste appelle à la validation —
-une étiquette se déchire ou se mouille des mois après la visiteuse, et le seul chemin de
-retour était de revalider une pièce. Ça n'écrit rien, donc ça reste dans un écran en
-lecture seule et sans droit (mêmes raisons qu'au poste). Le bouton est **désactivé quand
-`IDordre_fabrication` est nul** : c'est le garde-fou de partition de l'endpoint, donc ces
-rouleaux-là 404 au lieu d'imprimer.
-⚠️ **`GET /visitage-trm/etiquettes` a donc DEUX appelants maintenant**, plus le
-`?demo=N` sans appelant — le toucher demande de vérifier le poste *et* ce tiroir.
+- Réservation client = `IDLigne_Commande_TRM` ; « en stock » = `IDligne_expedition_TRM = 0` ;
+  filtres Disponible / Affecté / Tous. `resolveClientReservations` et
+  `fetchDefectsByEcru` sont **exportés** de `stock-ecru.ts`, pas dupliqués.
+- Le tiroir réimprime l'étiquette Dymo via `GET /visitage-trm/etiquettes?ids=` (désactivé
+  si `IDordre_fabrication` nul) — ⚠️ cet endpoint a **deux appelants**, poste compris.
+- ~1 000 pièces : le double rendu §27 est gardé par `useIsDesktop()` (voir React rules).
 
 ### Clients › Gestion (`/clients/gestion`) — port of `FI_Gestion_Client_TRM.wdw`
 
-"Classeur" layout (`mps_designer §39`): left list · detail header · master-tabbed center · Info/Contacts/Adresses sidebar. Screen `apps/web/src/pages/ClientsGestion.tsx`; API `ETM/apps/api/src/routes/clients-trm.ts` (mounted `/api/clients-trm`, scoped `IDsociete = 2` — 27 clients).
+Classeur §39, `ClientsGestion.tsx`, API `routes/clients-trm.ts` (`/api/clients-trm`, 27
+clients). Plomberie serveur partagée dans `lib/clients-common.ts` (importée par les deux
+apps). **Dossier : `claude_doc/clients-gestion.md`.**
 
-**Not a shared `@etm` screen, on purpose.** ETM has the same window but a different fiche (tarifs/références catalog, marchandise expédiée, journal commercial) and a different ledger. Only the *server* plumbing is shared, via `ETM/apps/api/src/lib/clients-common.ts` — which both `clients.ts` and `clients-trm.ts` import, and which also registers the polymorphic contact/adresse CRUD on both mounts. Improve that lib rather than forking helpers.
-
-- **TRM-only fields**: `client.rib`, `client.domiciliation`, `client.IDtransporteur`, and « Attente paiement facture » = the accented **`client.bloqué`** flag. Writes to it go through `setClientFlag` (delete + positional reinsert), never a named `SET` — the Linux bridge rejects accented identifiers, and prod is Linux.
-- **Fields the TRM fiche does NOT have** (they belong to the ETM one): `client_interne`, `IDsecteur_activite`, `IDactivite`, `journal_commercial`, `dernier_contact`, `inclureRapportQualite`, `pct_ajeol` — so there is no « Général » card in the Info tab, and « Nouveau client » asks only for the nom and the compte. The API **must never name those columns in an UPDATE**: unnamed keeps the stored value, named would zero it. (All 27 société-2 rows currently hold 0 for the first three, which is itself evidence the legacy screen never wrote them.)
-- **`tva` and `code_comptable` are partitioned by société.** TRM's « Vente à façon » is a different row from ETM's « VENTE FACON »; always use the `/clients-trm/lookups/*` endpoints, never ETM's.
-- **Historique des commandes** — `commande_client` société 2, **including** the ETM-mirrored orders (`IDcommande_ETM > 0`): on this side those 2 518 rows *are* the knitting ETM ordered from TRM. Line types 1 (écru) / 2 (fini) / 3 (divers) / **4 (Confectionneur — `type_sst` 4, resolved against the écru catalog)**.
-- **Stocks de fil** — `stock_fil.IDclient` is the yarn's owner (TRM knits à façon, the client supplies the fil).
-- **Two deliberate gaps**, both because the legacy `.wdw` is PCS-compressed and unreadable:
-  - the « En Attente » radio of Stocks de fil is **not implemented** (only En cours / Historique / Tous). `terminé` is the single state flag on `stock_fil`; `niveau` is the rack level, `controlé` is 0 on every open lot, and OF affectation doesn't fit either — nothing backs a third state. Do not invent one.
-  - the historique's « Marge Brute » column is **rendered but always empty** (`marge_brute: null` from the API). Every observable legacy value is 0,00 %, so the formula could not be recovered. Fill it in when the calculation is specified.
+- ⚠️ Champs TRM-only : `rib`, `domiciliation`, `IDtransporteur`, **`bloqué`** (accentué →
+  `setClientFlag`, réinsertion positionnelle). **Ne jamais nommer** dans un UPDATE les champs
+  de la fiche ETM (`client_interne`, `IDsecteur_activite`, `journal_commercial`…).
+- `tva` / `code_comptable` partitionnés : toujours `/clients-trm/lookups/*`.
+- Deux lacunes assumées (legacy PCS-compressé) : pas de radio « En Attente » sur Stocks de
+  fil, colonne « Marge Brute » rendue vide.
 
 ### Production › Ordres de fabrication (`/production/of`) — port of FEN_Gestion_des_OF.wdw
 
-> Renamed from « Gestion des OF » on 2026-08-26 (label only — the route, the screen file
-> `ProductionOf.tsx` and every screen-access key are unchanged, so there was no migration).
-> `Atelier › Productivité` was removed in the same pass: it had never been more than a
-> placeholder. A stored `hide_atelier_productivite` grant is now an orphan and simply
-> disappears the next time an admin saves that user — the permissions-trm PUT filters
-> unknown keys rather than rejecting the payload.
+Fiche + pill §29, `ProductionOf.tsx`, API `routes/of-trm.ts` (`/api/of-trm` — les tables OF
+n'ont **pas d'`IDsociete`**). Droit `edit_of` sur les neuf routes d'écriture. Dossier plan :
+`~/.claude/plans/golden-petting-shell.md`.
+**Dossier complet : `claude_doc/production-of.md`** (mapping du formulaire, file d'attente,
+recherche, onglets, Observations régleur).
 
-Fiche layout + §29 status pill; screen `apps/web/src/pages/ProductionOf.tsx`; API
-`ETM/apps/api/src/routes/of-trm.ts` (`/api/of-trm` — the OF tables have **no IDsociete**,
-scope goes through the commande chain). The legacy windows are PCS-compressed: the data
-model was recovered from `MPS.xdd` + a live DB probe — the full dossier (column semantics,
-event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell.md`.
-
-- **La recherche marche pareil dans les trois onglets** (2026-08-27) : n° d'OF, référence,
-  coloris, client, n° de commande, métier. En cours / Attente filtrent la liste déjà
-  chargée côté web ; **Terminés passe par `?q=`**, dont le `searchTermineIds` d'`of-trm.ts`
-  fait le travail **en JS sur des projections étroites** — le LIKE de HFSQL ne replie pas
-  les accents (les libellés en portent, la boîte de recherche non), et l'axe client
-  demanderait sinon un `IN` de tous les `IDligne_commande_client` d'Ets Malterre. Mesuré
-  ~0,6 s au pire sur le pilote, pour une liste qu'on n'atteint qu'en tapant. Le `TOP 200`
-  borne désormais les **résultats**, plus le corpus : une recherche lit tout le registre.
-  - ⚠️ **Un nombre est À LA FOIS un n° d'OF et une référence plausible** — 249, 027, 161
-    sont de vraies étiquettes écru. La requête numérique ne court-circuite donc pas le
-    balayage des libellés (ce qu'elle faisait avant, en ne rendant que l'OF du même
-    numéro) : elle place son OF exact en tête, puis les correspondances de libellé.
-- **Queue**: `priorite` ranks OFs per métier (1 = running, 0 = terminé), one `est_actif`
-  max per métier; Terminer re-ranks and flips the new head active if `auto_activation=1`
-  (our endpoint owns that flip — the legacy trigger is unreadable).
-- **Form mapping**: consigne = `observations`; Ouvert au large = `ouvert_visiteuse`;
-  1/2 Nettoyages = `Nettoyage` (capital N); Visitage int = 1 « 2 premières pièces et
-  toutes les 3 pièces » / 2 « Toutes les pièces » (0 = 20 legacy rows, shown « — »);
-  Tricoter = `asso_fil_of`, Incorporer = `fil_incorpore`; nb_pieces derived
-  ceil(quantite/poids_piece); quantité locked once production started.
-- **5 sidebar tabs**: Observations = **`obs_ref_ecru` + `message_of`**, empilés (voir
-  « Observations régleur » ci-dessous) ; Production = `piece_production` +
-  `evenement_piece` timeline (avatars = `bonnetier.photo` blob endpoint, initials
-  fallback); Visitage = `stock_ecru` rolls; Qualité = `defaut_qualite` both populations
-  (Type_Reference 1 = pièce, 2 = rouleau), trim `type_defaut` (historical
-  `"Autre Barrure "`); Performance = `evenement_machine` (recorder covers PLC métiers
-  only, no data after 2026-03-09 → honest empty state).
-- **Flagged approximations** (legacy formulas unrecoverable): per-piece % =
-  trs_10kg_chute/nb_chutes × poids/10 ÷ vitesse (fallback orf → machine → ref_ecru);
-  faux-arrêts filter = 120 s. Imprimer (ETAT_OF work sheet) is still the §18 placeholder.
-
-#### « Observations régleur » (`obs_ref_ecru`) — l'onglet Obs. et l'onglet Obs OF
-
-Les consignes durables portées par la **référence écru**, ciblées **par métier et par
-coloris** (`IDmachine = 0` = « Toutes », `IDcolori_ecru = 0` = « Tout coloris »).
-Composant partagé `apps/web/src/components/of/ObsRefEcru.tsx` (carte + dialogue +
-confirmation de suppression), CRUD `ETM/apps/api/src/routes/of-trm.ts`
-(`GET /:id/observations-ref`, `POST /references/:refId/observations-ref`,
-`PUT|DELETE /observations-ref/:obsId`, `GET /lookups/coloris-ecru?ref=`), garde
-`ETM/apps/api/src/scripts/check-obs-ref-ecru-trm.ts`.
-
-- ⚠️ **L'onglet Obs. de la fiche OF lisait `message_of`, et c'était le mauvais fichier**
-  (corrigé le 2026-08-27, signalé par l'utilisateur sur l'OF 1741). Le legacy y montre
-  `obs_ref_ecru` : requête récupérée verbatim dans le cache de compilation
-  (`FI_Gestion_OF.wcw`), prédicat `IDref_ecru = :ref AND (IDmachine = :machine OR
-  IDmachine = 0) AND (IDcolori_ecru = :colori OR IDcolori_ecru = 0) ORDER BY date DESC`.
-  L'OF 1741 (créé en 2022) porte bien une observation de 2024 — c'est le propre d'une note
-  de référence, et c'est ce qui trahissait l'erreur. **`message_of` n'apparaît nulle part
-  dans le legacy bureau** : il vit dans l'app Android du poste (`FEN_Consigne`).
-- **Le scope se lit sur l'OF, pas sur sa ligne de commande** : `ordre_fabrication` porte ses
-  propres `IDref_ecru` / `IDcolori_ecru`, et ils divergent de la ligne sur **848 OF sur
-  3 178**. La fiche affiche ceux de l'OF (`GET /:id`), donc l'onglet aussi.
-- **Les deux populations sont empilées dans le même onglet** (décision utilisateur du
-  2026-08-27) : « Commentaires historiques » puis « Messages de l'atelier ». Le fil
-  `message_of` est conservé parce que **la PWA est le seul endroit côté bureau où on peut
-  le lire** — 113 messages, toujours alimentés depuis le poste.
-- **Le bloc porte le nom ET l'habillage que `CreateOfDialog` lui donne déjà** :
-  « Commentaires historiques », le compte en aside, et la carte or
-  (`border-gold/30 border-l-4 border-l-gold bg-gold-light/60`). C'est une **exception
-  assumée au §8.1** (qui veut une carte blanche dans un onglet de sidebar) : le régleur
-  croise ces notes deux fois — au lancement puis sur la fiche — et deux habillages
-  différents en faisaient deux choses sans rapport.
-- **Les deux blocs finissent par le MÊME déclencheur** : le bouton fantôme `+ Ajouter…`
-  du §8, **en mode édition seulement**. `message_of` ouvrait auparavant un textarea
-  permanent hors mode édition (delta assumé, retiré le 2026-08-27) : deux contrôles
-  d'ajout de formes différentes empilés se lisaient comme deux fonctionnalités
-  étrangères. Le composeur de message n'apparaît qu'une fois demandé (§9 InlineForm).
-- **La saisie est ouverte sur les deux écrans**, comme le legacy (même table, même dialogue
-  `FEN_Editer_Observation`, même confirmation « Voulez-vous vraiment supprimer cette
-  observation ? ») : la fiche OF, où le nouveau billet est **pré-ciblé sur le métier et le
-  coloris de l'OF**, et Tombé Métier › Références, qui montre toute la référence sans filtre.
-- ⚠️ **L'écran Références est le fichier PARTAGÉ d'ETM** : il ne connaît pas `obs_ref_ecru`
-  en écriture et ne doit pas apprendre une URL TRM. Il expose donc une prop
-  `obsOfEditor` — **un composant**, pas un booléen — et TRM y injecte `ObsOfEditor` depuis
-  son `router.tsx`. Sans la prop, l'onglet reste la liste en lecture seule qu'ETM a
-  toujours eue. C'est le pendant frontend de `FinanceScope` : améliorer le fichier dans
-  ETM, ne jamais en forker une copie TRM.
-- **Droit `edit_of`** sur les trois routes d'écriture — pas de nouvelle clé : ces notes
-  existent pour être lues au lancement, c'est le même acte. La lecture reste ouverte.
-  Côté écran, il faut **la clé ET le mode édition** de l'écran hôte : c'est pour ça que
-  `ObsOfEditorProps` porte `isEditing`.
-- Écriture HFSQL : `DATE` est réservé → **INSERT positionnel** (ordre physique vérifié sur
-  le `SELECT *` runtime : `IDobs_ref_ecru, IDref_ecru, IDmachine, IDcolori_ecru,
-  observation, DATE`), UPDATE nommé pour le reste. ⚠️ **Une modification ne re-date pas la
-  ligne** : les deux tables trient par `date`, une correction de faute ne doit pas remonter
-  en tête. Un coloris non nul doit appartenir à la référence (400 sinon), comme la combo
-  legacy qui est paramétrée dessus.
-- Le libellé du métier vient de `machine.nom`, pas de `machine.emplacement` que le legacy
-  utilise ici : `emplacement` est **vide sur 4 métiers** (Vignoni, jersey 1F, terrot, RAY),
-  qui s'affichaient donc sans nom. Delta assumé, cohérent avec le reste de l'écran.
-- ⚠️ **Une composition est une liste de POSITIONS D'ALIMENTATION, pas de fils.** Un mélange
-  peut alimenter deux fois le même couple (fil, coloris) : la réf. 119/ecru, c'est
-  71 % + 14,5 % + 14,5 % de deux fils seulement, et il faut les trois lignes pour faire les
-  100 % que la fenêtre legacy contrôle. `composition_ecru` porte donc des lignes en double
-  (70 groupes sur 2 859), et les OF que le legacy écrit portent bien la ligne `asso_fil_of`
-  dupliquée (vérifié 4/4 sur la réf. 189). **Ne jamais regrouper par couple** : le seed
-  `/of-trm/lookups/composition` le faisait (`SELECT DISTINCT` + dédup) jusqu'au 2026-08-26
-  et déclarait 85,5 % du fil sur tout OF créé pour une telle référence — erreur silencieuse
-  et définitive, puisque le mouvement de stock à la déclaration de pièce comme la freinte à
-  l'archivage sont `poids × pourcentage/100`. Les lignes sont donc clés par
-  `IDcomposition_ecru`, et le pourcentage n'est sommé par couple que là où c'est la bonne
-  question (colonne % et « Potentiel » de l'onglet Stock de fil : ce lot couvre 29 % du
-  mélange, pas 14,5). Garde : `check-of-creation-trm.ts`.
-- **Le corps de la fiche passe en deux colonnes au-dessus de ~780 px de largeur de
-  PANNEAU** — mesurée par `useElementSize` dans `OfDetailBody`, jamais un palier Tailwind.
-  `lg:`/`xl:` portent sur la **fenêtre**, or la largeur de ce panneau est fixée par le mode
-  master-detail (§4) : à 1400 px de fenêtre il ne fait que ~390 px alors que `xl:` est vrai
-  depuis longtemps, et la grille des paramètres y serait déchiquetée. Ses cartes tournent
-  aussi sur des paddings resserrés (`cardHeaderClass` / `cardContentClass`) : à `p-6`, cinq
-  sections empilées coûtaient ~100 px de pure gouttière, exactement ce qui empêchait un OF
-  de tenir sur un écran 1080p — la fiche se lit au métier, le régleur ne doit pas défiler
-  pour savoir quels lots alimentent la production qu'il lance. La carte Paramètres est
-  `h-full` pour finir sur la même ligne que Commande client.
-- **L'en-tête tient sur UNE ligne** (décision utilisateur du 2026-08-27) : « OF N° 3426 »,
-  « Créé le … » et le badge Mode édition côte à côte, au lieu du titre puis d'une seconde
-  ligne de contexte. Même raison que les paddings resserrés ci-dessus : la date tient en
-  quelques caractères et la seconde ligne coûtait ~30 px de hauteur sur chaque OF. **La
-  pastille métier n'y est plus** : c'est le premier champ de Paramètres de tricotage juste
-  en dessous, et elle est déjà sur la carte de liste qui a mené ici.
-- **La consigne porte le même bandeau rouge qu'au poste de visitage**
-  (`components/of/ConsigneCallout.tsx`, `mps_designer` §46) : c'est le même
-  `ordre_fabrication.observations`, et le montrer en carte calme d'un côté et en alerte de
-  l'autre apprenait au lecteur que l'alerte était décorative. La carte neutre reste dans
-  deux cas — **vide** (rien à crier, et c'est l'en-tête qui nomme la chose absente) et **en
-  édition** (on l'écrit, on ne l'exécute pas : un champ encadré de rouge se lit comme une
-  erreur de saisie, et le liseré or du §9 a besoin du cadre). ⚠️ Le rouge est un **étirement
-  assumé du §41** : 6 des 10 OF en cours portent une consigne, dont quatre la même phrase
-  type. À surveiller — voir §46.2 pour le décompte à rejouer.
+- File : `priorite` par métier (1 = en cours, 0 = terminé), un `est_actif` par métier ;
+  Terminer re-classe et active la tête si `auto_activation = 1`.
+- **Recherche identique dans les trois onglets** ; Terminés via `?q=`, `searchTermineIds`
+  en JS (LIKE HFSQL ne replie pas les accents). ⚠️ Un nombre est à la fois n° d'OF et
+  référence plausible : l'OF exact en tête, puis les libellés.
+- ⚠️ **L'onglet Obs. lit `obs_ref_ecru` (consignes durables de la référence, par métier et
+  coloris), empilé avec `message_of`** — pas `message_of` seul (corrigé le 2026-08-27).
+  Scope lu sur l'OF (ses `IDref_ecru` / `IDcolori_ecru`), pas sur la ligne de commande.
+  Saisie via `components/of/ObsRefEcru.tsx`, sous `edit_of` + mode édition ; INSERT
+  positionnel (`DATE` réservé) ; une modification ne re-date pas la ligne.
+- ⚠️ L'écran Tombé Métier › Références (fichier ETM) reçoit l'éditeur par la prop
+  `obsOfEditor` (un composant injecté depuis `router.tsx`), jamais une URL TRM.
+- Deux colonnes du corps de fiche au-dessus de ~780 px de **panneau** (`useElementSize`),
+  jamais un palier Tailwind ; en-tête sur une ligne ; consigne en bandeau rouge §46.
+- Approximations signalées : % par pièce, filtre faux-arrêts 120 s ; Imprimer (ETAT_OF)
+  toujours placeholder.
 
 ### Atelier › Maintenance (`/atelier/maintenance`) — port de `FI_Maintenance.wdw`
 
-Layout Fiche (§4–§9). Écran `apps/web/src/pages/AtelierMaintenance.tsx` + la jauge
-`components/maintenance/MaintenanceGauge.tsx` ; API
-`ETM/apps/api/src/routes/maintenance-trm.ts` (monté `/api/maintenance-trm`).
+Fiche §4–§9, `AtelierMaintenance.tsx` + `MaintenanceGauge.tsx`, API
+`routes/maintenance-trm.ts`. Spec récupérée dans le **cache de compilation WinDev**
+(`MPS.cpl/<user>/00000000/FI_Maintenance.*.wcw`). Droit `edit_maintenance`.
+**Dossier : `claude_doc/atelier-maintenance.md`.**
 
-**Récupération du legacy** : `FI_Maintenance.wdw` est PCS-compressé et — contrairement à
-`FI_Prime` — n'a **pas** de jumeau Java Android. Le dossier vient du **cache de compilation
-WinDev**, `MPS.cpl/<user>/00000000/FI_Maintenance.4C33DFB6.wdw.{wcw,wbw}` : les littéraux
-chaîne, les identifiants de champ et le SQL embarqué y survivent, **les littéraux entiers
-non**. C'est la même piste que le widget « Poids des pièces » — la première à ouvrir pour
-tout futur portage TRM.
+- ⚠️ « Description » = `machine.commentaire`, **pas** `nom`. Vraies fautes de colonnes :
+  `observation_maintenace`, `comm_pulsonque`. `connecté` / `archivé` / `diamètre`
+  accentués → `SELECT *` + pliage, filtre en JS ; le `SET` ne nomme que la maintenance.
+- Compteur rouloir : Σ `quantite` des OF terminés après `date_maintenance`, **seuil
+  15 000 Kg mesuré 14/14** (`probe-maintenance-trm.ts`) — constante de module ; si elle
+  change, table datée comme `BAREMES_PRIME`.
+- Jauges = les 3 lignes `operation_maintenance`, atelier-wide, rendues dynamiquement.
 
-- **Pas de `IDsociete`** sur `machine` ni `operation_maintenance` : les métiers *sont*
-  Tricotage Malterre, comme `ordre_fabrication`. Rien à scoper.
-- **Champ « Description » = `machine.commentaire`, PAS `machine.nom`** (2E : `nom` = '2E',
-  `commentaire` = 'Terrot'). Ne jamais « corriger » vers `nom`.
-- **Garniture** = 6 couples date + commentaire, dans l'ordre du formulaire legacy :
-  `nett_platines` · `nett_cylindre` · `nett_plateau` · `chg_aiguilles` · `chg_platines` ·
-  `pulsonique`, avec leurs `comm_*`. ⚠️ Deux fautes de frappe sont les **vrais** noms de
-  colonnes : **`observation_maintenace`** (commentaire du rouloir) et **`comm_pulsonque`**.
-- ⚠️ **`machine` porte trois colonnes accentuées** — `connecté`, `archivé`, `diamètre` —
-  jamais nommées en SQL : lecture par `SELECT *` + pliage de clés (`queryB64Text` sur
-  Linux), filtre `archivé = 0` en JS. `SELECT *` est sans risque ici (aucune colonne
-  mémo-binaire, contrairement à `stock_fil` / `client`). En revanche **toutes les colonnes
-  écrites sont ASCII**, donc UPDATE nommé classique — pas de réinsertion positionnelle.
-  Le `SET` ne nomme **que** les colonnes de maintenance : `nom`, `Jauge`, `diamètre`,
-  `nb_chutes*`, `vitesse`, `elasthanne`, `adresse_automate` appartiennent à
-  `FEN_Gestion_des_machines` (non porté) — non nommé = valeur conservée.
-- **Compteur rouloir** : `produit = Σ ordre_fabrication.quantite` des OF `est_termine = 1`
-  dont `date_creation > machine.date_maintenance` ; **seuil = 15 000 Kg**. Le seuil est un
-  littéral entier, donc absent du cache : il a été **mesuré**, en reconstituant les 14
-  valeurs « Rouloir dans N Kgs » lisibles sur une capture du legacy (2026-08-26) —
-  **14/14, écart maximal 0 Kg**. `probe-maintenance-trm.ts` rejoue cette réconciliation ;
-  s'il casse, la constante est fausse. ⚠️ C'est une constante de module qui s'applique à
-  tout l'historique — la mise en garde que Prime portait avant de dater ses barèmes. Si ce
-  seuil doit changer un jour, **faire ce qu'a fait Prime** : une table datée
-  (`BAREMES_PRIME` dans `lib/bareme-prime-trm.ts`), jamais une édition du chiffre en place,
-  sinon tout l'historique du rouloir se recalcule sur un seuil qui n'était pas le sien.
-- **Couleurs de la liste (§41)** : rouge ≥ 100 % du seuil, amber ≥ 66,7 %. Reproduit la
-  capture 30/30, mais la frontière amber/vert n'est contrainte que dans `]4 650 ; 5 170]`
-  — ⚠️ approximation assumée.
-- **Jauges d'entretien** = les 3 lignes `operation_maintenance` (Ventilateurs 3 mois,
-  Couronnes 6, Fuites d'air 3), **atelier-wide, pas par métier** ; valeur = mois écoulés /
-  `frequence`. Rendues **dynamiquement** (le legacy en câblait exactement 3). « Effectué ce
-  jour » écrit `date_derniere = aujourd'hui` après la confirmation legacy mot pour mot.
-- **Deltas assumés** : le cadenas rouge/vert devient le mode édition or + garde §28 ; les
-  cadrans arc-en-ciel à aiguille deviennent des **meters** mono-teinte avec un mot d'état
-  (les 3 anti-patterns `dataviz` que le legacy cumulait — voir l'en-tête de
-  `MaintenanceGauge.tsx`) ; les dates de garniture gagnent une ancienneté dérivée (« il y a
-  18 ans ») **sans code couleur**, aucune fréquence n'existant en base pour la garniture ;
-  l'onglet Rouloir de la sidebar liste les OF derrière le compteur, que le legacy affirmait
-  sans permettre de le vérifier.
-- **Droit `edit_maintenance`** (catégorie « Atelier ») : cache « Modifier » et « Effectué ce
-  jour », et l'API 403 sur `PUT /metiers/:id` + `POST /operations/:id/reset`. Lecture
-  ouverte à quiconque a le menu Atelier.
-- **Pas de bouton « + Nouveau »** dans la liste : un métier se crée dans
-  `FEN_Gestion_des_machines`, non porté. Exception documentée au contrat §5.
-- Scripts : `probe-maintenance-trm.ts` (lecture seule, parité du seuil — **à rejouer après
-  `/etm_deploy`**, c'est le seul test du chemin Linux) et `check-maintenance-trm.ts`
-  (garde HTTP : aller-retour PUT avec accents, 409 sur métier archivé, 403 sans le droit,
-  reset d'opération, tout restauré).
 ### Production › Visitage (`/production/visitage`) — port of `FI_Visitage.wdw`
 
-**Layout « Poste » (`mps_designer` §45)** — the 4th named layout, created for this screen:
-bandes empilées, pas de liste maître, le sélecteur de contexte en barre d'outils. Écran
-`apps/web/src/pages/ProductionVisitage.tsx`; API `ETM/apps/api/src/routes/visitage-trm.ts`
-(monté `/api/visitage-trm`), helpers partagés extraits dans `lib/production-trm.ts` (que
-`of-trm.ts` importe désormais au lieu de les porter). Le `.wdw` est PCS-compressé : la spec
-vient du **cache de compilation WinDev** (`MPS.cpl/<user>/00000000/FI_Visitage.*.wdw.wcw` —
-les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet :
-`~/.claude/plans/visitage-tombe-metier.md`.
+Layout **« Poste » (§45)**, `ProductionVisitage.tsx`, API `routes/visitage-trm.ts`
+(`/api/visitage-trm`), helpers `lib/production-trm.ts`. Droit `saisie_visitage` (bouton
+Valider + route d'écriture seulement). Dossier plan : `~/.claude/plans/visitage-tombe-metier.md`.
+**Dossier complet : `claude_doc/production-visitage.md`** — le plus long, à lire en entier
+avant de toucher `POST /valider`, la carte rouleau ou l'étiquette.
 
-- **C'est le seul écrit de la fonctionnalité, et il n'y a pas de transaction.** `POST /valider`
-  crée les `stock_ecru`, convertit les défauts, trace l'événement **et décrémente le fil** ;
-  tout ce qui est vérifiable l'est **avant** la première écriture, et un échec en cours de
-  route renvoie la liste des rouleaux réellement créés plutôt qu'un 500 nu. `?dry_run=1`
-  renvoie le plan exact sans rien écrire — c'est ce que `check-visitage-trm.ts` exerce, pour
-  qu'un passage de garde ne laisse jamais de pièce fantôme en stock.
-- ⚠️ **`POST /valider` est SÉRIALISÉ côté API (`validerLock`, `lib/serial-lock.ts`,
-  testé), et le poste ne tire qu'une fois (`createLatch`, épinglé par
-  `ProductionVisitage.test.ts`).** Le 2026-08-28 à 14:35:38, deux POST identiques sont
-  partis du poste dans la même seconde (pièce 40751, OF 3564) : la garde « pièce déjà
-  visitée » est un COUNT que les deux ont passé avant la première écriture, les numéros
-  un MAX+1 sur lequel les deux étaient d'accord — **quatre rouleaux pour une coupe en
-  deux, et deux lignes par clé primaire dans `evenement_piece`** (HFSQL n'a pas
-  d'index unique dessus, et `newIdAfterInsert` rend le PLUS HAUT id au-dessus du
-  repère, donc les deux réponses ont nommé les mêmes rouleaux). Le fil, lui, n'a été
-  décrémenté qu'une fois : le pont est FIFO, les deux ont lu `avant` bien avant que
-  l'un n'écrive `apres`. Réparé à la main le jour même (56936 / 56938 supprimés, les
-  deux événements réécrits, `stock_fil` intact).
-  - Côté web, `valider.isPending` ne suffit PAS : TanStack notifie React par
-    `setTimeout(0)`, donc pendant une macrotâche après `mutate()` le bouton et
-    Ctrl+Entrée lisent encore « libre ». D'où un verrou synchrone dans le handler,
-    relâché par `onSettled` — `isPending` reste l'affordance de rendu, pas la garde.
-  - Côté API le verrou est **global, pas par pièce** : les PK MAX+1 sont partagées
-    entre pièces, deux pièces validées au même instant se marcheraient dessus aussi.
-    Le second appel attend, puis rencontre les rouleaux du premier → 409
-    `piece_deja_visitee`, le message « déjà visitée ailleurs » du poste.
-  - ⚠️ Le même patron « check, MAX+1, INSERT » sans verrou existe dans les autres routes
-    d'écriture TRM (`of-trm`, `expeditions-trm`, `maintenance-trm`…) : même exposition
-    à un double envoi, non traitée — `createSerialLock` est là pour ça.
-- **Deux séquences de numérotation par OF** : 1er choix `num_piece_OF < 1000`, déclassé
-  `1000+` — et le **premier déclassé d'un OF est 1001**, pas 1000 (438 OF vivants contre 167).
-- **La coupe** = un `piece_production` → N `stock_ecru`. Les défauts déclarés au terminal par
-  le bonnetier (`Type_Reference = 1`) sont **convertis sur place** en `Type_Reference = 2`
-  pointant le rouleau, en préservant `DATE` / `Type_Spotteur` / `IDSpotteur` / `description` :
-  c'est ce qui distingue encore, des années après, un défaut terminal d'un défaut visitage.
-  ⚠️ **L'origine se lit sur `Type_Spotteur` seul** — « description NULL = visitage » n'est vrai
-  que depuis 2023. `récuperé` est accentué → réécriture positionnelle (patron `setClientFlag`).
-- **La quantité d'un défaut est CORRIGIBLE au poste, et c'est le point** : au terminal le
-  bonnetier ne mesure pas, il prend un **seau** dans une liste, et c'est à la visiteuse de
-  mesurer et de rectifier. Les seaux, comptés sur la base le 2026-08-27 : `100` domine
-  massivement (1 456 lignes sur ~2 450 — c'est « de 100cm », le défaut par défaut), puis
-  `0` pour tout ce qui se compte, `200` = « 1m - 3m », `25` = « Moins de 50 cm »,
-  `300` = « Plus de 3m », `75` = « 50 cm - 1m », et **`999` = « Toute la pièce »** (7 lignes).
-  ⚠️ Ne pas lire 999 comme « plus de 3 m » — c'est 300 ; 999 est le seau « toute la pièce »,
-  et le champ de saisie du poste porte de toute façon un masque à quatre chiffres, pas une
-  énumération. Chaque pastille porte donc son champ (masques du
-  legacy : `9 999 cm` sur `taille_cm`, `x9 999` sur `nombre`), et `POST /valider` écrit la
-  valeur en convertissant le défaut. Ce n'est pas une extension : la requête de la fenêtre
-  legacy, récupérée verbatim dans le cache de compilation, ne lit **que**
-  `IDdefaut_qualite, type_defaut, taille_cm, nombre FROM defaut_qualite WHERE
-  Type_Reference = 1 AND reference = ?` — la colonne était liée et éditable.
-  - **Seule la colonne de l'unité du type est prise du payload** ; l'autre garde ce que le
-    terminal a écrit, pour qu'un client ne puisse pas la vider. `description` n'est **pas**
-    touchée (le legacy ne la lit même pas ici) : elle reste la phrase du bonnetier, celle
-    que Prime rend verbatim.
-  - Les colonnes écrites sont ASCII, donc `UPDATE` nommé classique ; c'est `récuperé` seul
-    qui force encore la réécriture positionnelle, qui porte désormais la quantité aussi.
-  - ⚠️ **Un champ vide veut dire « ne touche à rien », jamais 0** — traverser une pastille
-    sans rien taper effaçait la déclaration du bonnetier, et 0 est une quantité plausible :
-    rien à l'écran ne trahit l'erreur. Le zéro reste joignable en tapant zéro. `qteDigits` /
-    `qteCommit` sont sortis du composant et épinglés par `ProductionVisitage.test.ts` :
-    l'expression du masque est toute la correction de ce champ (elle a déjà été écrite
-    `[^d]` au lieu de `\D`, ce qui refusait tous les chiffres et validait 0 à chaque sortie).
-- **Décrément du fil** = `Σ(poids des rouleaux) × asso_fil_of.pourcentage / 100`, **déclassés
-  compris** (43 lots ouverts sur 75 le reproduisent, 0 en ne comptant que le 1er choix).
-  C'est l'écriture la plus risquée : une mauvaise assiette fait dériver le grand livre du fil
-  en silence, et rien en aval ne le signalerait.
-- **Le worklist remplace la liste des métiers du legacy.** Le legacy interroge les pièces
-  **OF par OF**, et n'envoie jamais que l'OF en tête de file : une pièce dont l'OF a été
-  terminé entre-temps devient **invisible pour toujours** (56 pièces terminées sans rouleau
-  sur 5 mois). On scanne donc **par machine**, et les égarées reviennent en `autres_pieces`.
-  - ⚠️ **Une pièce isolée n'est offerte que 7 jours** (`ORPHAN_MAX_AGE_DAYS`, décision
-    utilisateur du 2026-08-26), constante **dure** : la dérogation dev
-    `VISITAGE_PIECE_MAX_AGE_DAYS` (`.env.development` de l'API, la base locale étant un
-    instantané de mars) n'élargit **que** les pièces de l'OF en tête de file. Rien n'est
-    supprimé en base ; `probe-visitage-trm.ts` §5 compte l'arriéré.
-- **Le bandeau « Pièce à visiter »** : `ouvert_visiteuse = 1` → toutes les pièces, **exact**
-  (18 355/18 362). Sinon une **cadence approximative** (~1 sur 3, parité 71,8 % — sept
-  variantes essayées, aucune meilleure) : le legacy est probablement indicatif, donc l'écran
-  laisse la visiteuse trancher. Le choix décide aussi lequel des deux
-  événements est écrit : `Visitage tombé métier` / `Pesage tombé métier`.
-  - **C'est une pastille pleine, et la pastille EST le bouton** (décision utilisateur du
-    2026-08-27, `mps_designer` §45.2) : rouge « Pièce à visiter » / bleu « Pesée simple »,
-    un clic la retourne. Ni le mot posé dans la barre avec un « changer » souligné à côté
-    (rien ne disait que le mot était l'état courant), ni la pastille scindée du §29.3 dont
-    la moitié droite nomme la cible — avec **deux modes nommés** elle écrit les deux côte à
-    côte et laisse deviner lequel est lequel. La flèche `ArrowLeftRight` est ce qui dit
-    qu'on peut cliquer : sans elle une pastille pleine se lit comme un statut figé.
-- ⚠️ **La carte d'un rouleau porte la teinte de son choix SUR SON CORPS** (bord 2 px, bandeau
-  d'en-tête à 20 %, corps à 10 % — remonté le 2026-08-27, la version d'origine à filet fin +
-  lavis 5 % se lisait comme deux cartes blanches à bout de bras). Conséquence pour toute
-  retouche de cette carte : **rien de ce qui s'y pose ne peut être un lavis de la même
-  teinte** — une pastille de défaut « récupéré » à 10 % de vert disparaissait dans une carte
-  verte, et le fond rouge à 5 % de « Ajouter un défaut » sombrait dans une carte déclassée
-  tout en criant sur une carte 1er choix (il est passé au blanc). Le corps reste à 10 % et
-  pas plus : il contient des champs blancs.
-- **Droit `saisie_visitage`** (`permission-keys-trm.ts`, catégorie Production) : il ne garde que
-  le bouton Valider et la route d'écriture — consulter le poste reste ouvert. ⚠️ **Fermé par
-  défaut : à accorder aux visiteuses en prod** (Paramètres › Utilisateurs) après le déploiement.
-- **L'identification, c'est le visage — il n'y a plus de champ.** Le bandeau ne porte que
-  le nom et la photo, et **cliquer dessus ouvre un sélecteur de VISAGES** (décision
-  utilisateur du 2026-08-27) : la combobox demandait de lire puis saisir un nom que la
-  visiteuse reconnaît de toute façon au premier coup d'œil. La porte du §45.4 est intacte —
-  non identifié, la pastille passe en ambre et dit « Qui visite ? ».
-  - ⚠️ **`VisiteurGate` est local à l'écran, pas un `PopoverSelect`** : ce primitif est un
-    miroir d'ETM sans déclencheur personnalisable ni avatar dans ses lignes, et le plier
-    pour un seul écran de poste se propagerait à toutes les listes déroulantes des deux
-    applications. Le popover est ancré au bord **droit** du bouton (il vit au bout de la
-    barre : ancré à gauche il sortirait de l'écran).
-  - `VisiteurPhoto` prend une `size` (56 au déclencheur, 40 dans les lignes) posée en style
-    inline — une classe Tailwind ne se fabrique pas à partir d'un nombre — et demande
-    `size * 3` à l'endpoint photo pour rester net sur l'écran du poste.
-- **L'étiquette Dymo, imprimée à la validation** — `GET /visitage-trm/etiquettes?ids=…`,
-  **une page PDF par rouleau** (`lib/pdf/EtiquetteEcruPdf.tsx`, Dymo 99012 89 × 36 mm comme
-  `StockFiniLabelPdf` / `StockFilLabelPdf`), envoyée par `POST /valider` → `printPdf()` dès
-  que la réponse revient. C'est le port de la procédure globale legacy **`ImprimeEtiquetteTM`**
-  (collection `Utilitaire` du projet MPS) : le `.wdg` est PCS-compressé mais ses littéraux
-  survivent dans le cache de compilation (`Utilitaire.AF726741.wdg.wcg`) et écrivent
-  l'étiquette en toutes lettres — `TRM.jpg`, `Arial`, le métier via `ordre_fabrication` →
-  `machine`, `"N° : "`, `"Poids : " %5,2f " Kg"`, `"Réf. : "` via `ref_ecru` → `colori_ecru`,
-  `"Date : " JJ/MM/AAAA HH:mm:SS`. **Les champs sont donc ceux du legacy, verbatim et dans
-  son ordre** ; seule la présentation change.
-  - **Deux deltas assumés** : le vieux logo pyramide `TRM.jpg` devient le **badge M carré**
-    (`logo-m-email.png`, décision utilisateur du 2026-08-27 — la bande de gauche d'une
-    89 × 36 est haute et étroite, le monogramme la remplit là où le mot-symbole large doit
-    rétrécir, et il tient mieux la trame thermique) ; et un rouleau déclassé porte
-    désormais un **pavé noir « DÉCLASSÉ »**, que le legacy n'imprime pas — or c'est
-    précisément ce que l'étiquette d'un rouleau devrait dire. Il vit sur la ligne de date,
-    et **pas** en coin haut-droit : à 22 pt un numéro à neuf caractères (« 3417/1001 »)
-    atteint ce coin.
-  - **Tout est noir sauf le badge** : une Dymo est thermique, donc tout ce qui n'est pas
-    quasi-noir sort gris. Ne pas y remettre l'ambre de l'app.
-  - ⚠️ **La tête d'impression ne va PAS jusqu'au bout de l'étiquette** : elle s'arrête à
-    ~82,5 mm des 89 mm, les ~6,5 mm de droite sont perdus. Mesuré sur un tirage du poste le
-    2026-08-27, où le pavé DÉCLASSÉ est sorti tranché en plein mot (« DÉCLASS ») ; le bord
-    gauche, lui, tombe exactement là où le PDF le met — donc rien n'est décalé ni mis à
-    l'échelle, c'est bien une largeur imprimable. D'où `SAFE_RIGHT = 26` pt en padding
-    droit de la page : ce n'est pas une marge, c'est une **zone sûre**, volontairement bien
-    plus large que les 5 pt de gauche, et tout ce qui est calé à droite (le filet, le pavé)
-    s'aligne dessus. Sur l'étiquette physique le résultat est centré, parce qu'il est centré
-    dans la bande *imprimable* — ne jamais « rééquilibrer » ce padding contre celui de
-    gauche. Les étiquettes sœurs (`StockFiniLabelPdf` / `StockFilLabelPdf`) ne l'ont jamais
-    rencontré parce que tout y est calé à gauche : leur `paddingRight: 8` n'est pas un
-    précédent.
-  - **`printPdf()` (`apps/web/src/lib/print.ts`) n'ouvre PAS d'onglet** : il récupère le PDF
-    `credentials: 'include'`, le ressert depuis une **URL `blob:`** — qui hérite de l'origine
-    de la page — et appelle `contentWindow.print()` sur une iframe cachée. L'étape blob est
-    porteuse : l'API dev est sur un autre port, et une iframe cross-origin lèverait
-    `SecurityError`. ⚠️ **Le poste doit lancer Chrome avec `--kiosk-printing` et la Dymo en
-    imprimante par défaut** pour que ça imprime sans boîte de dialogue, comme le legacy ;
-    sans ce drapeau la boîte s'ouvre pré-chargée. Tout échec retombe sur `window.open`, et
-    la barre de validation dit lequel des deux a eu lieu et offre « Réimprimer ».
-  - **Le raccourci du poste** (à refaire tel quel si le PC est réinstallé) :
-    `chrome.exe --kiosk-printing --user-data-dir="C:\visitage-profile" --app=https://trm.malterre/production/visitage`.
-    ⚠️ Le `--user-data-dir` séparé n'est pas cosmétique : Chrome est un singleton par
-    profil, donc lancé sur un profil déjà ouvert il passe l'URL au processus existant et
-    **jette `--kiosk-printing`** — la boîte de dialogue revient et le drapeau a l'air cassé.
-    Le profil isolé porte aussi le cookie du compte-poste `Visitage`. Vérifier le drapeau
-    dans `chrome://version` (ligne « Ligne de commande »), jamais à l'œil. L'icône du
-    raccourci est `public/icons/trm.ico` (multi-résolutions, dérivé de `icon-512.png`),
-    servie par l'app pour être récupérable depuis le poste lui-même.
-  - Pas de garde `saisie_visitage` : réimprimer une étiquette que le rouleau porte déjà est
-    aussi sensible que consulter le poste. Le garde-fou de partition est
-    **`IDordre_fabrication > 0`** (seul le tricotage TRM a un OF), jamais `IDsociete` — la
-    réception ETM bascule le rouleau en société 1 et l'étiquette doit rester réimprimable.
-  - Les deux boutons « Test Dymo » de la barre poste (bloc temporaire en pointillés ambre)
-    ont été **retirés le 2026-08-27**, le rendu ayant été validé sur la vraie Dymo. **La
-    route `?demo=N` de `GET /visitage-trm/etiquettes` survit** côté API (`demoEtiquettes()`
-    dans `visitage-trm.ts`) : elle n'a plus d'appelant, mais la retirer demande une
-    worktree ETM appairée et un passage par le pipeline NG pour du code mort inoffensif.
-    À faire au prochain travail d'API sur ce fichier, pas pour elle-même.
-- Scripts : `probe-visitage-trm.ts` (règles vs tout l'historique), `check-visitage-trm.ts`
-  (routes, en `dry_run` — et les étiquettes, en lecture seule, avant la porte du worklist),
-  `seed-visitage-historique.ts` (**dev only**, refuse de tourner hors
-  localhost — peuple la bande « Aujourd'hui sur <métier> », vide sur l'instantané local) et
-  **`seed-visitage-pieces.ts`** (dev only, même garde — peuple le **worklist** : sur
-  l'instantané local les huit dernières pièces sont toutes encore sur le métier
-  (`date_fin` NULL), donc le poste ouvre sur « Aucune pièce à visiter » et rien n'est
-  testable. Il termine des pièces il y a quelques **heures**, ce qui tient dans les deux
-  fenêtres — les 7 jours du poste et les 24 h du widget — sans dérogation d'env, et étale
-  les heures de fin de part et d'autre des seuils 2 h / 3 h du widget. `--clean` défait tout,
-  rouleaux compris si le poste en a déjà créé).
-
+- ⚠️ **`POST /valider` est le seul écrit, sans transaction** : crée les `stock_ecru`,
+  convertit les défauts (`Type_Reference` 1 → 2, origine sur `Type_Spotteur`), trace
+  l'événement, **décrémente le fil** (Σ poids × `pourcentage/100`, déclassés compris).
+  `?dry_run=1` pour les gardes.
+- ⚠️ **Sérialisé côté API (`validerLock`, `lib/serial-lock.ts`) et tiré une fois côté web
+  (`createLatch`)** depuis l'incident du 2026-08-28 (double POST → rouleaux en double).
+  `isPending` ne suffit pas. Le même patron « check, MAX+1, INSERT » sans verrou existe
+  dans les autres routes d'écriture TRM.
+- Deux séquences par OF (1er choix `< 1000`, déclassé dès **1001**) ; pièce isolée offerte
+  7 jours (`ORPHAN_MAX_AGE_DAYS`, dur) ; quantité d'un défaut corrigible au poste, **champ
+  vide = ne touche à rien, jamais 0** (`qteDigits` / `qteCommit`, testés).
+- La carte rouleau porte sa teinte sur son corps : rien de posé dessus ne peut être un
+  lavis de la même teinte. Identification par visage (`VisiteurGate`, local à l'écran).
+- **Étiquette Dymo** à la validation (`EtiquetteEcruPdf.tsx`, port de `ImprimeEtiquetteTM`,
+  `printPdf()` via blob + iframe) : ⚠️ `SAFE_RIGHT = 26` pt est une **zone imprimable**,
+  ne pas rééquilibrer ; le poste lance Chrome avec `--kiosk-printing --user-data-dir=
+  "C:\visitage-profile" --app=https://trm.malterre/production/visitage`.
+- Scripts : `probe-visitage-trm.ts`, `check-visitage-trm.ts`, seeds dev-only.
 
 ### Production › TRS (`/production/trs`) — port de `FI_TRS.wdw`
 
-Le tableau de bord d'équipe de l'atelier : une équipe (Matin 5–13 / Après-midi 13–21 /
-Nuit 21–5, navigation ◀ ▶), ses bonnetiers **pointés** et leurs heures, quatre KPI
-(Production · Visitage · Second choix · Non visitées à `<fin>`H) chacun dépliable en
-table de pièces → cartes d'événements de la pièce sélectionnée, et la **timeline par
-métier** avec Vitesse · Arrêts/h · TRS + ⓘ. Écran `apps/web/src/pages/ProductionTrs.tsx`
-+ `components/trs/*` ; lib `src/lib/trs-equipe.ts` (types miroir, échelle temps,
-formatteurs, testés) ; API `GET /api/trs/equipe?debut=YYYYMMDDHHMMSS`
-(`ETM/apps/api/src/routes/trs.ts`, chargeurs `lib/trs-equipe-trm.ts`, calcul pur
-`lib/trs-trm.ts` — **le même `calculerTrs` que la tablette**, donc le même TRS). Dossier :
-`~/.claude/plans/curried-nibbling-wave.md`.
+Tableau de bord d'équipe : bonnetiers **pointés**, quatre KPI dépliables, timeline par
+métier. `ProductionTrs.tsx` + `components/trs/*`, lib `lib/trs-equipe.ts` ; API
+`GET /api/trs/equipe?debut=` (`lib/trs-equipe-trm.ts`, **le même `calculerTrs` que la
+tablette**). Droit **`view_trs`, fermé par défaut, accordé à la main** ; `/trs/atelier`
+reste ouvert. Dossier plan : `~/.claude/plans/curried-nibbling-wave.md`.
+**Dossier : `claude_doc/production-trs.md`.**
 
-- **Spec récupérée dans le cache de compilation** (`FI_TRS.B086A5CC.wdw.wcw/.wbw`,
-  2026-08-28) : les 20 requêtes SQL, tous les libellés, l'inventaire des contrôles ; la
-  fonction d'équipe `HorairesEquipeEnCours` verbatim dans le Java Android. KPI legacy,
-  bornes `]debut, fin]` : Production = `piece_production` finies (`date_fin`), **poids
-  nominal** ; Visitage / Second choix = `stock_ecru.date_saisie` (poids pesé, `second_choix`) ;
-  « Non visitées à 21H » = pièces finies sans rouleau à la **fin d'équipe** (l'heure est
-  calculée — 13H le matin, 5H la nuit). Cartes d'événements = `evenement_piece` (par
-  `IDpiece_production` OU `IDstock_ecru`) ∪ `defaut_qualite` rendu « Défaut » (rouge).
-- ⚠️ **Les bonnetiers viennent de `pointage`, pas du planning.** Le legacy lit la table de
-  la pointeuse (`IDbonnetier, DATE, en_poste`), vivante (~200 lignes/mois, régleurs compris,
-  pauses visibles) ; `planning_bonnetier` ne couvre que 3–4 personnes par jour. Algorithme
-  `presenceEquipe` : état à l'ouverture = dernier pointage ≤ début, puis chaque bascule →
-  intervalles, pauses, « Total : N Heures N min ». **Delta assumé : les régleurs sont
-  affichés** (chip « régleur »), le legacy les filtrait.
-- **Deux autres deltas** : la carte Production a **sa propre table** (le legacy n'en a pas —
-  4 volets pour 5 états) ; la navigation ne saute **pas** les équipes vides (le legacy
-  sondait `COUNT(piece_production)` avant d'adopter une équipe, boucle non récupérable).
-- **Une seule réponse par équipe** (~50 Ko dense, ~1 s sur le pilote Windows) : machines
-  avec segments + événements + `detail` des déductibles, les 4 listes, **les cartes
-  d'événements de toutes les pièces** (2 requêtes batchées), le roster. ~15 requêtes
-  bornées à l'équipe, jamais N par métier (le legacy en faisait 4 par métier + 1 par
-  événement pièce). Équipe passée : cache API 10 min (`cacheEquipes`) + `staleTime` 10 min
-  côté web ; équipe en cours : refetch 60 s, jamais cachée ; l'équipe précédente est
-  **préchargée** dès que la courante est connue. Les états initiaux (dernier événement
-  avant l'équipe) sont lus en UNE requête (48 h avant, dernier par métier) puis cachés par
-  équipe (`Map` LRU 8, plus le slot unique d'avant — feuilleter le passé n'évince plus
-  l'entrée de la tablette).
-- **Timeline** : SVG maison par piste (`TimelineMetiers.tsx`, patron de
-  `PoidsPiecesChartDialog`) sur une échelle mesurée — **les 8 h tiennent dans la largeur,
-  sans zoom** (décision utilisateur du 2026-08-28). Marche = vert, **le blanc EST l'arrêt**
-  (comme le legacy), événements pièce = 7 min (`420 s` legacy) navy sous le rail, lancement
-  d'OF (pièce n° 1) noir, fin d'OF rouge foncé, fenêtres d'OF en filet ardoise au-dessus,
-  trait « maintenant » or. Chaque marque est sa propre cible de survol **élargie à ≥ 24 px**
-  (`rectCible`), même lecture au focus clavier ; légende obligatoire ; la colonne de
-  valeurs et le ⓘ sont la « table jumelle » du dessin. ⚠️ Les cellules de la grille
-  portent `min-w-0 overflow-hidden` : sans ça un SVG large fige la colonne à son ancienne
-  largeur (min-width auto) et le `ResizeObserver` ne voit jamais le rétrécissement.
-- **Barèmes = FI_TRS verbatim** (`SEUILS_FI_TRS`, API) : vitesse `< 20` rouge / `< 25`
-  ambre (absolu — pas le relatif de la tablette), arrêts/h `0–1` vert / `2` ambre, TRS
-  `≤ 0,8` / `≤ 0,9` (les deux seuls réels du cache). `lib/trs-equipe.test.ts` **importe le
-  fichier de l'API** pour épingler `REGLES` ; depuis une worktree appairée :
-  `ETM_API_TRS_TRM=<ETM-xxx>/apps/api/src/lib/trs-trm.ts pnpm test`.
-- **Le ⓘ = dialogue bandé §18.D** (`TrsMetierDialog`) : trois tuiles-verdict, puis le
-  calcul ligne à ligne (fenêtres, P, marche, déductibles **détaillés** via
-  `calculerTrs().detail`, production possible, TRS, arrêts anormaux) — le legacy n'avait
-  qu'une bulle irrécupérable.
-- **Tuile KPI = onglet** (`KpiTile`, décision utilisateur) : cliquer remplace la timeline par
-  la table §27.3 de la carte + les cartes `EventTimeline` de la pièce sélectionnée ; re-clic
-  ou « Timeline » revient au plan. Pas de tiroir.
-- **Droit `view_trs`** (catégorie Production, **fermé par défaut, accordé à la main** —
-  décision utilisateur) : masque l'entrée de menu (`SubMenuItem.permission`, comme
-  Finance), « Accès restreint » sur la page, 401/403 sur `/trs/equipe`. **`/trs/atelier`
-  (tablette) reste ouvert.** Sonde : `probe-trs-equipe-trm.ts --debut …` (signe le cookie
-  admin comme les `check-*`) — **à rejouer sur la prod** contre la capture du 28/08 13 h
-  (Production 11 / 212 kg, Visitage 14 / 244 kg, 2ᵉ choix 1,64 %, non visitées 3 ; TRS 1G
-  85 %, 2E 99 %, 2F 89 %, 2I 28 %, 3B 63 %, 3C 90 %, 3D 97 %, 3E 65 %, 3H 9 %).
-- `useMinuteClock` est sorti de `PiecesAVisiterWidget` vers `hooks/` (le trait
-  « maintenant ») ; `SectionBand` (le bandeau §43 de Prime) vit dans `components/shared/`.
+- ⚠️ Les bonnetiers viennent de `pointage`, pas du planning ; les régleurs sont affichés
+  (delta assumé). Une seule réponse par équipe, ~15 requêtes bornées, cache 10 min pour
+  les équipes passées.
+- Barèmes = FI_TRS verbatim (`SEUILS_FI_TRS`), différents de la tablette ; le test importe
+  le fichier de l'API (`ETM_API_TRS_TRM=… pnpm test` en worktree).
+- ⚠️ Cellules de grille en `min-w-0 overflow-hidden`, sinon le SVG fige la colonne.
+- Sonde `probe-trs-equipe-trm.ts --debut …` à rejouer sur la prod contre la capture du 28/08.
 
 ### Paramètres › Utilisateurs (`/settings/utilisateurs`) — TRM's own permission store
 
-Port of ETM's screen (`apps/web/src/pages/SettingsUtilisateurs.tsx`): user list · Profil tab (email / photo / signature — the **shared** `/user-emails` + `/user-profiles` stores, one identity per person across both apps) · **Écrans** tab · **Permissions** tab. Notifications / « Copier les droits » are not ported yet — they arrive with the features that need them.
+`SettingsUtilisateurs.tsx` : Profil (stores partagés) · **Écrans** · **Permissions**.
+**Permissions are TRM's own** : `/api/permissions-trm/*`, catalogue
+`lib/permission-keys-trm.ts`, store `data/permissions-trm.json` — jamais `/api/permissions`.
+**Dossier : `claude_doc/parametres-utilisateurs.md`.**
 
-- **Permissions are TRM's own.** `PermissionsContext` reads **`/api/permissions-trm/me`**, the admin tab talks to `/api/permissions-trm/{keys,users}`; catalog `ETM/apps/api/src/lib/permission-keys-trm.ts`, store `data/permissions-trm.json`. Never point a TRM gate at `/api/permissions` — the two stores are separate so that neither admin screen can strip the other app's grants on save. A new switch = catalog entry (MPS API, paired NG worktree) + `trmUserHasPermission` on the route + `useHasPermission` in the screen. Default closed; effective admins bypass.
-  - ⚠️ **Une clé nommée par un écran TRM mais absente de `TRM_PERMISSION_KEYS` échoue en SILENCE, et de façon irrattrapable.** Paramètres › Utilisateurs construit son onglet depuis `GET /permissions-trm/keys`, donc aucun interrupteur n'est rendu ; `setTrmUserPermissions` la jetterait comme inconnue si elle arrivait quand même ; `/permissions-trm/me` ne la renvoie jamais. Résultat : **le bouton est invisible pour tout non-admin et aucun admin ne peut l'accorder** — ça se lit comme une restriction voulue, pas comme un bug. C'est arrivé à six clés — `create_stock_fil`, `edit_factures`, `edit_client_info`, `delete_client`, `crud_client_contacts`, `crud_client_adresses` — déclarées seulement dans le catalogue d'**ETM** alors que Fils › Stock, Clients › Facturation et Clients › Gestion s'en servaient : « Nouveau lot » était inaccessible au poste de visitage, et le symptôme se lisait comme un droit qu'on avait simplement oublié d'accorder. Garde : `check-permission-keys-trm.ts --web <chemin absolu vers TRM/apps/web/src>`, le pendant de `check-screen-access-trm.ts` (là le manifeste API suit la nav du web ; ici les littéraux du web doivent tous exister dans le catalogue API).
-  - ⚠️ **Le store est un ARGUMENT EXPLICITE des gardes partagées, jamais un défaut.** `requirePermission()` de `lib/clients-common.ts` est importé par `routes/clients.ts` (ETM) **et** par `routes/clients-trm.ts` / `routes/stock-fil-trm.ts` (TRM) ; tant qu'il appelait `userHasPermission` en dur, toute route TRM qu'il gardait demandait à `permissions.json` — celui d'**ETM** — si un utilisateur TRM avait le droit d'écrire. Un droit accordé côté TRM ne faisait rien, un droit accordé côté ETM ouvrait la route TRM. Il prend donc un `PermissionScope` (`ETM_PERMISSIONS` / `TRM_PERMISSIONS`) sans valeur par défaut : un nouvel appelant *doit* nommer son application. Même raison pour `FacturesScope.permissions` et `FinanceScope.hasPermission` — dès qu'une fabrique de routeur sert les deux sociétés, le store fait partie du scope.
-  - **Deux routeurs TRM n'ont encore AUCUNE garde** : `expeditions-trm.ts` (6 routes d'écriture) et `planning-atelier.ts` (7). Comme pour `of-trm` avant `edit_of`, n'importe quel appelant joignant l'API peut les appeler — `attachUser()` est best-effort et il n'y a pas de garde globale.
-- **Écrans = a second axis, TRM's own tree, same store.** Menu/screen visibility, stored flat next to the action keys in `permissions-trm.json`: a **menu is a grant, default closed** (`screen_<menu>`), a **screen inside a granted menu is a hide** (`hide_<menu>_<screen>`) — so a newly shipped screen shows up for everyone who already holds its menu instead of being invisible until an admin ticks it per user. A menu left with no visible screen disappears; granting a menu clears its screens' hide keys. Keys derive from the href, so nothing is hand-maintained: the web builds both the admin tree and the nav filters from `mainNavigation` itself (`config/navigation.ts` § Screen access, `hooks/useSubmenuFilter.ts`), and the API manifest `ETM/apps/api/src/lib/screen-keys-trm.ts` mirrors it (diffed by `check-screen-access-trm.ts --nav <abs path to TRM navigation.ts>`).
-  - ⚠️ **Hide keys are negative — read them via `hasRaw()`, never `has()`.** `has()` is true for every key when the viewer is an effective admin, so a hide read through it would hide the whole app from the admin. `/permissions-trm/me` never reports hide keys for an admin either. Pinned by `apps/web/src/config/navigation.test.ts`.
-  - **Enforcement is the nav surfaces + one route guard in `AppShell` (`useScreenGuard`) — a curtain, not a lock.** Endpoints are shared across screens, so gating them per screen would break unrelated features; confidentiality stays with a server-checked action key. The guard also owns the menu index redirect (`/clients` → the first screen the user may open, which the router's static `<Navigate>` cannot know) and never gates `/`, the other dashboards, or `/settings`.
-  - ⚠️ **Grandfathering is a deploy step**: `seed-screen-access-trm.ts --write` **on the prod API host**, before the TRM web deploy — menus are default-closed, so without it every non-admin loses the whole nav. It is idempotent and is also how a *newly added menu* is handed to everyone at once.
-- First key **`edit_commandes_client`**: hides « Nouvelle » / « Modifier » in Clients › Commandes (Supprimer and line editing sit inside edit mode) and 403s the write routes of `/commandes-trm`. Clôture is deliberately not under it (ETM keeps a separate `cloture_commande_client`).
-- **Second key `edit_of`**: turns Production › Ordres de fabrication read-only — Modifier, Nouveau, Supprimer, les flèches de file, « Passer en cours » / « Terminer » et l’ajout d’observation disparaissent, et les **neuf** routes d’écriture de `/of-trm` 403. ⚠️ **Avant cette clé ces routes ne demandaient aucun cookie du tout** (`attachUser()` est best-effort, il n’y a pas de garde globale) : n’importe quel appelant pouvant joindre l’API pouvait terminer un OF. Toute nouvelle route d’écriture TRM doit donc porter sa propre garde — il n’y a rien au-dessus.
-- **The user list is an allowlist**, not the whole shared `utilisateur` table: `TRM_STAFF` in the page (lowercase `prenom|nom`) — Vincent Malterre (admin), Nicolas Antonino, Mickael Grivelet, Isabelle Malterre, Laetitia Tellier, Pierre-Emmanuel Roux, **plus le compte-poste `Visitage`** (IDutilisateur 10, `roleHint` pc-visitage). Auth stays shared, so the picker still shows everyone. ⚠️ **Un compte-poste n’a pas de nom de famille, donc sa clé finit par un `|` nu** — ce n’est pas une coquille. Le PC de visitage se connecte comme lui ; la visiteuse s’identifie *dans* le poste, contre `bonnetier`, pas en se connectant. Sans son entrée ici aucun admin n’atteint ses droits, et `saisie_visitage` — fermé par défaut — ne pourrait jamais être accordé à la machine qui en a besoin. `Regleur` (14) et `eloise` (16) sont les deux autres comptes-postes du legacy : à ajouter le jour où un écran TRM les concerne. Mickael Grivelet was missing from the table: `ETM/apps/api/src/scripts/add-utilisateur-mickael-grivelet.ts` inserts him (idempotent; **run on prod before the first deploy**).
+- ⚠️ **Une clé nommée par un écran TRM mais absente de `TRM_PERMISSION_KEYS` échoue en
+  SILENCE** (bouton invisible pour tout non-admin, inaccordable). Garde :
+  `check-permission-keys-trm.ts --web <TRM/apps/web/src>`.
+- ⚠️ **Le store est un argument explicite des gardes partagées** (`requirePermission(scope)`,
+  `FacturesScope.permissions`, `FinanceScope.hasPermission`), jamais un défaut.
+- ⚠️ `expeditions-trm.ts` (6 routes) et `planning-atelier.ts` (7) n'ont **aucune garde** ;
+  `attachUser()` est best-effort, il n'y a pas de garde globale — toute nouvelle route
+  d'écriture porte la sienne.
+- **Écrans** : menu = grant (`screen_<menu>`, fermé par défaut), écran = hide
+  (`hide_<menu>_<screen>`), clés dérivées de `mainNavigation` ; ⚠️ **hide keys via
+  `hasRaw()`, jamais `has()`**. Rideau (`useScreenGuard`), pas un verrou. ⚠️ Nouveau menu
+  = `seed-screen-access-trm.ts --write` sur la prod **avant** le web deploy.
+- Liste = allowlist `TRM_STAFF` (dont le compte-poste `Visitage`, id 10, clé finissant par
+  `|` nu — pas une coquille). Clés livrées : `edit_commandes_client`, `edit_of`, …
 
 ### Qualité › Retour client (`/qualite/retour-client`) — port de `FI_Retour_ClientTRM.wdw`
 
-Layout Classeur (§39) : liste · en-tête fiche · onglets maîtres **Retour** / **Traçabilité** ·
-volet **Journal / Documents / Info** · pill de statut §29.3. Écran
-`apps/web/src/pages/QualiteRetourClient.tsx` ; API `ETM/apps/api/src/routes/retours-client-trm.ts`
-(monté `/api/retours-client-trm`) ; primitives de table `ETM/apps/api/src/lib/retour-client-trm.ts` ;
-état imprimé `ETM/apps/api/src/lib/pdf/RetourClientPdf.tsx`. Le `.wdw` est PCS-compressé : la spec
-vient du **cache de compilation WinDev** (`MPS.cpl/<user>/00000000/FI_Retour_ClientTRM.*.wcw`
-pour le SQL et les libellés, `.wbw` pour l'inventaire des champs), et tout a été revérifié sur la
-base par `apps/api/src/scripts/probe-retour-client-trm.ts` (lecture seule, rejouable en prod).
-Garde HTTP : `check-retour-client-trm.ts` (crée un dossier jetable — **jamais contre la prod**).
+Classeur §39, `QualiteRetourClient.tsx`, API `routes/retours-client-trm.ts`, primitives
+`lib/retour-client-trm.ts`, PDF `RetourClientPdf.tsx`. **L'autre bout de Qualité › Dossiers
+d'ETM** : une FNC envoyée d'ETM arrive ici comme `retour_client` (`IDdossier_qualite > 0`).
+Droit `edit_retour_client`. **Dossier : `claude_doc/qualite-retour-client.md`.**
 
-**C'est l'autre bout de Qualité › Dossiers d'ETM, pas un écran indépendant.** ETM ouvre un
-`dossier_qualite` et envoie sa FNC ; ça arrive ici comme un `retour_client`. Les 91 lignes vivantes
-ont toutes `IDdossier_qualite > 0`.
-
-| ETM `dossier_qualite` | TRM `retour_client` |
-|---|---|
-| `messageFNC` | `message_client` (copie) |
-| `envoiFNC` | `DATE` |
-| `IDdefaut_textile`, `Type_Reference`, `reference` | copiés **à la création seulement** |
-| `IDclient` = le client **final d'ETM** | `IDclient` = **le client de TRM**, Ets Malterre |
-| `reponseFNC` = `"<libellé>\r\n<commentaire>"` | ⟵ `IDresolution_qualite` + `reponse` |
-| `echéance`, `terminé` | *(pas de colonne — lus, jamais écrits)* |
-
-- **La réponse remonte, le reste non.** `PUT /retours-client-trm/:id` republie la résolution et la
-  réponse sur `dossier_qualite.reponseFNC` via **`writeFncReponse()`** (exporté de
-  `dossiers-qualite.ts` — l'encodage a un seul propriétaire). Ne remontent JAMAIS : l'affectation
-  (TRM la repointe sur le rouleau réellement trouvé — 13 dossiers sur 91) et la clôture (ETM ferme
-  son dossier quand la réponse le satisfait, c'est une autre décision).
-- **L'aller** est le bouton « Envoyer la FNC » de l'écran ETM, qui était un placeholder jusqu'au
-  2026-08-26 : `POST /dossiers-qualite/:id/fnc/envoi` (ou l'envoi email `…/fnc/email`, qui fait la
-  même chose une fois le mail parti) date `envoiFNC` et crée la ligne. **Idempotent** — un second
-  envoi n'ouvre pas un dossier en double. Seule `IDSociétéFNC = 1` (Tricotage Malterre) se
-  transmet : `retour_client_confection` est une autre table, sans écran.
-- **Le client TRM est résolu par le nom de la société émettrice**, pas par un id en dur, et la
-  fonction lève si elle ne le trouve pas — un repli silencieux classerait la réclamation sous le
-  client qui a le hasard d'être l'`IDclient` 1.
-
-**`retour_client` — les pièges.** Pas d'`IDsociete` (l'objet est trmien par nature, comme
-`ordre_fabrication`). L'ordre physique des colonnes est celui du **`SELECT *` runtime**, qui diffère
-du `MPS.xdd` (même piège que `controle_titrage`) et que la sonde §2 revérifie à chaque passage.
-`archivé` est la **seule colonne accentuée**, et c'est le drapeau En cours / Terminé : lecture pliée
-par `rcReadCol`, écriture par `patchArchive` (SET nommé sur Windows, réécriture positionnelle pleine
-ligne sur Linux). Le filtre En cours / Terminé se fait **en JS** — le pont Linux ne sait pas nommer
-`archivé` dans un WHERE. `DATE` est réservé. Deux colonnes sont **mortes** et ne doivent recevoir
-aucun champ de saisie : `impact_prime` (0 sur 91/91, aucun champ dans le legacy — elle n'existe
-qu'à l'impression, et y reste à 0,00 € par décision du 2026-08-26, comme la tuile morte de
-Production › Prime) et `defaut` (copie texte du libellé, vide sur 90/91).
-
-**Affectation — la divergence à connaître.** `Type_Reference` est un discriminant *texte* sur la
-colonne libre `reference` : `'1'` → `stock_ecru.numero` (85 lignes), **`'2'` → `stock_fini.lot`**,
-le lot FINI (6 lignes). ⚠️ Sur `dossier_qualite`, le même `'2'` désigne un **lot de fil**
-(`stock_fil.lot`). Même code, deux tables. La résolution rend toujours une **liste**, éventuellement
-vide : `numero` n'est pas unique et 6 références historiques (`2636`, `2637`, `2667`, `10318`) ne
-matchent rien — la croix rouge du legacy, pas une erreur.
-
-**Traçabilité.** `stock_ecru` → `ref_ecru.reference` + `colori_ecru.reference` (l'étiquette
-« 061 - ecru » du legacy), `ordre_fabrication.IDmachine` → le métier, `evenement_piece` (jointure
-sur `IDstock_ecru` **OU** `IDpiece_production`), `defaut_qualite` `Type_Reference = 2` avec son
-spotteur (1 = Bonnetier, 2 = Visiteur). ⚠️ `defaut_qualite.reference` est du **texte** qui stocke
-l'id : la liste `IN` doit être quotée. ⚠️ `taille_cm` n'est **pas** des centimètres — jamais rendu
-avec une unité ni sommé (même règle que Prime). Les deux documents (bon de commande via
-`IDref_commande_source` → `ligne_commande_sous_traitant`, bon de livraison via
-`IDligne_expedition_TRM` → `ligne_expedition`) réutilisent les endpoints PDF existants.
-**Aucune lecture ne filtre `IDsociete`** : la réception ETM bascule le rouleau en société 1, et les
-80 rouleaux référencés y sont déjà.
-
-⚠️ **L'onglet Documents est dégradé en prod.** `doc_qualite` porte sa PK *et* sa FK accentuées
-(`IDdoc_qualité`, `IDdossier_qualité`) : le pont Linux ne sait pas cadrer sur un dossier et un
-`SELECT *` traînerait 87 Mo de blobs. L'API répond `degraded: true` et l'écran le dit, plutôt que de
-faire croire le dossier vide — exactement comme l'écran ETM. Le §8 de la sonde reteste la question à
-chaque passage et dira quand ce chemin pourra disparaître.
-
-- **Droit `edit_retour_client`** (`permission-keys-trm.ts`, catégorie Qualité) : seule l'écriture est
-  gardée. La donnée qualité n'est pas confidentielle et la visibilité relève de l'axe Écrans
-  (`screen_qualite` / `hide_qualite_retour-client`, déjà présents) ; ce que la clé protège, c'est la
-  boucle FNC — une réponse écrite ici parle à ETM au nom de TRM.
-- **L'échéance est en lecture seule** : elle vit sur le dossier d'ETM. Elle pilote le liseré §41
-  rouge (atteinte) / ambre (≤ 3 j) sur les seuls retours **en cours** — jamais la règle §30 « date
-  manquante = en retard », qui peindrait toute la liste (elle est nulle sur presque tous les
-  dossiers récents).
-- `components/shared/PieceEvents.tsx` (`BonnetierAvatar`, `EventTimeline`) est **sorti de
-  `ProductionOf.tsx`** pour cet écran : répondre à une réclamation, c'est lire exactement cette
-  liste. Améliorer le fichier partagé, ne pas re-forker.
-- L'email n'est **pas** journalisé dans `envoi_email` : ce registre est clé par
-  (`IDreference`, `IDtype_doc`) et `type_doc` n'a pas de « retour client ». Le classer en 2 =
-  « autre » mettrait une fiche qualité dans l'historique d'envoi du client, entre ses factures.
-- Le corps du mail legacy (« Le dossier N°%1 a été créé auprès de notre service qualité », signé
-  « Ets Malterre - Service Qualité ») était un copier-coller de la fenêtre ETM : au départ de TRM le
-  destinataire EST Ets Malterre, donc on envoie la fiche avec la réponse de l'atelier.
-- **Défauts récents et Analyse restent des placeholders** ; l'index `/qualite` pointe donc sur
-  Retour client, le seul écran réel du menu.
+- ⚠️ **La réponse remonte, le reste non** : `PUT /:id` republie sur
+  `dossier_qualite.reponseFNC` via `writeFncReponse()` (un seul propriétaire de l'encodage).
+  Affectation et clôture ne remontent jamais.
+- ⚠️ `Type_Reference '2'` = `stock_fini.lot` ici, **lot de fil** sur `dossier_qualite`.
+  `archivé` seule colonne accentuée (`rcReadCol` / `patchArchive`, filtre en JS) ; `DATE`
+  réservé ; `impact_prime` et `defaut` sont mortes.
+- Onglet Documents **dégradé en prod** (`doc_qualite` PK/FK accentuées) — `degraded: true`.
+- `components/shared/PieceEvents.tsx` est sorti de `ProductionOf.tsx` pour cet écran.
 
 ### Fils › Stock (`/fils/stock`) — port of `FI_Stock_Fil_TRM.wdw`
 
-Tableau layout (§27). Screen `apps/web/src/pages/FilsStock.tsx`; API
-`ETM/apps/api/src/routes/stock-fil-trm.ts` (second router on the `/api/stock` mount,
-endpoints `/fil-trm/*`).
+Tableau §27, `FilsStock.tsx`, API `routes/stock-fil-trm.ts` (`/api/stock/fil-trm/*`).
+`stock_fil` **n'est pas partitionné** : TRM liste tout, `IDclient` = propriétaire du fil.
+Droit `create_stock_fil` (Nouveau lot · Diviser · Archiver — accordé au poste `Visitage`).
+**Dossier : `claude_doc/fils-stock.md`.**
 
-**`stock_fil` is NOT partitioned — no `IDsociete` column.** The legacy TRM screen and
-ETM's Fournisseurs › Stock read the same ~1.7k rows: the yarn physically sits at TRM
-(`IDMagasin = 1` on 99% of rows) and **`IDclient` names its owner** (TRM knits à façon —
-Ets Malterre is TRM's biggest "client", holding most of the yarn). So the TRM screen
-lists ALL rows (user-confirmed), with a Client column and a Disponible (`terminé=0`,
-default) / Archivé / Tous filter. It is a different *flavor* of the same table, not a
-shared screen: TRM adds the lifecycle actions ETM's screen doesn't have.
+- ⚠️ `stock` / `dernier_mouvement` ne sont **jamais écrits par le web** ; lot = `MAX+1`
+  numérique **en JS** ; `controle_titrage` en INSERT positionnel dans l'ordre runtime
+  `IDcontrole_titrage, titrage, nb_fil, nb_brin, IDstock_fil, IDunite_titrage, date`.
+- ⚠️ **Freinte = `stock_initial − Σ(pièces × pourcentage/100) − Σ fil_incorpore.poids`** :
+  la pondération est porteuse et **le fil incorporé est de la consommation, pas de la
+  freinte** (décision 2026-08-26, `check-freinte-incorpore-trm.ts`), affiché sur sa propre
+  ligne. Seuils : freinte ≤ 10 % vert ; 2nd choix 0 / ≤ 5 % / rouge.
+- ⚠️ **Windows ODBC** : tout SELECT nommant une colonne memo-binaire (`certif_bio`,
+  `certif_recyclé`) ou `SELECT *` sur `stock_fil` / `client` rend **zéro ligne**. `controlé`
+  est un drapeau mort.
+- ⚠️ `pnpm dev` d'`apps/web` **force `VITE_API_URL=:8080`** via cross-env : pour une API de
+  worktree, `VITE_API_URL=http://localhost:808N/api pnpm exec vite --port 5175`.
 
-- **Droit `create_stock_fil`** (catégorie « Fils ») : garde les **trois écritures du grand
-  livre** — « Nouveau lot », « Diviser », « Archiver » — et rien d'autre. Le contrôle de
-  titrage n'en fait pas partie (il n'écrit que dans `controle_titrage`), la consultation
-  reste ouverte à qui a le menu Fils. ⚠️ La clé était nommée par l'écran et par les trois
-  routes depuis l'origine, mais **n'était déclarée que dans le catalogue d'ETM** : le bouton
-  était donc invisible pour tout non-admin et inaccordable — voir l'avertissement de
-  « Paramètres › Utilisateurs ». À accorder au **poste de visitage** (compte-poste
-  `Visitage`, IDutilisateur 10) : c'est là que le fil est reçu.
-- **Read-only columns, verified against live data**: `stock` moves only via piece
-  declaration (`Δ = stock_ecru.poids × asso_fil_of.pourcentage/100` — can go negative),
-  `fil_incorpore`, and archivage (`stock = 0`); `dernier_mouvement` =
-  max(`stock_ecru.date_saisie`) of the lot's OFs (183/183 parity). Never written by the web.
-- **Lot numbering**: numeric string, unique key, `MAX(numeric lot)+1` computed **in JS**
-  (SQL `MAX(lot)` is lexicographic; CAST unverified on the bridge), 3-attempt retry.
-- **Create** writes IDclient, IDMagasin=1, `stock = stock_initial`,
-  `dernier_mouvement = date_entree`, `dernier_pointage` (defaults date_entree) — ETM's
-  older `POST /stock/fil` omits all four, don't reuse it.
-- **Diviser**: new row copies the identity fields + gets lot max+1 and
-  `stock = stock_initial = X`; source loses X on both columns. No ledger row exists.
-- **Contrôle de titrage**: reference block from `ref_fil`
-  (titrage/nb_fil/nb_brin/`unite_titrage`), Valider INSERTs into `controle_titrage` —
-  positional INSERT, max+1 PK (reserved `date` column). ⚠️ **Physical column order is
-  `IDcontrole_titrage, titrage, nb_fil, nb_brin, IDstock_fil, IDunite_titrage, date`** —
-  trust the runtime `SELECT *` key order, NOT the `.xdd` analysis listing (they differ;
-  this bit once).
-- **Archivage** (`GET /fil-trm/:id/bilan` + `POST /fil-trm/:id/archiver`): freinte =
-  `stock_initial − Σ(OF pieces poids × pourcentage/100) − Σ fil_incorpore.poids` — the
-  **pourcentage weighting is load-bearing** on blended yarns (verified vs legacy
-  annotations). Defects verdict =
-  `defaut_qualite` `Type_Reference = 2` over the OFs' `stock_ecru` ids (« Aucun Défaut »
-  smiley when empty). Writes corrected `stock_initial`, `observation_freinte`,
-  `stock = 0`, `terminé = 1`. Thresholds (user-confirmed): freinte green ≤ 10 %, red
-  above or negative; second choix green 0 / amber ≤ 5 % / red. PDFs: Dymo 89×36
-  étiquette (`StockFilLabelPdf`) + A4 rapport de freinte (`RapportFreintePdf`,
-  **`issuer: companyTrm`**).
-- ⚠️ **Le fil incorporé est de la consommation, pas de la freinte** (décision utilisateur
-  du 2026-08-26, après vérification auprès du régleur). « Incorporer un fil » verse un
-  reliquat de lot dans un OF pour s'en débarrasser ; le poids est déclaré en Kg sur l'OF
-  (`fil_incorpore`), **jamais en pourcentage**, donc `Σ(pièces × pourcentage/100)` ne peut
-  pas le voir. Tant qu'il n'était pas déduit, la freinte était gonflée du poids exact :
-  sur ~10 des 32 lots concernés, la freinte calculée **était** le poids incorporé au kilo
-  près (lot 9479 : 50,5 pour 50 ; lot 10065 : 20,6 pour 20). Correction vérifiée par
-  `ETM/apps/api/src/scripts/check-freinte-incorpore-trm.ts` : |freinte| médiane 4,58 % →
-  1,46 %, 27 lots rapprochés de zéro, 5 éloignés.
-  - **Affiché comme sa propre ligne, jamais fondu dans `produit`** : le poids est
-    *déclaré* par le régleur, pas pesé à la visiteuse — les consignes disent souvent
-    « incorporer le lot X **si possible** » — et une poignée de lots ne réconcilient pas
-    (le lot 10106 déclare 8 Kg incorporés sur un lot de 8 Kg dont 6,6 Kg déjà tricotés).
-    L'archiviste doit voir le chiffre pour le juger, et il peut toujours corriger
-    Quantité initiale, qui est là pour ça. La carte « Fil incorporé » et le tableau du
-    PDF ne s'affichent que s'il y en a (33 lots sur ~1 700).
-  - `fil_incorpore` n'a que **quatre colonnes** (`IDfil_incorpore`, `IDordre_fabrication`,
-    `IDstock_fil`, `poids`) : ni date, ni lien vers une pièce, ni pourcentage. **Le
-    *moment* de la consommation n'est donc enregistré nulle part** — il vit dans la
-    consigne au bonnetier, et les trois cas coexistent : réparti (« incorporer l'ancien
-    lot 1 sur 2 », « en bordure »), en fin d'OF (« solder le lot 10373 à la fin de la
-    prod »), au début (« solder le guipé 9847 avant de prendre le 10187 »). Décision du
-    2026-08-26 : **on laisse ça en consigne**, pas de colonne en plus.
-  - Dossier complet (34 incorporations, 32 lots, qui incorpore quoi et quand) :
-    `ETM/apps/api/src/scripts/probe-fil-incorpore-trm{,2,3,4}.ts`, en lecture seule.
-- **`controlé` is a dead pre-2023 flag** (1 065 rows, always with `terminé=1`, unrelated
-  to the 2-row `controle_titrage`) — never write it, never render it editable.
-- **Windows driver footgun (this feature's discovery)**: any SELECT naming a
-  **memo-binary column** (`certif_bio`, `certif_recyclé`) — or `SELECT *` on a table
-  holding one (`stock_fil`, `client`) — silently returns **zero rows** on the Windows
-  ODBC driver. Probe blobs with `LENGTH(col)` on Windows; `SELECT *` works on the Linux
-  bridge. Both certif blobs are empty on every row (probed 2026-08), so the Linux
-  archive path (delete + positional reinsert à la `setClientFlag`, blob slots `''`)
-  is safe; it 409s `certificat_bloque` should a blob ever appear.
-- Probe/parity script: `ETM/apps/api/src/scripts/probe-stock-fil-trm.ts` (read-only) —
-  re-run it against prod after `/etm_deploy` to sanity-check the Linux paths.
-- Dev note: `apps/web` `pnpm dev` **hardcodes `VITE_API_URL=:8080` via cross-env**,
-  overriding `.env.development.local` — for a worktree API pair run
-  `VITE_API_URL=http://localhost:808N/api pnpm exec vite --port 5175` instead.
 ### Production › Prime (`/production/prime`) — port of `FI_Prime.wdw`
 
-Read-only dashboard (`apps/web/src/pages/ProductionPrime.tsx`; API
-`ETM/apps/api/src/routes/prime-trm.ts`, mounted `/api/prime-trm`). The legacy `.wdw` is
-PCS-compressed, but the full WLanguage survives as comments in the generated Android Java
-(`C:\Mes Projets\MPS\Android\dbg\Compile\GWDFFEN_Prime.java`) — that is the recovered spec.
+Lecture seule, `ProductionPrime.tsx`, API `routes/prime-trm.ts`. Spec = le WLanguage en
+commentaires de `GWDFFEN_Prime.java`. Semestres 15/06 – 15/12 ; sommes sur
+`stock_ecru.date_saisie` scopées `IDordre_fabrication > 0` (pas d'`IDsociete`).
+PDF `PrimePdf.tsx` (`companyTrm`). **Dossier : `claude_doc/production-prime.md`.**
 
-- **Period** = semester bounded by **15/06 and 15/12** (S1 = 15/12/(Y−1)→15/06/Y, labelled
-  by the *fin* year; S2 = 15/06→15/12, labelled by the *début* year). Précédent/Suivant
-  move a reference date ±6 months; Suivant is blocked on the current period.
-- **Sums** = `SUM(stock_ecru.poids)` over `date_saisie` (a DATETIME) × the rate **du barème
-  applicable au semestre** (voir le ⚠️ plus bas) : jusqu'à S1 2026, 1er choix
-  (`second_choix = 0`) +0,05 €/Kg et 2nd choix (`second_choix = 1`) −0,20 €/Kg ; à partir de
-  S2 2026, **+0,055 / −0,40 €/Kg**. **No
-  IDsociete filter** (the ETM handover flips delivered pieces to société 1 — filtering
-  would empty the semester); TRM production is scoped by **`IDordre_fabrication > 0`**
-  instead, a deliberate delta from the legacy whose predicate also caught ETM `lot='fictif'`
-  manual rows (~0.4% overcount). **Retour client (−0,60 €/Kg) is a dead tile**: the legacy
-  hardcodes it to 0 (never wired); keep it displayed at 0 until a real data source exists.
-- **Répartition** = every atelier employee — **no `regleur` filter and no `archivé` filter**
-  (`date_sortie` is what scopes history) — whose employment overlaps the period; prorata of days from
-  max(début, date_entree) to **min(today, fin, date_sortie)** — the period-end cap is the
-  second deliberate delta (the legacy counted to *today* even on past semesters, so
-  historical splits drifted). Photos come from `bonnetier.photo` (real JPEG blobs) via
-  `/prime-trm/bonnetiers/:id/photo` — **binary needs `queryRaw`**, the normal `query()`
-  path UTF-8-mangles blobs; the web falls back to initials on non-200.
-- The **week always describes the current week** (Monday → open-ended) and therefore
-  renders **only when the current semester is displayed** (screen and PDF both). On screen
-  it is not a section of its own: it used to be a third navy band restating the same three
-  production tiles at a smaller size, costing a full page row. It now rides the tiles it
-  belongs to — one « Cette semaine · kg · € » footer per tile, the week named once in the
-  hero — and its qualitative half is the déclassement table below. The PDF
-  (`lib/pdf/PrimePdf.tsx`) still prints the week as a block: it rides `MalterreDocument`
-  with `issuer: companyTrm`, renders the same `/prime-trm` payload as the screen, and
-  deliberately omits the déclassement table — it is the payout document, not the ops view.
-- **Déclassements de la semaine** (`semaine.declassements[]`) fills the column under the
-  taux block inside the déclassements card: **one row per 2nd-choix roll** — the unit that
-  costs money — with its métier, its poids, its manque à gagner (`poids × le taux 2nd choix
-  du barème en vigueur`, the same
-  basis as `DeclassementType.montant` and the tile) and its `defaut_qualite` findings
-  (`Type_Reference = 2`) folded onto a second line. It was the whole visitage log, **both
-  choix**, until 2026-08-25; the user narrowed it to the déclassées, because the table lives
-  inside the déclassements card and answers « qu'est-ce que la semaine a coûté ».
-  - **The population is exactly the one `semaine.secondChoix` sums** (same `periodWhere(1,
-    monday)` predicate), so the column's totals always equal the tile's — including
-    **déclassées carrying no defect row**, which get a « Aucun défaut relevé » line rather
-    than being dropped. Keep that invariant: a "must have a defect" filter would silently
-    make the two disagree.
-  - No per-row amber flag any more: every row is a déclassement, so the §7 colour would
-    stop discriminating. The money column is what ranks the rows.
-  - ⚠️ **`taille_cm` is NOT centimetres** (25 for « Moins de 50 cm », 1500 for « 1m - 3m »):
-    the units are per-vocabulary and unrecoverable, so never render or sum it as a length.
-    `description` already reads « Maille Moins de 50 cm » — render it verbatim (whitespace
-    normalised: historical rows carry « Autre Barrure  Plus de 3m ») and keep « · » free as
-    the separator *between* defects; identical labels fold into a `×N` (a piece really does
-    carry four « Démaillage » rows).
-- **Analyse des déclassements** (not in the legacy): taux de 2nd choix (kg-based) compared
-  to the **previous semester in full** — always, including while the current one is still
-  running. A same-elapsed-days window would be more like-for-like statistically, but it
-  moves every day; the full previous semester is a fixed number to beat, which is the point
-  of showing it (user decision, 2026-08-24 — don't "fix" it back). Plus the defect-type
-  breakdown of the déclassé pieces
-  (`defaut_qualite`, `Type_Reference = 2`). A piece's weight splits **equally across its
-  distinct defect types** so the donut sums to the true déclassé weight; unknown types
-  fold into « Autres », defect-less pieces into « Non renseigné ». Defects on 1er-choix
-  pieces exist too — this section is about **déclassements**, don't rebrand it « défauts ».
-  Donut colors are a fixed type→color map validated with the dataviz six-checks script.
-- ⚠️ **The régleurs take part in the prime, and that changes what everyone gets.** The
-  legacy filtered `regleur = 0`, which silently dropped the only two — Nicolas Antonino
-  (16) and Mickaël Grivelet (15), both still employed. They share the **same pot** at a
-  bonnetier's per-day weight, so the semester total is untouched and every other share
-  shrinks. Applies to **all browsable periods**, past ones included, so historical splits
-  no longer match what was actually paid (user decision, 2026-08-25 — same class of
-  caveat as the rates below).
-- ⚠️ **Les taux sont datés — `ETM/apps/api/src/lib/bareme-prime-trm.ts`, `BAREMES_PRIME`.**
-  C'étaient trois constantes de module appliquées à *toute* période navigable : les réviser
-  recalculait l'historique entier et l'écran affichait des primes jamais versées. Une
-  révision s'ajoute donc en **ligne datée**, et **on ne touche jamais une ligne passée**.
-  La révision du 2026-08-26 (+0,055 / −0,40 €/Kg, décidée avec l'atelier) s'applique **dès
-  le semestre en cours, S2 2026** (`from: '2026-06-15'`) ; S1 2026 et avant gardent
-  +0,05 / −0,20. `retour client` reste à −0,60 : la tuile est morte de toute façon.
-  - Le `from` **doit être une frontière de semestre** (15/06 ou 15/12). La prime est *une*
-    somme sur toute la période × *un* taux, donc un barème qui démarrerait en cours de
-    semestre ne serait pas calculable sans découper chaque somme de kg à la date de bascule
-    (`sumPoids`, les montants de déclassement, le donut). Si l'atelier veut ça un jour,
-    **c'est ce découpage le travail**, pas une ligne de plus dans la table.
-  - Le semestre affiché est prixé au barème de *son* `debut` ; **la semaine** l'est au barème
-    en vigueur *aujourd'hui*, puisqu'elle décrit toujours la semaine courante quelle que
-    soit la période consultée. Les deux coïncident dès que le semestre courant est affiché,
-    seul cas où l'écran rend la semaine.
-  - ⚠️ **Le taux s'affiche à trois décimales quand il en porte trois.** `fmtTaux` (écran
-    *et* `PrimePdf`) était figé à deux : +0,055 sortait « +0,06 €/Kg », un taux que
-    personne ne touche, à côté d'un total calculé sur le vrai 0,055 — sur le document qui
-    paie la prime. La troisième décimale n'apparaît que si elle porte quelque chose
-    (-0,40 et -0,60 se lisent toujours à deux). Le calcul, lui, n'a jamais arrondi.
-  - Garde : `bareme-prime-trm.test.ts` épingle la bascule au jour près et vérifie que la
-    table reste triée et sur des frontières de semestre — `baremePour` sort de sa boucle au
-    premier `from` futur, donc une table désordonnée résoudrait faux en silence.
-  - Le barème vit dans `lib/` (et pas dans `routes/prime-trm.ts`) pour être testable sans
-    charger le driver HFSQL, à côté de `lib/pricing-trm.ts` où vivent déjà les règles de prix TRM.
+- ⚠️ **Les taux sont datés** (`lib/bareme-prime-trm.ts`, `BAREMES_PRIME`) : +0,055 / −0,40
+  dès S2 2026, +0,05 / −0,20 avant ; une révision = ligne datée sur une frontière de
+  semestre, jamais une édition en place. Affichage à trois décimales quand il en porte.
+- ⚠️ **Les régleurs participent** (pas de filtre `regleur`, ni `archivé`) ; prorata borné à
+  min(aujourd'hui, fin, sortie) — les partages historiques ne matchent plus le versé.
+- Semaine = la semaine courante, rendue seulement sur le semestre courant ; déclassements
+  = une ligne par rouleau 2nd choix, même population que la tuile. `taille_cm` n'est **pas**
+  des centimètres. Comparaison au semestre précédent **entier** (décision 2026-08-24).
+  Tuile « Retour client » morte à 0.
 
 ### Rapports › Finance (`/rapports/finance`) — ETM's screen, TRM's partition
 
-Port of the legacy `FI_Analyse_Finance.wdw` (Analyse › Finance): the balance comptable
-with a Charges fixes / Charges variables toggle, one row per compte, N vs N-1, and a
-drawer holding the compte's yearly history and its two editable fields. Tableau layout
-(§27).
+`<RapportFinance basePath="/rapports-trm/finance" />` importé d'`@etm/pages` — `basePath`
+est la seule différence. API déjà là : `createFinanceRouter(FINANCE_SCOPE_TRM)` sur
+`/api/rapports-trm`. Droits `view_rapport_finance` (+ `edit_compte_description`) ; sans la
+clé le menu Rapports disparaît. **Dossier : `claude_doc/rapports-finance.md`.**
 
-**Nothing is forked — neither tier.** The API was already there: the finance widgets
-(above) mount `createFinanceRouter(FINANCE_SCOPE_TRM)` at `/api/rapports-trm`, and this
-screen reads the very same endpoints. Landing it was the two edits
-`ETM/apps/api/src/lib/finance-common.ts` was left open for — `view_rapport_finance` joined
-`financeKeys`, and `editComptesKey` switched the compte drawer's routes on.
-
-- **The screen is ETM's file**: `import { RapportFinance } from '@etm/pages/RapportFinance'`,
-  rendered `<RapportFinance basePath="/rapports-trm/finance" />`. `basePath` is the ONLY
-  per-app difference (ETM defaults to `/rapports/finance`) — the frontend mirror of what
-  `FinanceScope` is on the backend. Improve the file in ETM; never fork a TRM copy.
-- **The rule** (verified to the cent on société 2): montant(compte, année) = `debit − credit`
-  of the `releve_compta` row at the **last upload of that calendar year**. Uploads are
-  cumulative YTD — never sum them, never take the early-January upload that closes the prior
-  exercise. Class-7 accounts (`numero >= 700000`) are produits and are excluded.
-- **Permissions**: `view_rapport_finance` + child `edit_compte_description` in
-  `permission-keys-trm.ts`. Same key NAMES as ETM's catalog on purpose — same action,
-  separate store. **The Rapports menu disappears entirely without the key**, Finance being
-  its only screen (`SubMenuItem.permission`, on top of the menu's own `screen_rapports`
-  grant). Nav hiding is convenience: the page renders "Accès restreint" and the API 403s.
-- ⚠️ **`releve_compta` has no `id_societe`** — a compte id is the only thing that carries the
-  partition. `GET /finance/comptes/:id/historique` had no ownership check while ETM was its
-  only mount; it does now, or a TRM caller could have read an ETM payroll account's year
-  series by guessing its id. Any future `:id` route on this factory needs the same guard.
-- **One dependency was missing** for the shared screen: `xlsx` (Excel export of the visible
-  rows). `lib/depassement.tsx` — the N/N-1 traffic light the screen and the Charges widget
-  share — was already here, copied in with the widgets.
-- HTTP guard for the two newly-mounted compte routes:
-  `ETM/apps/api/src/scripts/check-finance-comptes-trm.ts`.
+- Règle : montant(compte, année) = `debit − credit` du dernier upload de l'année civile ;
+  classe 7 exclue. ⚠️ `releve_compta` n'a pas d'`id_societe` : toute route `:id` sur la
+  fabrique vérifie l'appartenance du compte.
 
 ### Atelier planning data model (legacy, shared HFSQL)
 
@@ -1473,54 +453,18 @@ screen reads the very same endpoints. Landing it was the two edits
 
 ## Ticket widget (LIVA issue tracker) — feature version 1.3.0
 
-In-app bug/feature reporting to the LIVA tracker (product **`trm-erp`**), same widget as
-ETM's (spec + upgrade path: the `issue_tracker_integration` skill):
+Widget `components/tickets/` (miroir verbatim d'ETM — améliorer là-bas et recopier, seul
+delta `useTickets.ts` → `/api/tickets-trm`), proxy = fabrique `routes/tickets.ts` montée
+`/api/tickets-trm`, scopée par `ISSUE_TRACKER_PRODUCT_SLUG_TRM=trm-erp` (**exigence d'env
+en prod**). Spec : skill `issue_tracker_integration`. **Dossier : `claude_doc/tickets.md`.**
 
-- **Widget**: `apps/web/src/components/tickets/` + trigger/unread badge in
-  `components/layout/Header.tsx`, screenshot via lazy `html-to-image`. The files are
-  verbatim mirrors of ETM's `components/tickets/` — improve them **in ETM** and re-copy.
-  The single deliberate delta is `useTickets.ts` calling `/api/tickets-trm` instead of
-  `/api/tickets`.
-- **Proxy**: the MPS API's `routes/tickets.ts` router factory, mounted at
-  `/api/tickets-trm` and scoped by env `ISSUE_TRACKER_PRODUCT_SLUG_TRM=trm-erp` —
-  a **prod deploy requirement** on the shared API's env (`ETM/claude_doc/dev_setup.md` §4).
-  Never point the widget at `/api/tickets`: the tracker key is company-scoped and the
-  per-mount slug is what keeps ETM's and TRM's "Mes tickets" apart.
-- Read state (unread badge) is `localStorage`-only, keyed per user — no HFSQL change.
-- **Un compte sans email envoie quand même des tickets (v1.3.0)** — décision utilisateur du
-  2026-08-28 : c'était le poste de visitage (compte-poste `Visitage`) et Mickael Grivelet,
-  qui n'a pas d'adresse société et n'en a pas besoin. Le proxy les identifie sous une
-  adresse synthétique stable `utilisateur-<id>@mps.malterre.invalid`
-  (`ETM/apps/api/src/lib/tickets-reporter.ts` — le tracker clé le rapporteur par email mais
-  n'y *envoie* que le suivi par email), force `follow_up` à faux, refuse `PATCH /:id/follow`,
-  et `GET /tickets-trm/reporter` → `{ name, can_follow }` dit au widget de cacher la case et
-  l'interrupteur de suivi. Avant, le proxy répondait 400 et ces comptes ne pouvaient rien
-  envoyer.
-  - **Le poste nomme la visiteuse** : `ProductionVisitage.tsx` pose son nom dans
-    `components/tickets/reporterHint.ts` (store module, effacé en quittant l'écran) et le
-    widget l'envoie en `reporter_name` ; le proxy ne l'honore que pour un rapporteur
-    synthétique, **accolé** au nom du compte — « Isabelle Dupont (Visitage) » — jamais
-    substitué, et l'ignore pour un compte personnel (l'identité reste la session).
-  - ⚠️ **Associer un email plus tard change l'identité tracker du compte** : les tickets
-    antérieurs restent sous l'adresse synthétique et sortent de « Mes tickets ». Assumé —
-    ne pas fusionner deux identités à chaque poll pour le masquer. Et ne jamais mettre
-    l'adresse d'une vraie personne sur le compte-poste : le tracker réécrit `display_name`
-    à chaque création, ses propres tickets se renommeraient « Visitage ».
-- **Suivi par email (v1.2.0)** — « Me tenir informé par email » : une case **décochée par
-  défaut** sur le formulaire, et un interrupteur (§35) dans la fiche du ticket. Le drapeau
-  vit côté tracker (`bugs.follow_up`), pas ici : rien à stocker dans HFSQL. Une fois activé,
-  **chaque changement de statut** du ticket envoie un email au rapporteur, aux couleurs
-  Malterre et en français (la marque du client pilote la langue) — y compris la clôture
-  automatique quand LIVA publie la version corrective. Une réponse du développeur qui ne
-  bouge pas le statut n'envoie rien : elle voyage dans l'email du prochain changement, et
-  la pastille non-lu du widget couvre déjà ce cas.
-  - Route proxy `PATCH /api/tickets-trm/:id/follow` (même contrôle de propriété que le
-    détail : la clé API du tracker est *company*-scoped, pas *reporter*-scoped).
-  - Garde HTTP : `ETM/apps/api/src/scripts/check-tickets-follow.ts`
-    (`TICKETS_MOUNT=tickets-trm` par défaut) — elle crée un vrai ticket `[CHECK]` sur le
-    tracker visé, donc pointer l'API dev sur un tracker local avant de la lancer.
-  - ⚠️ **Le tracker doit être déployé avec la migration `follow_up` avant le web TRM**,
-    sinon la case part avec le POST sans effet et l'interrupteur 404.
+- Jamais pointer le widget sur `/api/tickets` : le slug par montage sépare les « Mes tickets ».
+- **Un compte sans email envoie quand même** (v1.3.0) : adresse synthétique
+  `utilisateur-<id>@mps.malterre.invalid`, suivi email forcé à faux ; le poste de visitage
+  accole le nom de la visiteuse (`reporterHint.ts`). ⚠️ Associer un email plus tard change
+  l'identité tracker ; ne jamais mettre l'adresse d'une vraie personne sur le compte-poste.
+- Suivi par email (v1.2.0) : `PATCH /:id/follow`, drapeau côté tracker ; ⚠️ le tracker doit
+  porter la migration `follow_up` avant le web TRM.
 
 ## Shared screens (live cross-repo link with ETM)
 
@@ -1545,131 +489,27 @@ The screen is ETM's (`import { Dashboard } from '@etm/pages/Dashboard'`): same r
 - **Plumbing TRM had to grow for the shell**: `contexts/HeaderActionsContext.tsx` (verbatim ETM mirror; `AppShell` wraps in its provider, `Header` owns the slot div and swaps the dashboard submenu for `useDashboardTabs()`), the `.dashboard-grid` block at the end of `index.css` (verbatim), `react-grid-layout` in `package.json` + `resolve.dedupe`, the `process.env.DRAGGABLE_DEBUG` define in `vite.config.ts`, `DASHBOARD_ROUTE_PREFIX` in `navigation.ts`, and the three ETM files in `tailwind.config.js` `content`.
 - **Adding a widget** = one registry entry + its component in `src/components/dashboard/` + a key in `permission-keys-trm.ts` + an endpoint in `ETM/apps/api/src/routes/dashboard-trm.ts` (`/api/dashboard-trm`, one router for every TRM widget, gated with `trmUserHasPermission`). `dashboard-trm.ts` is for widgets with **no ETM equivalent**; a widget that mirrors an ETM one over a partitioned table gets a scoped router factory instead — see the finance widgets below.
 
-### Widgets financiers — Charges · Chiffre d'affaires · Analyse financière · Évolution du CA
+### Widgets TRM — finance · « Poids des pièces » · « Pièces à visiter »
 
-The four ETM finance widgets, over **TRM's own partition of the same books**. There is
-no second aggregation: `upload_compta` / `compte_compta` (`id_societe`) and `facture`
-(`IDsociete`) are partitioned tables whose two halves are the **same object**, so the API
-is the `factures.ts` shape — **one router factory, two scopes** —
-`createFinanceRouter(scope)` in **`ETM/apps/api/src/lib/finance-common.ts`**, mounted on
-ETM's `rapportsRouter` (URLs unchanged) and at **`/api/rapports-trm`** for this app.
-Everything société-dependent, *including which permission store answers*, lives in
-`FINANCE_SCOPE_TRM`. Improve that file — never fork a TRM copy.
+**Dossier complet : `claude_doc/dashboard-widgets.md`.**
 
-| Widget | Endpoint | Permission |
-|---|---|---|
-| Charges | `GET /rapports-trm/finance` | `dashboard_charges` |
-| Analyse financière | `GET /rapports-trm/finance/analyse` | `dashboard_finance` |
-| Chiffre d'affaires | `GET /rapports-trm/ca-clients` | `dashboard_ca` |
-| Évolution du CA | `GET /rapports-trm/ca-evolution` | `dashboard_evolution_ca` (sous-droit, l'API exige `dashboard_ca`) |
-
-- **The web components are verbatim mirrors of ETM's** (`components/dashboard/*Widget.tsx`
-  plus `lib/depassement.tsx`) — improve them **in ETM** and re-copy, like
-  `components/tickets/`. Deltas, all documented in each file's header: the endpoint path,
-  a `trm-`-prefixed React Query key (the two apps must never share a cache entry for the
-  same URL shape), and the CA donut below.
-- **The Répartition donut drops ETM's 10 000 € / 5 000 € "Other" buckets.** TRM invoices
-  **8 or 9 clients a year** (ETM: ~144) and bills **~98 % of its revenue to Ets Malterre**
-  (2025: 335 304 € of 340 853 €), so those thresholds would fold the whole book except one
-  client into a single grey wedge. Every client that billed something gets its own slice;
-  the near-single ring is the finding, not a bug.
-- **`/finance` is an any-of gate.** It returns the compte-by-compte balance (it names the
-  salary lines) and feeds two unrelated consumers, so `FINANCE_SCOPE_TRM.financeKeys` lists
-  **both** `dashboard_charges` (this widget) and `view_rapport_finance` (the Rapports ›
-  Finance screen, landed 2026-08-25). Neither key is the other's parent — holding one does
-  not imply the other, and **removing `dashboard_charges` from that list would silently
-  blank this card** for anyone granted only the widget.
-- ⚠️ **Pas de BFR possible ici non plus, et le constat vaut pour les deux partitions** :
-  `compte_compta` ne contient **aucun compte sous 600000**, ni pour la société 1 ni pour la
-  société 2 — ce que dépose l'expert-comptable est un compte de résultat, pas un bilan.
-  Détail, preuves et sorties possibles dans `ETM/CLAUDE.md` § « BFR / bilan — hors de portée ».
-- **Verified against société 2 before shipping** (probe
-  `ETM/apps/api/src/scripts/probe-finance-trm.ts`, re-run it after an `/etm_deploy`):
-  the compte-level sums reproduce `upload_compta`'s `frais_fixe` / `frais_variable`
-  **exactly** on the 2025 and 2026 anchors (46 633,56 € / 10 562,04 € at 2026-03-23), and
-  the `facture` × `ligne_facture` CA agrees with `upload_compta.produits` to 0,0 % on
-  2026 — two independent sources for the same number. The **2024 anchor drifts ~4,5 k€**
-  because `frais_variable` is the compte's *current* classification, not the one in force
-  that year; ETM drifts the same way and the legacy screen does too, so it is not corrected.
-- **TRM's shape is the mirror of ETM's**: charges *fixes* dominate (46 634 € vs 10 562 €
-  variables) and the marge brute runs at ~90 % of CA, because TRM knits **à façon** — the
-  client supplies the fil, so there is almost no variable purchase. EBE 54 429 € on a CA of
-  111 625 € at 2026-03-23.
-- ⚠️ **The Charges card compares a partial year against a *full* N-1, and that is the
-  POINT since 2026-08-26** — it no longer shows the raw ratio as its verdict. Amount for a
-  year = the last upload *falling in that calendar year* (the legacy rule, which ETM's
-  report reads the same way), so a « 23 % » in March is a partial-vs-full figure and means
-  nothing on its own. The card therefore subtracts the **share of the year elapsed at the
-  arrêté date** and shows the écart in points: a gauge whose fill is the consumed share of
-  the N-1 envelope and whose navy tick is the repère. Charges *fixes* carry an alert ladder
-  (±3 pts « au rythme », +10 amber, beyond red), charges *variables* carry none — more
-  variable charge means TRM knitted more. Full rationale in ETM's `CLAUDE.md` § Charges
-  widget and in the file header; the two apps must keep the same reading.
-- **Trois autres réglages du 2026-08-26, communs aux deux applications** (faits dans ETM et
-  re-copiés) : « Chiffre d'affaires » ouvre sur **Même période** au lieu d'Année complète ;
-  « Évolution du CA » donne à l'**année en cours** le style 0 (bleu accent, plein, trait
-  épais, dessiné au-dessus) au lieu de ce que la liste croissante laissait — et remplace sa
-  **légende** par une infobulle au survol, classée par CA, les pastilles d'année restant la
-  clé des couleurs ; « Analyse financière » ne porte plus la mention « Variation de stock
-  estimée à … et intégrée » sous ses tuiles (le calcul, lui, est intact — et de toute façon
-  côté TRM il n'a jamais existé : l'estimation est ETM-seulement, `scope.societe === 1`).
-
-### Widget « Poids des pièces » — port of `FI_Mauvais_Compteur.wdw` + `FEN_Graphe_Compteur.wdw`
-
-The legacy windows are PCS-compressed, but their SQL survives in **WinDev's compile cache** (`C:\Mes Projets\MPS\MPS.cpl\<user>\00000000\<Window>.<hash>.wdw.wcw` — string literals, identifiers and real literals are readable; integer literals and function names are not). That is the place to look for any future TRM port; the recovered query is quoted in full in `routes/dashboard-trm.ts`.
-
-- **Unit = the roll** (`stock_ecru` row, the visiteuse's weighing), never `piece_production` — its `poids` is the nominal 20/10 kg, not a measurement. Target = `ordre_fabrication.poids_piece`.
-- **Valid** ⇔ `poids_piece ≤ poids ≤ poids_piece + 0,7` **or `poids ≤ 0,65 × poids_piece`** — a remnant (end of lot, piece cut after a defect) is deliberately not held against the métier. Evaluated on the raw doubles, on purpose: `poids` is a 4-byte real, so a roll keyed as 20,7 reads 20.7000008 and is *invalid* in the legacy too. Verified 6/6 against the live widget.
-- **Rows**: OFs with `est_actif = 1` **and at least one weighed roll**, sorted by pct ascending; Métier = `machine.emplacement`; Nb pièces = `COUNT(stock_ecru)`. Colours: red `< 0,6`, orange `< 0,8`, green (the two literals recovered next to the query; the boundary operators are an assumption). No `IDsociete` filter anywhere — the ETM handover flips delivered rolls to société 1 and the legacy counts them.
-- **Chart** (click a row; legacy: double-click): every roll of the OF by `date_saisie`, dashed target line, band `[poids_piece, poids_piece + 0,7]`, red outside. Deliberate deltas: axis target ± 2 stretched to at most ± 4 with out-of-range points pinned as triangles (a 3 kg remnant must not squash the band), a grey remnant zone, X = weighing sequence, hover tooltip. The legacy's `18–22` axis is an inference (integer literals don't survive the cache).
-
-### Widget « Pièces à visiter » — port of `FI_PiecesAVisiter.wdw`
-
-Le tombé métier qui est sorti d'un métier et que personne n'a encore pesé : la liste de
-travail de la visiteuse, et la preuve pour le régleur que ça s'accumule quelque part.
-Écran `apps/web/src/components/dashboard/PiecesAVisiterWidget.tsx` ; API
-`GET /api/dashboard-trm/pieces-a-visiter` ; droit `dashboard_pieces_a_visiter`.
-
-Le `.wdw` est PCS-compressé : la requête vient du **cache de compilation WinDev**
-(`MPS.cpl/<user>/00000000/FI_PiecesAVisiter.*.wdw.wcw`) et **le WLanguage de la boucle de
-coloriage a été fourni par l'utilisateur** — les littéraux entiers ne survivent pas au
-cache, donc les seuils n'étaient pas récupérables autrement. Les deux sont cités verbatim
-dans l'en-tête de `routes/dashboard-trm.ts`.
-
-- **Population** = pièce `piece_production` terminée, sans `stock_ecru`, `date_fin` dans les
-  **24 h**, la plus ancienne en tête. Pas de filtre `IDsociete` (les tables OF n'en ont pas).
-- **Couleur = le temps d'attente**, et c'est le seul signal du widget : **rouge ≥ 3 h,
-  orange ≥ 2 h, vert en deçà** (`dhDateRouge.Heure -= 3` / `dhDateOrange.Heure -= 2`).
-  Calculée **dans le navigateur** contre une horloge qui bat à la minute, comme le legacy la
-  calcule contre `DateHeureSys()` — mais sans figer au moment du fetch : une ligne passe à
-  l'orange puis au rouge sous les yeux. Épinglé à la minute par
-  `PiecesAVisiterWidget.test.ts` : un `<` pris pour un `<=` décale toute la grille d'une heure
-  sans que rien ne se voie.
-- **Colonne « Attente » en plus du legacy** : le legacy peint la ligne et laisse lire deux
-  heures d'horloge pour comprendre pourquoi. La couleur doit être lisible comme un nombre.
-- **Lecture seule**, comme le legacy (décision utilisateur du 2026-08-27) : pas de clic vers
-  Production › Visitage. Le widget constate, le poste saisit.
-- ⚠️ **L'équipe se dérive de l'heure PARSÉE, jamais du `SUBSTR(date_fin,9,2)` du legacy.**
-  Bornes legacy conservées (5–13 Matin, 13–21 Après-Midi, sinon Nuit), mais le SUBSTR ne lit
-  l'heure que sur le `AAAAMMJJHHMMSS` compact de WinDev ; sur un pilote qui rend
-  `YYYY-MM-DD HH:MM:SS` ces deux caractères sont le **jour du mois**, et le même CASE
-  étiquetterait toutes les pièces par quantième. Mesuré 0/8 sur le pilote ODBC Windows
-  (`probe-pieces-a-visiter-trm.ts` §5).
-- **Le lecteur est partagé avec le poste de Visitage** : `awaitingPieces()` dans
-  `ETM/apps/api/src/lib/production-trm.ts`, extrait de `visitage-trm.ts` pour ce widget.
-  Il encode de la discipline de pilote (anti-jointure résolue en JS — `date_fin <> ''` vs
-  `IS NULL` ne se comportent pas pareil des deux côtés — et balayage par machine plutôt que
-  la boucle par OF du legacy, qui perd les pièces des OF terminés). **Améliorer ce fichier,
-  ne jamais en forker une copie.** Chaque appelant pose sa propre fenêtre : 7 jours pour le
-  poste, 24 h pour le widget.
-- **Sonde de parité** : `ETM/apps/api/src/scripts/probe-pieces-a-visiter-trm.ts` (lecture
-  seule, rejouable en prod après un `/etm_deploy`). Elle fait tourner le SQL legacy et le
-  helper côte à côte — **56 vs 56 dans la profondeur de scan** au 2026-08-27 — vérifie que
-  l'anti-jointure n'a pas de trou (aucun `stock_ecru` sans `date_saisie`) et enregistre la
-  forme de DATETIME que parle le pilote. `PROBE_WINDOW_DAYS` élargit la fenêtre : la base de
-  dev est un instantané de mars, donc 0 ligne à 24 h.
-- Dérogation dev `PIECES_A_VISITER_WINDOW_HOURS` (`apps/api/.env.development` **seulement**,
-  la prod garde 24 h) — même raison et même patron que `VISITAGE_PIECE_MAX_AGE_DAYS`.
+- **Widgets financiers** (Charges · CA · Analyse · Évolution du CA) : miroirs verbatim des
+  composants ETM sur `createFinanceRouter(FINANCE_SCOPE_TRM)` → `/api/rapports-trm`, clés
+  `dashboard_charges` / `dashboard_ca` / `dashboard_finance` / `dashboard_evolution_ca`,
+  React Query keys préfixées `trm-`. ⚠️ `/finance` est un any-of gate (`dashboard_charges`
+  **et** `view_rapport_finance` dans `financeKeys`). Le donut CA garde chaque client (98 %
+  du CA à Ets Malterre). La carte Charges compare au prorata de l'année écoulée depuis le
+  2026-08-26. Pas de BFR possible (aucun compte < 600000). Sonde `probe-finance-trm.ts`.
+- **« Poids des pièces »** (`FI_Mauvais_Compteur`) : unité = le rouleau `stock_ecru` ;
+  valide ⇔ `poids_piece ≤ poids ≤ poids_piece + 0,7` ou `poids ≤ 0,65 × poids_piece`, sur
+  les doubles bruts ; OF `est_actif = 1` avec ≥ 1 rouleau ; rouge `< 0,6`, orange `< 0,8`.
+  Le SQL vient du **cache de compilation WinDev** (`MPS.cpl/<user>/00000000/*.wcw`) — la
+  piste pour tout futur port TRM.
+- **« Pièces à visiter »** (`FI_PiecesAVisiter`) : pièces finies sans rouleau dans les 24 h ;
+  **rouge ≥ 3 h, orange ≥ 2 h**, calculé dans le navigateur à la minute (testé) ; lecture
+  seule. ⚠️ L'équipe se dérive de l'heure **parsée**, jamais du `SUBSTR` legacy. Lecteur
+  partagé avec le poste : `awaitingPieces()` dans `lib/production-trm.ts` — améliorer, ne
+  pas forker. Dérogation dev `PIECES_A_VISITER_WINDOW_HOURS`.
 
 ## Design system rule
 
