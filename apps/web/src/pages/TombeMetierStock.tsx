@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef, useDeferredValue, memo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Boxes,
   Search,
@@ -15,6 +15,8 @@ import {
   Send,
   Factory,
   Printer,
+  Pencil,
+  Save,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -28,14 +30,23 @@ import { printPdf } from '@/lib/print'
 import { PopoverSelect } from '@/components/ui/popover-select'
 import { CardKV, MobileSortRow } from '@/components/stock/StockCardParts'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
+import { useHasPermission } from '@/contexts/PermissionsContext'
+import { UnsavedChangesDialog } from '@/components/shared/UnsavedChangesDialog'
+import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
 
 // Tombé Métier › Stock — the écru pieces Tricotage Malterre knitted and still
 // physically holds (IDsociete = 2, not yet shipped). Table-centric "Tableau"
 // layout (mps_designer §27) with a right slide-in drawer, mirroring ETM's
 // screen of the same name; the columns differ because a TRM piece is defined by
 // its production origin (OF + métier) where an ETM piece is defined by its
-// storage + dyeing state. Read-only: pieces are created and closed by the
-// production/visitage flow, never edited from here.
+// storage + dyeing state. Read-only, with ONE exception: pieces are created
+// and closed by the production/visitage flow, never edited from here — but a
+// roll's free-text observations can be written after the fact (« ouvrir dans
+// la maille » on a roll already in stock, LIVA #1108), behind the key
+// edit_stock_ecru: « Modifier » in the drawer band, the Notes card becomes a
+// textarea, PATCH /stock/ecru-trm/:id. Poids, choix, réservation stay what
+// the poste de visitage wrote. The edit mode carries the §28 guard like every
+// other one.
 
 // ── Types ──────────────────────────────────────────────
 
@@ -202,6 +213,9 @@ export function TombeMetierStock() {
   const [sort, setSort] = useState<SortState>({ key: 'date_saisie', dir: 'desc' })
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const isDesktop = useIsDesktop()
+  // Permission gate — admins always pass; non-admins need edit_stock_ecru.
+  // Only the drawer's « Modifier » hangs on it: consulting stays open.
+  const canEdit = useHasPermission('edit_stock_ecru')
 
   const { data: rows, isLoading, isError, error } = useStockEcruTrmList({ statut, secondChoix })
 
@@ -240,11 +254,25 @@ export function TombeMetierStock() {
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
   }, [])
 
-  const handleClose = useCallback(() => setSelectedId(null), [])
+  // Drawer dirty tracking — the drawer owns its edit state and surfaces it
+  // through refs (mps_designer §28.3.c), so the page-level guard can save or
+  // discard on its behalf before a row switch, a dismissal or a route change.
+  const [drawerDirty, setDrawerDirty] = useState(false)
+  const drawerSaveRef = useRef<() => Promise<void>>(async () => {})
+  const drawerDiscardRef = useRef<() => void>(() => {})
+  const guard = useUnsavedGuard({
+    isDirty: drawerDirty,
+    save: async () => { await drawerSaveRef.current() },
+    onDiscard: () => drawerDiscardRef.current(),
+  })
+
+  const handleClose = useCallback(() => {
+    guard.guardAction(() => setSelectedId(null))
+  }, [guard.guardAction])
 
   const handleRowClick = useCallback((rowId: number) => {
-    setSelectedId((prev) => (prev === rowId ? null : rowId))
-  }, [])
+    guard.guardAction(() => setSelectedId((prev) => (prev === rowId ? null : rowId)))
+  }, [guard.guardAction])
 
   // Totalizer over the currently-visible (filtered) rows.
   const rollCount = filteredSorted.length
@@ -402,7 +430,20 @@ export function TombeMetierStock() {
         </div>
       )}
 
-      <StockEcruTrmDrawer id={selectedId} onClose={handleClose} />
+      <StockEcruTrmDrawer
+        id={selectedId}
+        canEdit={canEdit}
+        onClose={handleClose}
+        onDirtyChange={setDrawerDirty}
+        saveRef={drawerSaveRef}
+        discardRef={drawerDiscardRef}
+      />
+
+      <UnsavedChangesDialog
+        open={guard.showDialog}
+        onAction={guard.handleAction}
+        isSaving={guard.isSaving}
+      />
     </div>
   )
 }
@@ -546,11 +587,69 @@ function SortHeader({ label, sortKey, sort, onSort, align = 'left' }: SortHeader
 
 // ── Side drawer ────────────────────────────────────────
 
-function StockEcruTrmDrawer({ id, onClose }: { id: number | null; onClose: () => void }) {
+interface DrawerProps {
+  id: number | null
+  /** edit_stock_ecru — « Modifier » in the band, the observations as a textarea. */
+  canEdit: boolean
+  onClose: () => void
+  onDirtyChange: (dirty: boolean) => void
+  saveRef: React.MutableRefObject<() => Promise<void>>
+  discardRef: React.MutableRefObject<() => void>
+}
+
+function StockEcruTrmDrawer({ id, canEdit, onClose, onDirtyChange, saveRef, discardRef }: DrawerProps) {
   const { data: detail, isLoading } = useStockEcruTrmDetail(id)
+  const queryClient = useQueryClient()
   const drawerRef = useRef<HTMLDivElement>(null)
   const [searchParams] = useSearchParams()
   const embed = searchParams.get('embed') === 'true'
+
+  // Edit mode — one editable field (see the file header): the observations.
+  const [isEditing, setIsEditing] = useState(false)
+  const [editObservations, setEditObservations] = useState('')
+  const originalDraftRef = useRef<{ observations: string } | null>(null)
+
+  // Switching rolls leaves edit mode: the draft belongs to the roll it was
+  // opened on. (A dirty draft never gets here — the page guard asks first.)
+  useEffect(() => { setIsEditing(false) }, [id])
+
+  const startEdit = useCallback(() => {
+    if (!detail) return
+    const snapshot = { observations: (detail.observations ?? '').trim() }
+    setEditObservations(snapshot.observations)
+    originalDraftRef.current = snapshot
+    setIsEditing(true)
+  }, [detail])
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      apiFetch(`/stock/ecru-trm/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ observations: editObservations }),
+      }),
+    onSuccess: () => {
+      // List and detail share the key prefix — the table's Observations
+      // column and the Notes card refresh together.
+      queryClient.invalidateQueries({ queryKey: ['stock-ecru-trm'] })
+      setIsEditing(false)
+    },
+  })
+
+  const isDirty = useMemo(() => {
+    if (!isEditing) return false
+    const o = originalDraftRef.current
+    if (!o) return false
+    return editObservations.trim() !== o.observations
+  }, [isEditing, editObservations])
+
+  useEffect(() => { onDirtyChange(isDirty) }, [isDirty, onDirtyChange])
+  useEffect(() => () => { onDirtyChange(false) }, [onDirtyChange])
+  useEffect(() => {
+    saveRef.current = async () => { await saveMutation.mutateAsync() }
+  })
+  useEffect(() => {
+    discardRef.current = () => setIsEditing(false)
+  })
 
   useEffect(() => {
     if (id === null) return
@@ -593,7 +692,14 @@ function StockEcruTrmDrawer({ id, onClose }: { id: number | null; onClose: () =>
         {/* Header band — the widget treatment (mps_designer §27.5bis / §43):
             navy surface, flat gold tile, white title, gold hairline under. */}
         <div className="flex-shrink-0 flex items-center gap-2.5 border-b-2 border-gold bg-primary px-4 py-2.5">
-          <div className="h-8 w-8 flex-shrink-0 rounded-lg flex items-center justify-center shadow-sm bg-gold text-gold-foreground">
+          {/* The tile flips to white in edit mode (§9) — a bg-accent/15 tint
+              would be invisible on navy. */}
+          <div
+            className={cn(
+              'h-8 w-8 flex-shrink-0 rounded-lg flex items-center justify-center shadow-sm transition-colors',
+              isEditing ? 'bg-white text-primary' : 'bg-gold text-gold-foreground',
+            )}
+          >
             <FabricRollIcon className="h-[18px] w-[18px]" />
           </div>
           <div className="min-w-0 flex-1">
@@ -619,31 +725,79 @@ function StockEcruTrmDrawer({ id, onClose }: { id: number | null; onClose: () =>
                   {detail.coloris_reference ?? '—'}
                   {detail.numero ? ` · N° ${detail.numero}` : ''}
                 </p>
+                {/* Save error stays inside the band, light-on-navy (§27.5bis). */}
+                {saveMutation.isError && (
+                  <p className="text-xs text-red-200 truncate" title={(saveMutation.error as Error)?.message}>
+                    {(saveMutation.error as Error)?.message || 'Enregistrement impossible'}
+                  </p>
+                )}
               </>
             )}
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Modifier (gold, §6.1) — or Annuler / Enregistrer once editing.
+                Behind edit_stock_ecru: without the key the band keeps only the
+                print and close buttons, exactly as before the key existed. */}
+            {detail && canEdit &&
+              (isEditing ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="px-2 text-white/80 hover:bg-white/15 hover:text-white"
+                    onClick={() => setIsEditing(false)}
+                    disabled={saveMutation.isPending}
+                    title="Annuler"
+                  >
+                    <X className="h-3.5 w-3.5 sm:mr-1.5" />
+                    <span className="hidden sm:inline">Annuler</span>
+                  </Button>
+                  <Button
+                    variant="gold"
+                    size="sm"
+                    onClick={() => saveMutation.mutate()}
+                    disabled={saveMutation.isPending}
+                    title="Enregistrer"
+                  >
+                    {saveMutation.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
+                    ) : (
+                      <Save className="h-3.5 w-3.5 sm:mr-1.5" />
+                    )}
+                    <span className="hidden sm:inline">Enregistrer</span>
+                  </Button>
+                </>
+              ) : (
+                <Button variant="gold" size="sm" onClick={startEdit} title="Modifier">
+                  <Pencil className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Modifier</span>
+                </Button>
+              ))}
             {/* Réimprimer l'étiquette Dymo — the same label the poste de visitage
                 printed when the roll was weighed, from the same endpoint. A tag
                 gets torn, soaked or lost long after the piece left the visiteuse,
                 and until now the only way back to it was to re-validate a piece.
-                Secondary icon action of §27.5bis: ghost white, before the close.
+                Secondary icon action of §27.5bis: ghost white, before the close,
+                view mode only (the band is 440px and Annuler + Enregistrer +
+                close must fit next to the title).
                 Disabled on a roll with no OF — the endpoint's partition guard is
                 `IDordre_fabrication > 0`, so those 404 rather than print. */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 flex-shrink-0 text-white/80 hover:bg-white/15 hover:text-white"
-              disabled={!detail || !detail.IDordre_fabrication || printing}
-              onClick={handlePrintEtiquette}
-              title={
-                detail && !detail.IDordre_fabrication
-                  ? "Pas d'OF sur ce rouleau — étiquette indisponible"
-                  : "Imprimer l'étiquette"
-              }
-            >
-              {printing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-            </Button>
+            {!isEditing && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 flex-shrink-0 text-white/80 hover:bg-white/15 hover:text-white"
+                disabled={!detail || !detail.IDordre_fabrication || printing}
+                onClick={handlePrintEtiquette}
+                title={
+                  detail && !detail.IDordre_fabrication
+                    ? "Pas d'OF sur ce rouleau — étiquette indisponible"
+                    : "Imprimer l'étiquette"
+                }
+              >
+                {printing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+              </Button>
+            )}
             {/* Mobile-only close — at full drawer width there is no "outside" left to tap */}
             <Button
               variant="ghost"
@@ -665,8 +819,11 @@ function StockEcruTrmDrawer({ id, onClose }: { id: number | null; onClose: () =>
             </div>
           ) : (
             <>
+              {/* Every card takes the gold edge in edit mode, the read-only ones
+                  included (§27.5 edit-highlight rule): the whole drawer reads
+                  as "in edit mode", not one card out of five. */}
               {/* Stock */}
-              <DrawerCard icon={<Package className="h-4 w-4 text-accent" />} title="Stock">
+              <DrawerCard icon={<Package className="h-4 w-4 text-accent" />} title="Stock" highlight={isEditing}>
                 <div className="space-y-1.5">
                   <KV
                     label="Poids"
@@ -683,7 +840,7 @@ function StockEcruTrmDrawer({ id, onClose }: { id: number | null; onClose: () =>
               </DrawerCard>
 
               {/* Qualité */}
-              <DrawerCard icon={<ShieldAlert className="h-4 w-4 text-accent" />} title="Qualité">
+              <DrawerCard icon={<ShieldAlert className="h-4 w-4 text-accent" />} title="Qualité" highlight={isEditing}>
                 <div className="space-y-2">
                   <KV
                     label="2ᵉ choix"
@@ -725,7 +882,7 @@ function StockEcruTrmDrawer({ id, onClose }: { id: number | null; onClose: () =>
               {/* Production — the TRM equivalent of ETM's Provenance card: here
                   the piece was knitted in-house, so its origin is an OF on a
                   métier rather than a tricoteur's sst commande. */}
-              <DrawerCard icon={<Factory className="h-4 w-4 text-accent" />} title="Production">
+              <DrawerCard icon={<Factory className="h-4 w-4 text-accent" />} title="Production" highlight={isEditing}>
                 <div className="space-y-2.5">
                   {!!prod?.IDordre_fabrication && (
                     <ProvenanceRow
@@ -752,7 +909,7 @@ function StockEcruTrmDrawer({ id, onClose }: { id: number | null; onClose: () =>
               </DrawerCard>
 
               {/* Réservation client */}
-              <DrawerCard icon={<Send className="h-4 w-4 text-accent" />} title="Réservation client">
+              <DrawerCard icon={<Send className="h-4 w-4 text-accent" />} title="Réservation client" highlight={isEditing}>
                 <div className="space-y-1.5">
                   <KV
                     label="N° commande"
@@ -769,10 +926,19 @@ function StockEcruTrmDrawer({ id, onClose }: { id: number | null; onClose: () =>
               </DrawerCard>
 
               {/* Notes */}
-              <DrawerCard icon={<MessageSquare className="h-4 w-4 text-accent" />} title="Notes">
+              <DrawerCard icon={<MessageSquare className="h-4 w-4 text-accent" />} title="Notes" highlight={isEditing}>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Observations</p>
-                  {detail.observations?.trim() ? (
+                  {isEditing ? (
+                    <textarea
+                      value={editObservations}
+                      onChange={(e) => setEditObservations(e.target.value)}
+                      rows={3}
+                      autoFocus
+                      placeholder="Ex. : ouvrir dans la maille"
+                      className="w-full px-2.5 py-1.5 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                    />
+                  ) : detail.observations?.trim() ? (
                     <p className="text-sm whitespace-pre-wrap">{detail.observations.trim()}</p>
                   ) : (
                     <p className="text-sm text-muted-foreground italic">—</p>
@@ -792,14 +958,22 @@ function StockEcruTrmDrawer({ id, onClose }: { id: number | null; onClose: () =>
 function DrawerCard({
   icon,
   title,
+  highlight,
   children,
 }: {
   icon: React.ReactNode
   title: string
+  /** Gold left edge + faint accent wash while the drawer is in edit mode (§9). */
+  highlight?: boolean
   children: React.ReactNode
 }) {
   return (
-    <div className="rounded-lg border border-border/60 bg-card p-3 shadow-sm">
+    <div
+      className={cn(
+        'rounded-lg border border-border/60 bg-card p-3 shadow-sm',
+        highlight && 'border-l-4 border-l-accent/70 bg-accent/[0.03]',
+      )}
+    >
       <div className="flex items-center gap-2 mb-2">
         {icon}
         <h3 className="text-sm font-semibold">{title}</h3>

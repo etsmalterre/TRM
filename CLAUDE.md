@@ -85,7 +85,7 @@ warnings that would bite in the first hour) with a pointer to the dossier.
 | `claude_doc/commandes-clients.md` | Clients › Commandes: data model, mirror orders, pricing rules, « Créer un OF », confirmation PDF/email |
 | `claude_doc/clients-expeditions.md` | Clients › Expéditions and the ETM handover rule |
 | `claude_doc/clients-facturation.md` | Clients › Facturation (router factory, code comptable) |
-| `claude_doc/tombe-metier-stock.md` | Tombé Métier › Stock (TRM écru partition, Dymo reprint) |
+| `claude_doc/tombe-metier-stock.md` | Tombé Métier › Stock (TRM écru partition, Dymo reprint, observations sous `edit_stock_ecru`) |
 | `claude_doc/clients-gestion.md` | Clients › Gestion (TRM fiche client) |
 | `claude_doc/production-of.md` | Production › Ordres de fabrication + Observations régleur (`obs_ref_ecru`) |
 | `claude_doc/atelier-maintenance.md` | Atelier › Maintenance (rouloir, garniture, jauges) |
@@ -269,6 +269,11 @@ métier, pas de magasin, expédié au client). Écran `TombeMetierStock.tsx`, AP
 - Le tiroir réimprime l'étiquette Dymo via `GET /visitage-trm/etiquettes?ids=` (désactivé
   si `IDordre_fabrication` nul) — ⚠️ cet endpoint a **deux appelants**, poste compris.
 - ~1 000 pièces : le double rendu §27 est gardé par `useIsDesktop()` (voir React rules).
+- **Depuis le 2026-09-02 (LIVA #1108) les observations d'un rouleau s'écrivent depuis le
+  tiroir**, sous `edit_stock_ecru` (catégorie « Tombé Métier », fermé par défaut — à accorder
+  à Nicolas Antonino après déploiement) : `PATCH /api/stock/ecru-trm/:id { observations }`
+  **seul**, `z.strict`, partition `IDsociete = 2` sur la ligne. Tout le reste reste ce que le
+  poste de visitage a pesé.
 
 ### Clients › Gestion (`/clients/gestion`) — port of `FI_Gestion_Client_TRM.wdw`
 
