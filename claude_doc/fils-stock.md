@@ -76,7 +76,7 @@ shared screen: TRM adds the lifecycle actions ETM's screen doesn't have.
   **`issuer: companyTrm`**).
 - **L'étiquette de lot ne porte que lot · réf. · coloris · client** (LIVA #1133,
   Nicolas Antonino, validé par Vincent le 2026-09-07) : le numéro de lot occupe la moitié
-  haute en 48 pt gras pour se lire sur des palettes gerbées. Poids (évolue à chaque
+  haute en 36 pt gras pour se lire sur des palettes gerbées, avec la mise en page de l'étiquette rouleau (`EtiquetteEcruPdf` : badge M, filets, légendes en colonne, `SAFE_RIGHT = 26`) — une référence longue passe sur deux lignes, ne pas grossir le numéro sans revérifier ce cas. Poids (évolue à chaque
   visitage), lot fournisseur (jamais consulté à l'atelier) et emplacement (trompeur dès
   que la palette bouge) ont été retirés — ne pas les remettre « pour information ».
   Route `GET /fil-trm/:id/label`, appelant unique : le bouton Étiquette de la fiche.
