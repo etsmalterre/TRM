@@ -206,7 +206,13 @@ All other screens are `PagePlaceholder`s for now. Legacy references for each dom
   (93 % du registre) ; l'API refuse en 409 `commande_miroir_etm`. **Sauf l'état** (LIVA #1100,
   2026-09-02) : TRM solde un miroir une fois tous ses OF terminés et tous ses rouleaux expédiés
   (`cloture` sur le détail, 409 `commande_non_terminee`) ; ETM le voit « Soldée par TRM » et
-  clôture sa propre commande — personne n'écrit le drapeau de l'autre société.
+  clôture sa propre commande — personne n'écrit le drapeau de l'autre société. **Et sauf le
+  délai** (LIVA #1123, 2026-09-07) : `PUT /lignes/:id/delai` écrit `date_livraison` sur la
+  ligne TRM **et** sur la ligne sous-traitant ETM (`sstDelaiSets`, `lib/sst-shared.ts` : gel
+  de la date d'origine, `Attente_Delai` → `En_Cours`) — bouton horloge de la stat « Délai »
+  de la carte de ligne, actif sur un miroir. **La liste de gauche se colore sur le délai**
+  (§30 : rouge = à faire de notre côté — sans délai ou dépassé ; ambre = sous 3 jours), la
+  pastille compteur compte les rouges ; la phase reste dans sa pastille.
 - ⚠️ **Tarif suggéré = `max(PrixDeRevientTRM, ref_ecru.prix) / 0,7`** (`'cost-floor'`),
   **pas** `trmLinePrix` (`'price-floor'`, sous-traitance ETM → TRM, colle au WinDev). Ne pas
   unifier sans trancher le prix de transfert intercompany.
@@ -350,6 +356,10 @@ avant de toucher `POST /valider`, la carte rouleau ou l'étiquette.
 - Deux séquences par OF (1er choix `< 1000`, déclassé dès **1001**) ; pièce isolée offerte
   7 jours (`ORPHAN_MAX_AGE_DAYS`, dur) ; quantité d'un défaut corrigible au poste, **champ
   vide = ne touche à rien, jamais 0** (`qteDigits` / `qteCommit`, testés).
+- ⚠️ **Un déclassé sort sans réservation** (`IDLigne_Commande_TRM = 0`, affecté à la main à
+  l'expédition) ; seul le 1er choix porte la ligne de l'OF. Le poste a réservé ses déclassés
+  sa première semaine (LIVA #1129, corrigé le 2026-09-07) : `fix-choix2-affectation-trm.ts
+  --write` sur le serveur après l'`/etm_deploy`, `probe-visitage-trm.ts` §6 surveille.
 - La carte rouleau porte sa teinte sur son corps : rien de posé dessus ne peut être un
   lavis de la même teinte. Identification par visage (`VisiteurGate`, local à l'écran).
 - **Étiquette Dymo** à la validation (`EtiquetteEcruPdf.tsx`, port de `ImprimeEtiquetteTM`,

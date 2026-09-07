@@ -44,6 +44,26 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
     à un double envoi, non traitée — `createSerialLock` est là pour ça.
 - **Deux séquences de numérotation par OF** : 1er choix `num_piece_OF < 1000`, déclassé
   `1000+` — et le **premier déclassé d'un OF est 1001**, pas 1000 (438 OF vivants contre 167).
+- ⚠️ **Un déclassé sort du visitage SANS réservation** (`IDLigne_Commande_TRM = 0`) ; seul
+  le 1er choix porte la ligne de commande de l'OF. Le legacy n'affecte un 2nd choix qu'à
+  la main, à l'expédition (mesuré sur la prod le 2026-09-07 : 547 des 1 588 déclassés
+  legacy portent une ligne et 546 d'entre eux sont expédiés — la ligne d'un déclassé est
+  la trace d'une expédition, pas du visitage ; le dernier déclassé legacy, 3541/1006, est
+  à 0). La règle « ligne = celle de
+  l'OF, 12/12 » avait été mesurée sur des 1er choix seulement, et **le poste a réservé ses
+  déclassés pendant sa première semaine** (LIVA #1129) : ils apparaissaient dans
+  l'Affectation de la commande à plein poids et sont partis avec « Expédier » comme du
+  1er choix (3564/1001, 3542/1006, 3554/1001 — expédiés et facturés, laissés tels quels ;
+  3566/1001 remis à 0 à la main). Corrigé dans le plan de `POST /valider` (le champ
+  `IDLigne_Commande_TRM` est exposé par `?dry_run=1` pour que `check-visitage-trm.ts`
+  l'affirme sans écrire), compté par `probe-visitage-trm.ts` §6 (le chiffre ne doit jamais
+  monter), réparé par **`fix-choix2-affectation-trm.ts --write` sur le serveur juste après
+  l'`/etm_deploy`** (ne libère que les déclassés encore en stock dont la ligne est celle
+  de l'OF ; un rouleau expédié est une décision humaine, pas un UPDATE).
+  - **Lacune assumée** : TRM n'a pas de « Affecter des pièces disponibles » — un déclassé
+    libéré ne se ré-affecte aujourd'hui que depuis l'écran commande du WinDev (le legacy
+    a ce sélecteur, même référence et coloris, 2nd choix en dernier). À traiter dans un
+    ticket propre, pas dans ce correctif.
 - **La coupe** = un `piece_production` → N `stock_ecru`. Les défauts déclarés au terminal par
   le bonnetier (`Type_Reference = 1`) sont **convertis sur place** en `Type_Reference = 2`
   pointant le rouleau, en préservant `DATE` / `Type_Spotteur` / `IDSpotteur` / `description` :

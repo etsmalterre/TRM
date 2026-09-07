@@ -50,6 +50,8 @@ import {
   AlertTriangle,
   Printer,
   AtSign,
+  CalendarClock,
+  Hourglass,
 } from 'lucide-react'
 import { TmRollIcon } from '@/components/icons/TmRollIcon'
 import { BobineIcon } from '@/components/icons/BobineIcon'
@@ -89,6 +91,19 @@ interface CommandeListRow {
   produit: number
   nb_lignes: number
   earliest_delivery: string | null
+  /** Lines with no délai yet — any one of them makes the commande red (LIVA #1123). */
+  lignes_sans_delai: number
+}
+
+/** Left-list urgency on the DÉLAI (mps_designer §30, decided 2026-09-07 on
+ *  LIVA #1123). Red = something to do on our side: no délai given (any line),
+ *  or the earliest one is today or past. Amber = act now or it turns red:
+ *  within 3 days. Nothing on a soldée commande. The phase pill keeps the
+ *  workflow state; the liseré carries the délai. */
+function commandeUrgency(row: CommandeListRow): 'late' | 'soon' | null {
+  if (row.est_soldee === 1) return null
+  if (row.nb_lignes === 0 || row.lignes_sans_delai > 0 || !row.earliest_delivery) return 'late'
+  return deliveryUrgency(row.earliest_delivery, 0)
 }
 
 interface LigneCommande {
@@ -116,6 +131,12 @@ interface LigneCommande {
   produit: number
   expedie: number
   IDligne_commande_ETM: number
+  /** ETM is still waiting for TRM to announce a délai on the sst line behind
+   *  this mirrored line (sstatut Attente_Delai). LIVA #1123. */
+  attente_delai: boolean
+  /** The original délai ETM froze on the first reschedule, when it differs
+   *  from the current date. YYYYMMDD. */
+  date_delai_initiale: string | null
 }
 
 interface AdresseLite {
@@ -361,7 +382,7 @@ export function ClientsCommandes() {
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open')
   // Amber counter pill: narrow to the orders no OF has been created for yet.
-  const [amberOnly, setAmberOnly] = useState(false)
+  const [redOnly, setRedOnly] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   // TRM permission gate: create / edit / delete of native orders and their
@@ -534,11 +555,12 @@ export function ClientsCommandes() {
 
   const rows = commandes ?? []
 
-  // "À lancer" counter pill (mps_designer §41): open orders with no OF yet.
-  // Hidden at 0, so an armed-but-empty filter can never strand the user.
-  const amberCount = rows.reduce((n, r) => n + (r.phase === 'a_lancer' ? 1 : 0), 0)
-  const amberActive = amberOnly && amberCount > 0
-  const visibleRows = amberActive ? rows.filter((r) => r.phase === 'a_lancer') : rows
+  // Counter pill (mps_designer §41) = the red cards: commandes with a délai
+  // to give or a délai past (LIVA #1123). Hidden at 0, so an armed-but-empty
+  // filter can never strand the user.
+  const redCount = rows.reduce((n, r) => n + (commandeUrgency(r) === 'late' ? 1 : 0), 0)
+  const redActive = redOnly && redCount > 0
+  const visibleRows = redActive ? rows.filter((r) => commandeUrgency(r) === 'late') : rows
 
   useAutoSelectFirst({
     rows: visibleRows,
@@ -565,9 +587,9 @@ export function ClientsCommandes() {
             onSearchChange={setSearchQuery}
             statusFilter={statusFilter}
             onStatusFilterChange={handleStatusFilterChange}
-            amberCount={amberCount}
-            amberOn={amberActive}
-            onToggleAmber={() => setAmberOnly((v) => !v)}
+            redCount={redCount}
+            redOn={redActive}
+            onToggleRed={() => setRedOnly((v) => !v)}
             onNew={() => setCreateOpen(true)}
             isEditing={isEditing}
             canEdit={canEditCommandes}
@@ -686,7 +708,7 @@ function CommandeList({
   selectedId, onSelect,
   searchQuery, onSearchChange,
   statusFilter, onStatusFilterChange,
-  amberCount, amberOn, onToggleAmber,
+  redCount, redOn, onToggleRed,
   onNew, isEditing, canEdit,
 }: {
   rows: CommandeListRow[]
@@ -699,9 +721,9 @@ function CommandeList({
   onSearchChange: (q: string) => void
   statusFilter: StatusFilter
   onStatusFilterChange: (s: StatusFilter) => void
-  amberCount: number
-  amberOn: boolean
-  onToggleAmber: () => void
+  redCount: number
+  redOn: boolean
+  onToggleRed: () => void
   onNew: () => void
   isEditing: boolean
   canEdit: boolean
@@ -721,20 +743,20 @@ function CommandeList({
               className="w-full h-9 pl-9 pr-3 text-sm rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
-          {amberCount > 0 && (
+          {redCount > 0 && (
             <button
               type="button"
-              onClick={onToggleAmber}
-              aria-pressed={amberOn}
-              title="Commandes sans ordre de fabrication"
+              onClick={onToggleRed}
+              aria-pressed={redOn}
+              title="Commandes sans délai ou dont le délai est dépassé"
               className={cn(
                 'h-7 min-w-[1.75rem] px-1.5 inline-flex items-center justify-center rounded-md text-xs font-semibold tabular-nums border transition-colors flex-shrink-0',
-                amberOn
-                  ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
-                  : 'bg-amber-500/10 text-amber-800 border-amber-500/30 hover:bg-amber-500/20',
+                redOn
+                  ? 'bg-red-500 text-white border-red-500 shadow-sm'
+                  : 'bg-red-500/10 text-red-800 border-red-500/30 hover:bg-red-500/20',
               )}
             >
-              {amberCount}
+              {redCount}
             </button>
           )}
         </div>
@@ -775,12 +797,16 @@ function CommandeList({
           </div>
         ) : rows.map((row) => {
           const isSelected = selectedId === row.IDcommande_client
-          const isAmber = row.phase === 'a_lancer'
-          const selectedRingClass = isAmber
-            ? 'border-amber-500 ring-1 ring-amber-500'
+          // Liseré + ring on the délai (§30 palette): red = to do on our
+          // side, amber = act before it turns red, none otherwise.
+          const urgency = commandeUrgency(row)
+          const selectedRingClass =
+            urgency === 'late' ? 'border-red-500 ring-1 ring-red-500'
+            : urgency === 'soon' ? 'border-amber-500 ring-1 ring-amber-500'
             : 'border-zinc-400 ring-1 ring-zinc-400'
-          const hoverClass = isAmber
-            ? 'border-border hover:border-amber-500/50'
+          const hoverClass =
+            urgency === 'late' ? 'border-border hover:border-red-500/50'
+            : urgency === 'soon' ? 'border-border hover:border-amber-500/50'
             : 'border-border hover:border-zinc-400/60'
           return (
             <div
@@ -789,7 +815,8 @@ function CommandeList({
               className={cn(
                 'p-3 border rounded-lg cursor-pointer transition-all bg-white',
                 isSelected ? selectedRingClass : hoverClass,
-                isAmber && 'shadow-[inset_4px_0_0_0_rgb(245_158_11)]',
+                urgency === 'late' && 'shadow-[inset_4px_0_0_0_rgb(239_68_68)]',
+                urgency === 'soon' && 'shadow-[inset_4px_0_0_0_rgb(245_158_11)]',
               )}
             >
               <div className="flex items-center gap-2">
@@ -985,6 +1012,11 @@ function LignesSection({
   const [editingLine, setEditingLine] = useState<LigneCommande | null>(null)
   const [deleteLineConfirmId, setDeleteLineConfirmId] = useState<number | null>(null)
   const [lineError, setLineError] = useState<string | null>(null)
+  // Délai (LIVA #1123): the one line field a mirror accepts from TRM. Its
+  // own dialog, outside edit mode — a mirror has no edit mode at all.
+  const [delaiLine, setDelaiLine] = useState<LigneCommande | null>(null)
+  const canEditCommandes = useHasPermission('edit_commandes_client')
+  const canSetDelai = canEditCommandes && !isEditing && commande.est_soldee !== 1
 
   // Lines are locked on a closed order AND on every mirror (ETM owns those).
   const linesLocked = commande.est_soldee === 1 || commande.is_mirror
@@ -1067,8 +1099,10 @@ function LignesSection({
                 isEditing={isEditing}
                 linesLocked={linesLocked}
                 isDrawerOpen={progressionLineId === l.IDligne_commande_client}
+                canSetDelai={canSetDelai}
                 onEdit={() => startEditLine(l)}
                 onDelete={() => setDeleteLineConfirmId(l.IDligne_commande_client)}
+                onSetDelai={() => setDelaiLine(l)}
                 onOpenProgression={onOpenProgression}
               />
             ))
@@ -1119,6 +1153,12 @@ function LignesSection({
         onSuccess={() => { setLineDialogOpen(false); setEditingLine(null); onMutationSuccess() }}
       />
 
+      <DelaiDialog
+        line={delaiLine}
+        onClose={() => setDelaiLine(null)}
+        onSuccess={() => { setDelaiLine(null); onMutationSuccess() }}
+      />
+
       <ConfirmDialog
         open={deleteLineConfirmId !== null}
         title="Supprimer la ligne"
@@ -1157,15 +1197,18 @@ function LineStat({ label, value, className, valueClass }: {
 }
 
 function LineCard({
-  line, estSoldee, isEditing, linesLocked, isDrawerOpen, onEdit, onDelete, onOpenProgression,
+  line, estSoldee, isEditing, linesLocked, isDrawerOpen, canSetDelai, onEdit, onDelete, onSetDelai, onOpenProgression,
 }: {
   line: LigneCommande
   estSoldee: number
   isEditing: boolean
   linesLocked: boolean
   isDrawerOpen: boolean
+  /** The délai is TRM's own answer, so it stays writable on a mirror (LIVA #1123). */
+  canSetDelai: boolean
   onEdit: () => void
   onDelete: () => void
+  onSetDelai: () => void
   onOpenProgression: (lineId: number | null) => void
 }) {
   const { border, iconBg, iconColor } = lineCardColors(line)
@@ -1252,15 +1295,46 @@ function LineCard({
           </div>
         )}
         {line.montant > 0 && <LineStat label="Montant" value={`${fmtNum(line.montant, 2)} €`} />}
-        {line.date_livraison && (() => {
-          const u = deliveryUrgency(line.date_livraison, estSoldee)
+        {/* Délai — the legacy line band's ATT_delai (LIVA #1123). TRM's own
+            answer to the commande, so it is writable on a mirror, outside
+            edit mode, whenever the order is open. Without a date on a
+            mirror, ETM is waiting: the yellow « Attente délai » is the cue
+            to give one. Reschedules keep ETM's frozen original inline. */}
+        {(line.date_livraison || line.attente_delai || canSetDelai) && (() => {
+          const u = line.date_livraison ? deliveryUrgency(line.date_livraison, estSoldee) : null
           return (
-            <LineStat
-              label="Livraison"
-              value={formatHfsqlDate(line.date_livraison)}
-              className="ml-auto text-right"
-              valueClass={u === 'late' ? 'text-red-600' : u === 'soon' ? 'text-amber-600' : undefined}
-            />
+            <div className="ml-auto text-right">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Délai</p>
+              <div className="flex items-center justify-end gap-1.5">
+                {line.date_livraison ? (
+                  <p className={cn('text-xs font-semibold tabular-nums', u === 'late' ? 'text-red-600' : u === 'soon' ? 'text-amber-600' : undefined)}>
+                    {formatHfsqlDate(line.date_livraison)}
+                    {line.date_delai_initiale && (
+                      <span className="ml-1 font-normal italic text-muted-foreground" title="Délai initial annoncé à ETM">
+                        (initial : {formatHfsqlDate(line.date_delai_initiale)})
+                      </span>
+                    )}
+                  </p>
+                ) : line.attente_delai ? (
+                  <Badge variant="outline" className="text-[10px] py-0 gap-1 bg-yellow-500/15 text-yellow-800 border-yellow-500/30">
+                    <Hourglass className="h-2.5 w-2.5" />Attente délai
+                  </Badge>
+                ) : (
+                  <p className="text-xs font-semibold text-muted-foreground">—</p>
+                )}
+                {canSetDelai && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-accent"
+                    title={line.IDligne_commande_ETM > 0 ? 'Donner le délai (remonte sur la commande ETM)' : 'Donner le délai'}
+                    onClick={(e) => { e.stopPropagation(); onSetDelai() }}
+                  >
+                    <CalendarClock className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
           )
         })()}
       </div>
@@ -1981,6 +2055,101 @@ function ExpeditionTab({ loading, expeditions }: { loading: boolean; expeditions
 }
 
 // ── Line create/edit dialog ────────────────────────────
+
+// ── Délai dialog (LIVA #1123) ──────────────────────────
+// One field, so a §18.A dialog at its smallest. On a mirrored line the date
+// goes to both ledgers: the TRM line and the ETM sst line behind it, which
+// leaves « Attente délai » for « En cours » — the legacy TRM window's
+// answer to ETM. The hint says so, because that write is visible from ETM.
+
+function DelaiDialog({ line, onClose, onSuccess }: {
+  line: LigneCommande | null
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [value, setValue] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const lineId = line?.IDligne_commande_client ?? null
+  useEffect(() => {
+    setValue(line ? hfsqlDateToInput(line.date_livraison) : '')
+    setError(null)
+  }, [lineId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveMut = useMutation({
+    mutationFn: () => apiFetch(`/commandes-trm/lignes/${lineId}/delai`, {
+      method: 'PUT',
+      body: JSON.stringify({ date_livraison: value ? inputDateToHfsql(value) : '' }),
+    }),
+    onSuccess: (r: any) => {
+      if (r?.sst_status === 'failed') {
+        setError('Le délai est enregistré côté TRM mais n\'a pas pu remonter sur la commande ETM. Réessayez, ou saisissez-le depuis ETM.')
+        return
+      }
+      onSuccess()
+    },
+    onError: (e: any) => {
+      setError(e?.message?.includes('commande_soldee')
+        ? 'Commande soldée — rouvrez-la pour changer le délai.'
+        : 'Le délai n\'a pas pu être enregistré.')
+    },
+  })
+
+  const isMirror = (line?.IDligne_commande_ETM ?? 0) > 0
+  const open = line !== null
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-sm" onClose={onClose}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarClock className="h-5 w-5 text-accent" />
+            Délai de fabrication
+          </DialogTitle>
+        </DialogHeader>
+        <form
+          className="mt-4 space-y-3"
+          onSubmit={(e) => { e.preventDefault(); if (!saveMut.isPending) saveMut.mutate() }}
+        >
+          {line && (
+            <p className="text-sm text-muted-foreground truncate">
+              {line.ref_label || '—'}
+              {line.colori_reference ? ` / ${line.colori_reference}` : ''}
+              {' · '}{fmtNum(line.quantite, 1)} {line.unite_label}
+            </p>
+          )}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Date de fin de fabrication</label>
+            <input
+              type="date" value={value} autoFocus
+              onChange={(e) => setValue(e.target.value)}
+              className={cn(inputClass, 'h-9')}
+            />
+          </div>
+          {isMirror && (
+            <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+              <Link2 className="h-3 w-3 flex-shrink-0 mt-0.5" />
+              <span>
+                Cette date remonte sur la commande sous-traitant ETM
+                {line?.attente_delai ? ' et la passe d\'« Attente délai » à « En cours »' : ''}.
+                {line?.date_livraison && !line?.date_delai_initiale ? ' Le délai d\'origine sera conservé côté ETM.' : ''}
+              </span>
+            </p>
+          )}
+          {error && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">{error}</div>
+          )}
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+            <Button type="submit" disabled={saveMut.isPending}>
+              <Save className="h-3.5 w-3.5 mr-1.5" />
+              {saveMut.isPending ? 'Enregistrement...' : 'Enregistrer'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 const emptyLineForm = {
   IDreference: 0,
