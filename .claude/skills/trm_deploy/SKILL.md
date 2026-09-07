@@ -87,37 +87,33 @@ changes were landed on ETM `master` via a **paired NG worktree** (see
    on 404, so it catches a router that was never deployed. It does **not** catch a router
    that is mounted with an **older handler**: a feature adding a field, a sub-route or a
    query param to an already-deployed mount (e.g. a new block inside `/prime-trm`) gets a
-   green gate while prod serves the stale payload, and the screen ships broken. Compare
-   the API host's deploy stamp against ETM master:
+   green gate while prod serves the stale payload, and the screen ships broken. This is
+   the diff `preflight.mjs` prints as « MPS API is BEHIND — N runtime file(s) »: the API
+   host's `DEPLOYED_SHA` against ETM `origin/master` on `apps/api/**`.
    ```bash
-   # factory PC (wsl transport — see §SSH Access for the laptop form)
-   API_SHA=$(wsl bash -c "ssh $WOPTS debian@10.10.2.163 'cat /home/debian/mps_api/DEPLOYED_SHA 2>/dev/null || echo none'" | tr -d '[:space:]')
-   cd /c/dev/etsmalterre/ETM && git fetch origin -q
-   git log --oneline ${API_SHA}..origin/master -- apps/api      # empty = API is current
+   node C:/dev/etsmalterre/ETM/scripts/deploy/preflight.mjs
    ```
-   Non-empty output = the shared API is behind on `apps/api/**` → deploy it first. An
-   `API_SHA` of `none`, or one git does not know, counts as behind.
+   A stamp of `none`, or one git does not know, counts as behind.
    **Exception**: a range touching only `apps/api/src/scripts/**` has no runtime effect —
    the service never imports those, so it does not warrant restarting the shared API
    (which blips `mpsng` too). Run such a script by hand instead; on the prod host that is
    `node --env-file=.env --import tsx src/scripts/<x>.ts` from `/home/debian/mps_api`
    (a bare `npx tsx` gets no env and dies with `[IM007] No data source or driver`).
-3. **If either check fails, deploy the API yourself, then carry on.** Invoke `/etm_deploy`
-   from `C:\dev\etsmalterre\ETM` — that skill owns the build, upload and `mps-api.service`
-   restart, so do not reproduce its steps here — then re-run gates 1 and 2 from TRM until
-   both are green and continue into §Deploy Steps. This is a normal leg of `/trm_deploy`,
-   not an escalation: see the ⚠️ in §Scope.
+3. **If either check fails, deploy the API yourself, then carry on.** That is one command,
+   the same one `/etm_deploy` runs — `node scripts/deploy/deploy-api.mjs` from
+   `C:\dev\etsmalterre\ETM` (§Deploy Steps step 1) — then re-run gates 1 and 2 from TRM
+   until both are green and continue. This is a normal leg of `/trm_deploy`, not an
+   escalation: see the ⚠️ in §Scope.
 4. **Check whether a landed feature still owes a one-off script on the prod API host.** The
    gates compare *code*; they cannot see a seed that was never run, and a default-closed
-   permission key granted to nobody is invisible until a user hits a 403. Read this
-   project's memory index for lines naming a prod script (`seed-*.ts --write`), and verify
-   the *effect* rather than trusting the note — for a permission key that is:
-   ```bash
-   # 0 = the seed never ran
-   wsl bash -c "ssh $WOPTS debian@10.10.2.163 'grep -c edit_of /home/debian/mps_api/data/permissions-trm.json'"
-   ```
-   Run what is owed on the host as shown in the step-2 Exception, **before** the web bundle
-   that depends on it goes up. Verified 2026-08-27: `edit_of` had been gating the nine
+   permission key granted to nobody is invisible until a user hits a 403. `preflight.mjs`
+   does two things about it: it greps the host's `permissions-trm.json` for the keys it
+   knows (`edit_of`, `edit_expeditions`, `screen_`) and, since 2026-09-07, it **names every
+   `seed-*` / `fix-*` / `backfill-*` / `migrate-*` script that landed in the API range** so
+   an owed script is never only known from the merge-log prose. A key it does not know:
+   read this project's memory index, then verify the *effect* (a `grep -c <key>` on the host,
+   0 = the seed never ran). Run what is owed on the host as shown in the step-2 Exception,
+   **before** the web bundle that depends on it goes up. Verified 2026-08-27: `edit_of` had been gating the nine
    `/of-trm` write routes in production for a day with the key granted to nobody, so every
    non-admin was silently 403'd — the API half had shipped, the seed had not.
 
@@ -170,98 +166,80 @@ Key location varies per machine:
 
 Test with `hostname` first; if the identity file is missing at one path, try the other.
 
-## Deploy Steps
+## Deploy Steps — three commands, in this order
 
-0a. **Bring both main checkouts to `origin/master` first — the build reads these trees.**
-   Since 2026-09-02 `/feature-complete` lands by pushing the branch to `origin/master` and
-   only best-effort fast-forwards the main checkout, so a checkout that is behind after a
-   morning of landings is the *normal* case, not a fault. Self-heal it before preflight:
+The deploy is **scripts, not typed shell**. Since 2026-09-07 every step that used to be a
+hand-composed `wsl bash -c "ssh … '…'"` line lives in `ETM/scripts/deploy/` (shared with
+`/etm_deploy`, one copy for the platform). The reason is a real incident that day: a
+hand-typed upload lost a shell variable in the nested quoting, the extract never ran, and
+the `DEPLOYED_SHA` stamp was written anyway — preflight then read prod as current while
+it served the previous build. The scripts feed remote commands to `bash -s` on stdin
+(nothing to escape, `set -e`), verify the **served** bundle through nginx, and write the
+stamp **last, by its own call**. Do not reproduce their steps by hand; if one refuses,
+fix what it names.
+
+Run everything with **absolute paths** — the Bash tool's cwd drifts between calls
+(a `../ETM/…` form failed on 2026-09-07 after a `cd` into `dist/assets`).
+
+0. **Sync both main checkouts, then preflight.** Since 2026-09-02 `/feature-complete`
+   lands by pushing to `origin/master` and only best-effort fast-forwards the checkout, so
+   a checkout behind origin is the normal case after a morning of landings:
    ```bash
    git -C /c/dev/etsmalterre/TRM fetch -q origin && git -C /c/dev/etsmalterre/TRM merge --ff-only origin/master
    git -C /c/dev/etsmalterre/ETM fetch -q origin && git -C /c/dev/etsmalterre/ETM merge --ff-only origin/master
+   node C:/dev/etsmalterre/ETM/scripts/deploy/preflight.mjs      # read-only; exit 1 = blockers
    ```
-   Both must print `Already up to date.` or a fast-forward. Anything else (a dirty tree the
-   merge refuses to overwrite, a diverged `master`) is a real stop that preflight will name;
-   never `reset` or `stash` your way past it.
+   Preflight prints the five stamps, which tiers are behind, whether both trees are clean
+   and at `origin/master`, the seeds it can verify, and — new — **the one-off scripts
+   (`seed-*` / `fix-*` / `backfill-*` / `migrate-*`) that landed in the API range**, so an
+   owed host script is named here instead of buried in the merge-log. A blocker means fix
+   it, not proceed; never `reset` / `stash` past it. If a version was asked for, bump it
+   (Targets table, last column), commit `chore(release): X.Y.Z`, push, **then** preflight.
 
-0. **Preflight — one read-only command, before building anything:**
+1. **API first, if preflight says it is behind** (this is the ETM leg — yours to run,
+   see §Scope):
    ```bash
-   node ../ETM/scripts/deploy/preflight.mjs   # whole platform; exit 1 = blockers
+   cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-api.mjs        # --dry-run to rehearse
    ```
-   Stamps for all three tiers, what is behind (runtime `apps/api/**` vs `src/scripts/**`),
-   whether **both** main checkouts are clean and on master, and whether a landed feature
-   still owes a seed on the prod host. It fails closed — unreachable servers exit 2.
-   A blocker means fix it, not proceed: the tree-clean check exists because on 2026-08-27
-   a local `dist/` had been rebuilt from master **plus** an uncommitted edit, and uploading
-   it would have shipped unreviewed code under a `DEPLOYED_SHA` that did not contain it.
+   It guards the ETM tree, refuses if prod's `src/scripts` holds files that are in no
+   commit (rescue them first), ships `package.json` + `npm install` only when the
+   dependencies actually differ, refuses if the host's `.env` differs from
+   `.env.production` (it never writes the host's `.env`), uploads `src/` (tests excluded),
+   backs up, prunes `src/scripts`, extracts, restarts, waits for `/api/health` to answer
+   `"app":"MPS API"`, counts `HY090`/`Error` in the journal, smoke-checks **all four
+   clients** through their own nginx (mpsng, trm, atelier, trs), and only then stamps.
+   Then run the owed scripts preflight listed — on the host, `node --env-file=.env
+   --import tsx src/scripts/<x>.ts` from `/home/debian/mps_api`, dry-run first — and
+   **restart again if one wrote `data/*.json`** (module-load cache, see below).
+   An `src/scripts/**`-only range does not go through here (a restart blips every client
+   for nothing): run the script on the host by hand.
 
-0b. **Then the route gate:**
+   Then the route gate, which must be green before any web bundle goes up:
    ```bash
-   node scripts/check-api-routes.mjs --app <target>
+   node C:/dev/etsmalterre/TRM/scripts/check-api-routes.mjs --app <target>
    ```
-   Exit 1 → do **not** build; go deploy the API yourself per §Scope (run `/etm_deploy` in
-   the ETM checkout), then come back to this step. This gate is the weaker of the two —
-   run the step-2 SHA diff and step 4's owed-script check too. Deploying past a red gate
-   ships screens whose backend is not on the server. Use `--verbose` to see every probe, and
-   `--base <url>` to point at another API (e.g. `https://mpsng.malterre/api` to test the
-   API directly rather than through TRM's nginx).
 
-1. **Build locally — use PowerShell, NOT the Bash tool.** `VITE_API_URL=/api` MUST be set,
-   for every target:
-   ```powershell
-   cd C:\dev\etsmalterre\TRM; $env:VITE_API_URL='/api'; pnpm --filter <filter> build
-   ```
-   `<filter>` from the Targets table. Produces `apps/<target>/dist/` with hashed assets.
-   All three apps share the same `lib/api.ts` dev fallback, so both footguns below
-   apply to all three identically.
-
-   **The two build footguns from ETM apply verbatim** (full write-ups in
-   `ETM/.claude/skills/etm_deploy/SKILL.md` — both caused prod outages there):
-   - **Footgun A — git-bash path mangling**: `VITE_API_URL=/api` set through the Bash tool
-     gets rewritten to `C:/Program Files/Git/api`. Build with PowerShell.
-   - **Footgun B — unset var**: the bundle silently bakes in TRM's dev fallback
-     `http://localhost:8080/api` (each app's own `src/lib/api.ts` — all three carry the same fallback).
-
-   **Note**: the TRM build imports shared screens from the sibling `ETM` checkout via the
-   `@etm` alias — the ETM checkout must be present and on the code you intend to ship
-   (normally `master`). If ETM master moved for a shared screen, both apps need a deploy.
-
-2. **Verify the built bundle BEFORE upload — negative AND positive checks:**
+2. **Each web bundle preflight reported behind** (no target = every one that is behind;
+   `all` = all three; never default to `web` alone):
    ```bash
-   cd apps/<target>/dist/assets
-   grep -l 'localhost:8080'        index-*.js   # must print NOTHING (Footgun B — dev fallback)
-   grep -l 'Program Files/Git/api' index-*.js   # must print NOTHING (Footgun A)
-   grep -l '="/api"'               index-*.js   # MUST print the main chunk
-   grep -ohE 'Version ","[0-9.]+'  index-*.js   # the injected __APP_VERSION__
+   cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-web.mjs --app trm       # web  → trm.malterre
+   cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-web.mjs --app atelier   # atelier.malterre
+   cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-web.mjs --app trs       # trs.malterre
    ```
-   ⚠️ **Glob every chunk, never a single `$B`.** The build emits more than one
-   `index-*.js` (a small ~14 KB chunk beside the ~1.2 MB main one), so the old
-   `B=$(ls ...)` form expanded to two paths and every grep died with
-   `No such file or directory` — which reads like a clean '0' pass if you only
-   check the exit code. Only the main chunk carries `="/api"`; that is expected.
-   If the positive `="/api"` assertion doesn't match, do NOT deploy.
+   Each run: guards the app's checkout (and the ETM one for `trm`, whose build imports
+   shared screens through the `@etm` alias), `pnpm install`, builds with `VITE_API_URL=/api`
+   set **in the child's env** (no shell in between, so Footgun A's git-bash path mangling
+   and Footgun B's unset var cannot happen), verifies every `index-*.js` chunk (no dev
+   fallback, no `Program Files/Git/api`, `="/api"` present, the app's own version baked in
+   where the app renders it), tars, uploads, **extracts over** the dist (never wipes —
+   open tabs still lazy-load old chunks; hashed assets untouched for 14 days are swept),
+   re-fetches the served `index.html` and greps the chunk **nginx actually serves**, and
+   stamps last. `--dry-run` stops after the local verify; `--skip-build` verifies and
+   ships the dist already there.
 
-3. **Upload** (tar for speed; adjust ssh/scp invocation per the SSH Access block).
-   `<dist>` and `<stamp>` come from the Targets table:
-   ```bash
-   tar czf /tmp/dist.tar.gz -C apps/<target>/dist .
-   # scp to debian@10.10.2.165:/home/debian/ then, on the host:
-   #   rm -rf <dist>.bak && cp -a <dist> <dist>.bak       # rollback point
-   #   rm -rf <dist>/* && tar xzf /home/debian/dist.tar.gz -C <dist>/
-   #   echo <sha> > <stamp>
-   ```
-   ⚠️ **Never nest `$(…)` inside `wsl bash -c "ssh … '…'"`** — it silently yields the
-   fallback branch, so a stamp written that way reports success while writing nothing.
-   Substitute locally and send a plain command.
-
-   **Stamp every target you shipped.** A tier with no stamp reads as `none` to
-   `preflight.mjs`, which counts as behind.
-
-4. **No restart needed** — nginx serves static files. Verify:
-   ```bash
-   curl -s -o /dev/null -w "%{http_code}" http://trm.malterre/          # 200
-   curl -s http://trm.malterre/api/auth/users | head -c 100             # JSON through the proxy
-   ```
+3. **Confirm**: `node C:/dev/etsmalterre/ETM/scripts/deploy/preflight.mjs` must now say
+   « Everything is current », then open `https://trm.malterre/` in a browser (the hosts
+   are **https only** — `http://` answers 308, not 200). Update the deploy-state memory.
 
 ## After the deploy — one-off prod scripts
 
@@ -276,12 +254,12 @@ once, silently, with nothing in the log. Measured 2026-08-27: 10 `edit_of` grant
 
 ## Verification Checklist
 
-- [ ] `curl http://trm.malterre/` returns HTML
-- [ ] `curl http://trm.malterre/api/auth/users` returns JSON (proxy → shared API)
-- [ ] The served bundle has the right API base:
-      `curl -s http://trm.malterre/$(curl -s http://trm.malterre/ | grep -oE 'assets/index-[^"]+\.js')`
-      then check for `="/api"` (and absence of `localhost:8080` / `Program Files`)
-- [ ] Navigate to `http://trm.malterre/atelier/planning` in a browser
+- [ ] `preflight.mjs` reports every tier current
+- [ ] `curl -sk https://trm.malterre/` returns HTML (https — http is a 308)
+- [ ] `curl -sk https://trm.malterre/api/auth/users` returns JSON (proxy → shared API)
+- [ ] `deploy-web.mjs` printed « served bundle: API base /api » — that line *is* the
+      served-bundle check (it fetches the chunk nginx serves and greps it)
+- [ ] Navigate to `https://trm.malterre/atelier/planning` in a browser
 
 ## Known issues (inherited from ETM — same infra)
 
