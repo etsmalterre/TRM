@@ -213,3 +213,13 @@ Les deux boutons de l'entête de la fiche, sur `GET /commandes-trm/:id/pdf`,
   avec `IDtype_doc = 7` (`notes` vide, comme la confirmation ETM) — aucun écran TRM ne le
   relit aujourd'hui, c'est de la traçabilité.
 
+
+### Où vivent « Commandé » / « Produit » (LIVA #1125, décision du 2026-09-07)
+
+Les kilos commandés et produits se lisent à **deux** endroits, pas trois : la carte de la
+liste de gauche (`394 / 600 Kgs`, la somme de la commande — utile dès qu'une commande a
+plusieurs lignes) et **chaque ligne** de la fiche (Commandé · Produit · Expédié · jauge).
+L'onglet Info du panneau de droite portait une troisième carte « Production » avec les
+mêmes deux sommes ; Nicolas l'a signalée en doublon et elle a été retirée. Ne pas la
+remettre : le panneau de droite est pour ce qui n'est pas déjà sur la ligne (client,
+dates, paiement, commentaires, journal, fiche client).

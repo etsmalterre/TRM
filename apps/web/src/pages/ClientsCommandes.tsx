@@ -2569,8 +2569,8 @@ function InfoTab({
   const echeanceLabel = echeances.find((e) => e.IDecheance === commande.IDecheance)?.libelle
   const smallInput = 'h-7 px-2 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring text-right w-[120px]'
 
-  const totalKg = commande.lignes.reduce((s, l) => s + (Number(l.quantite) || 0), 0)
-  const produitKg = commande.lignes.reduce((s, l) => s + (Number(l.produit) || 0), 0)
+  // No « Production » card here (LIVA #1125): the Commandé / Produit totals were
+  // the third copy of what the list card and each line already show.
 
   return (
     <div className="space-y-3">
@@ -2625,18 +2625,6 @@ function InfoTab({
           <input type="number" value={editRemise} onChange={(e) => onEditRemiseChange(e.target.value)} className={smallInput} />
         ) : (commande.remise ? fmtNum(commande.remise, 1) : '—')} />
       </div>
-
-      {commande.lignes.length > 0 && (
-        <div className="p-3 rounded-lg border bg-card shadow-sm">
-          <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-            <ClipboardList className="h-3.5 w-3.5" />Production
-          </p>
-          <div className="space-y-1.5">
-            <KV label="Commandé" value={<span className="tabular-nums">{fmtNum(totalKg, 1)} Kgs</span>} />
-            <KV label="Produit" value={<span className="tabular-nums font-semibold text-accent">{fmtNum(produitKg, 1)} Kgs</span>} />
-          </div>
-        </div>
-      )}
 
       <div className={cn('p-3 rounded-lg border bg-card shadow-sm', isEditing && editSectionClass)}>
         <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
