@@ -425,6 +425,14 @@ export function ClientsCommandes() {
     queryKey: ['commande-trm', selectedId],
     queryFn: () => apiFetch(`/commandes-trm/${selectedId}`),
     enabled: selectedId !== null,
+    // The detail carries `cloture` (OFs still open, rolls not shipped), a
+    // verdict on state that moves OUTSIDE this screen — the OF screen, the
+    // phone, the visitage poste. Under the app-wide 5-minute staleTime a
+    // commande re-opened right after its last OF was terminated kept saying
+    // « Solder impossible : 1 OF non terminé » until a full reload (LIVA
+    // #1134). Always stale: re-selecting the commande or refocusing the tab
+    // refetches one request.
+    staleTime: 0,
   })
 
   useEffect(() => { setProgressionLineId(null) }, [selectedId])

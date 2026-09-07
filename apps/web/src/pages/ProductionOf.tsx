@@ -806,6 +806,14 @@ export function ProductionOf() {
 
   const invalidateAll = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['of-trm'] })
+    // Clients › Commandes derives « Solder » from the OFs' state (`cloture`:
+    // OFs still open) and shows them in its Progression › OF tab; under the
+    // app-wide 5-minute staleTime it kept refusing to solder a commande whose
+    // last OF had just been terminated here (LIVA #1134). Same keys as that
+    // screen's own invalidateAll.
+    queryClient.invalidateQueries({ queryKey: ['commandes-trm'] })
+    queryClient.invalidateQueries({ queryKey: ['commande-trm'] })
+    queryClient.invalidateQueries({ queryKey: ['commande-trm-ordres'] })
   }, [queryClient])
 
   // ── Edit mode ──
