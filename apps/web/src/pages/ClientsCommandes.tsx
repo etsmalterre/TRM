@@ -381,8 +381,11 @@ export function ClientsCommandes() {
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open')
-  // Amber counter pill: narrow to the orders no OF has been created for yet.
+  // Urgency counter pills (mps_designer §41, same pair as ETM's Sous-traitants
+  // › Commandes): red = délai to give or past, amber = délai within 3 days.
+  // Independent toggles, OR-ed when both are on.
   const [redOnly, setRedOnly] = useState(false)
+  const [amberOnly, setAmberOnly] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   // TRM permission gate: create / edit / delete of native orders and their
@@ -563,12 +566,19 @@ export function ClientsCommandes() {
 
   const rows = commandes ?? []
 
-  // Counter pill (mps_designer §41) = the red cards: commandes with a délai
-  // to give or a délai past (LIVA #1123). Hidden at 0, so an armed-but-empty
-  // filter can never strand the user.
+  // Counter pills (mps_designer §41) = the red cards (délai to give or past,
+  // LIVA #1123) and the amber ones (délai within 3 days). Each hidden at 0,
+  // so an armed-but-empty filter can never strand the user.
   const redCount = rows.reduce((n, r) => n + (commandeUrgency(r) === 'late' ? 1 : 0), 0)
+  const amberCount = rows.reduce((n, r) => n + (commandeUrgency(r) === 'soon' ? 1 : 0), 0)
   const redActive = redOnly && redCount > 0
-  const visibleRows = redActive ? rows.filter((r) => commandeUrgency(r) === 'late') : rows
+  const amberActive = amberOnly && amberCount > 0
+  const visibleRows = redActive || amberActive
+    ? rows.filter((r) => {
+        const u = commandeUrgency(r)
+        return (redActive && u === 'late') || (amberActive && u === 'soon')
+      })
+    : rows
 
   useAutoSelectFirst({
     rows: visibleRows,
@@ -598,6 +608,9 @@ export function ClientsCommandes() {
             redCount={redCount}
             redOn={redActive}
             onToggleRed={() => setRedOnly((v) => !v)}
+            amberCount={amberCount}
+            amberOn={amberActive}
+            onToggleAmber={() => setAmberOnly((v) => !v)}
             onNew={() => setCreateOpen(true)}
             isEditing={isEditing}
             canEdit={canEditCommandes}
@@ -717,6 +730,7 @@ function CommandeList({
   searchQuery, onSearchChange,
   statusFilter, onStatusFilterChange,
   redCount, redOn, onToggleRed,
+  amberCount, amberOn, onToggleAmber,
   onNew, isEditing, canEdit,
 }: {
   rows: CommandeListRow[]
@@ -732,6 +746,9 @@ function CommandeList({
   redCount: number
   redOn: boolean
   onToggleRed: () => void
+  amberCount: number
+  amberOn: boolean
+  onToggleAmber: () => void
   onNew: () => void
   isEditing: boolean
   canEdit: boolean
@@ -765,6 +782,22 @@ function CommandeList({
               )}
             >
               {redCount}
+            </button>
+          )}
+          {amberCount > 0 && (
+            <button
+              type="button"
+              onClick={onToggleAmber}
+              aria-pressed={amberOn}
+              title="Commandes dont le délai tombe dans les 3 jours"
+              className={cn(
+                'h-7 min-w-[1.75rem] px-1.5 inline-flex items-center justify-center rounded-md text-xs font-semibold tabular-nums border transition-colors flex-shrink-0',
+                amberOn
+                  ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                  : 'bg-amber-500/10 text-amber-800 border-amber-500/30 hover:bg-amber-500/20',
+              )}
+            >
+              {amberCount}
             </button>
           )}
         </div>
