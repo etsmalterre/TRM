@@ -128,3 +128,54 @@ dans l'en-tête de `routes/dashboard-trm.ts`.
 - Dérogation dev `PIECES_A_VISITER_WINDOW_HOURS` (`apps/api/.env.development` **seulement**,
   la prod garde 24 h) — même raison et même patron que `VISITAGE_PIECE_MAX_AGE_DAYS`.
 
+
+## Widget « Rapport de production » — port de `FI_Rapport_de_production_période.wdw` (LIVA #1132)
+
+Ce que le visitage a pesé sur une période, en kg. Écran
+`apps/web/src/components/dashboard/RapportProductionWidget.tsx`, presets
+`lib/periode-production.ts` (testé) ; API `GET /api/dashboard-trm/rapport-production?du=&au=[&machine=][&ref=]`
+(`routes/dashboard-trm.ts`, calcul pur dans `lib/rapport-production-trm.ts`, testé) ; droit
+`dashboard_rapport_production`, **fermé par défaut, accordé à la main** (décision du
+2026-09-07 : personne sauf Vincent, qui voit tout en admin).
+
+Le `.wdw` est PCS-compressé ; le cache de compilation donne les contrôles (`SAI_Du`, `SAI_Au`,
+`SAI_Heure_debut`, `SAI_Heure_fin`, `SEL_Type`, `COMBO_Machine`, `COMBO_Référence`, `SAI_Produit`)
+et la requête, verbatim en tête de la route : **un seul nombre**, `SUM(stock_ecru.poids)` sur
+`date_saisie` entre deux date-heures, réduit à un métier (`IDordre_fabrication IN (… WHERE
+IDmachine = …)`) ou à une référence (`IDref_ecru = …`). Pas de graphe, pas de tableau.
+
+- **L'unité est le rouleau et l'horloge est `date_saisie`** : la production est comptée
+  quand elle est pesée, pas quand elle sort du métier.
+- ⚠️ **`IDordre_fabrication > 0`**, le même écart que Production › Prime : le prédicat nu du
+  legacy compte aussi les pièces manuelles « fictives » d'ETM (71 rouleaux / 201 kg en mars
+  2026 contre 677 / 12 488 kg sur OF). **Pas de filtre `IDsociete`** (le handover ETM bascule
+  les rouleaux livrés en société 1). Vérifié le 2026-09-07 : la route rend exactement la
+  sonde brute sur mars 2026 (12 488,09 kg / 677).
+- **Presets à la place des quatre champs** : Équipe en cours / précédente (grille 5 h – 13 h –
+  21 h, la même que `equipeAt` et la tablette TRS), Aujourd'hui, Hier, Cette semaine, Semaine
+  dernière, Ce mois, Mois dernier, et **Personnalisée** qui garde les deux bornes libres du
+  legacy. Les bornes résolues sont toujours affichées. `au` est inclusif à la seconde
+  (`…59`, le `999` du legacy). Bornées à 400 jours côté API.
+- **Un appel rend le total ET la répartition par métier et par référence** — le legacy
+  faisait lire un métier à la fois. Un clic sur une ligne filtre dessus et bascule l'axe
+  (un métier → ses références, une référence → ses métiers) ; la puce du bandeau retire le
+  filtre. **Les deux filtres se composent**, contrairement au `SEL_Type` du legacy.
+- Tuile « 2nd choix » avec l'échelle de Fils › Stock (vert à 0, ambre jusqu'à 5 %, rouge
+  au-delà) ; libellé métier = `machine.emplacement` (LIVA #1102).
+- Widget déclaré à 488 px (h = 21 sur le quantum `24h − 16`), comme « Utilisation fil ».
+
+## Widget « Utilisation fil » — miroir verbatim d'ETM (LIVA #1132)
+
+`UtilisationFilWidget.tsx` est la **copie exacte** du fichier ETM (améliorer là-bas, recopier),
+sur **le même endpoint** `GET /api/references-fil/:id/utilisation` : `ref_fil`, `colori_fil`,
+`composition_ecru`, `ref_ecru` sont le catalogue commun, sans `IDsociete`, et le panneau
+legacy `FI_Utilisation_fil` est la même fenêtre dans les deux modes société. Les clés React
+Query restent **sans préfixe `trm-`** : même URL, mêmes lignes, une entrée de cache partagée
+est juste (le préfixe des widgets finance existe parce que *leurs* URL diffèrent). Seul le
+droit change : `dashboard_utilisation_fil` dans le store TRM. ⚠️ Comme côté ETM, la route
+n'est pas gardée — la clé ne fait que montrer ou cacher le widget.
+
+**« Fils en attente de réception » n'est pas porté** (décision du 2026-09-07) : c'est le
+legacy `FI_Commandes_fils` sur `ref_fil_commande` / `commande_fil`, les commandes fournisseur
+de fil — un métier d'ETM, pas de TRM qui tricote à façon avec le fil du client. Côté ETM la
+donnée vit dans le bloc « Commandé » du widget `fil_etat` et dans Rapports › Commandes fil.

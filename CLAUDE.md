@@ -520,9 +520,20 @@ The screen is ETM's (`import { Dashboard } from '@etm/pages/Dashboard'`): same r
 - **Plumbing TRM had to grow for the shell**: `contexts/HeaderActionsContext.tsx` (verbatim ETM mirror; `AppShell` wraps in its provider, `Header` owns the slot div and swaps the dashboard submenu for `useDashboardTabs()`), the `.dashboard-grid` block at the end of `index.css` (verbatim), `react-grid-layout` in `package.json` + `resolve.dedupe`, the `process.env.DRAGGABLE_DEBUG` define in `vite.config.ts`, `DASHBOARD_ROUTE_PREFIX` in `navigation.ts`, and the three ETM files in `tailwind.config.js` `content`.
 - **Adding a widget** = one registry entry + its component in `src/components/dashboard/` + a key in `permission-keys-trm.ts` + an endpoint in `ETM/apps/api/src/routes/dashboard-trm.ts` (`/api/dashboard-trm`, one router for every TRM widget, gated with `trmUserHasPermission`). `dashboard-trm.ts` is for widgets with **no ETM equivalent**; a widget that mirrors an ETM one over a partitioned table gets a scoped router factory instead — see the finance widgets below.
 
-### Widgets TRM — finance · « Poids des pièces » · « Pièces à visiter »
+### Widgets TRM — finance · « Poids des pièces » · « Pièces à visiter » · « Rapport de production » · « Utilisation fil »
 
 **Dossier complet : `claude_doc/dashboard-widgets.md`.**
+
+- **« Rapport de production »** (`FI_Rapport_de_production_période`, LIVA #1132) : Σ
+  `stock_ecru.poids` sur `date_saisie` entre deux date-heures — presets d'équipe (5–13–21),
+  jour, semaine, mois, ou bornes libres — avec la répartition par métier / référence et le
+  2nd choix ; `GET /dashboard-trm/rapport-production`, calcul pur `lib/rapport-production-trm.ts`.
+  ⚠️ `IDordre_fabrication > 0` (même écart que Prime), pas d'`IDsociete`. Droit
+  `dashboard_rapport_production`, fermé par défaut.
+- **« Utilisation fil »** : copie **verbatim** du widget ETM sur **le même endpoint**
+  (`/references-fil/:id/utilisation`, catalogue commun, clés React Query sans préfixe).
+  Droit `dashboard_utilisation_fil`. « Fils en attente de réception » **n'est pas porté**
+  (commandes fournisseur de fil = ETM).
 
 - **Widgets financiers** (Charges · CA · Analyse · Évolution du CA) : miroirs verbatim des
   composants ETM sur `createFinanceRouter(FINANCE_SCOPE_TRM)` → `/api/rapports-trm`, clés

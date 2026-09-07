@@ -11,7 +11,7 @@
 // that widget from every layout that mentions it (it degrades gracefully: the
 // widget reappears at the end with its defaults).
 
-import { LineChart, ScanEye, TrendingUp, Wallet, Weight } from 'lucide-react'
+import { Factory, LineChart, ScanEye, TrendingUp, Wallet, Weight } from 'lucide-react'
 import type { DashboardApp, WidgetDef } from './types'
 import { AnalyseFinanciereWidget } from './AnalyseFinanciereWidget'
 import { ChargesWidget } from './ChargesWidget'
@@ -19,6 +19,9 @@ import { ChiffreAffairesWidget } from './ChiffreAffairesWidget'
 import { EvolutionCaWidget } from './EvolutionCaWidget'
 import { PiecesAVisiterWidget } from './PiecesAVisiterWidget'
 import { PoidsPiecesWidget } from './PoidsPiecesWidget'
+import { RapportProductionWidget } from './RapportProductionWidget'
+import { UtilisationFilWidget } from './UtilisationFilWidget'
+import { BobineIcon } from '@/components/icons/BobineIcon'
 
 export type { WidgetDef }
 
@@ -56,6 +59,37 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     // would leave a step in the first row.
     defaultHeightPx: 416,
     Component: PiecesAVisiterWidget,
+  },
+  {
+    key: 'rapport_production',
+    permission: 'dashboard_rapport_production',
+    title: 'Rapport de production',
+    icon: Factory,
+    defaultWidth: 6,
+    // Three tiles then a four-column split — below 3 grid columns the header
+    // band can't hold the period picker next to the title.
+    minWidth: 3,
+    // Tiles + a split of ~20 métiers; on the grid's `24h − 16` quantum
+    // (h = 21) so a reset layout equals the default exactly.
+    defaultHeightPx: 488,
+    Component: RapportProductionWidget,
+  },
+  {
+    // Verbatim mirror of ETM's widget over the SAME endpoint — yarns and
+    // compositions are a shared catalog (LIVA #1132). Improve in ETM, re-copy.
+    key: 'utilisation_fil',
+    permission: 'dashboard_utilisation_fil',
+    title: 'Utilisation fil',
+    icon: BobineIcon,
+    defaultWidth: 6,
+    // Two stacked pickers with a label column, then a list — below 3 columns
+    // the combobox and its label stop sharing a row.
+    minWidth: 3,
+    // ETM's is 500; 488 is the same height on the grid's `24h − 16` quantum
+    // (h = 21), and the height of « Rapport de production » beside it, so the
+    // default row has no step.
+    defaultHeightPx: 488,
+    Component: UtilisationFilWidget,
   },
   // Finance — the four widgets are mirrors of ETM's, over TRM's own partition
   // of the same books (/api/rapports-trm, société 2). Improve the components in
