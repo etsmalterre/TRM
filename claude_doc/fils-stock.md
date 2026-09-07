@@ -74,6 +74,12 @@ shared screen: TRM adds the lifecycle actions ETM's screen doesn't have.
   above or negative; second choix green 0 / amber ≤ 5 % / red. PDFs: Dymo 89×36
   étiquette (`StockFilLabelPdf`) + A4 rapport de freinte (`RapportFreintePdf`,
   **`issuer: companyTrm`**).
+- **L'étiquette de lot ne porte que lot · réf. · coloris · client** (LIVA #1133,
+  Nicolas Antonino, validé par Vincent le 2026-09-07) : le numéro de lot occupe la moitié
+  haute en 48 pt gras pour se lire sur des palettes gerbées. Poids (évolue à chaque
+  visitage), lot fournisseur (jamais consulté à l'atelier) et emplacement (trompeur dès
+  que la palette bouge) ont été retirés — ne pas les remettre « pour information ».
+  Route `GET /fil-trm/:id/label`, appelant unique : le bouton Étiquette de la fiche.
 - ⚠️ **Le fil incorporé est de la consommation, pas de la freinte** (décision utilisateur
   du 2026-08-26, après vérification auprès du régleur). « Incorporer un fil » verse un
   reliquat de lot dans un OF pour s'en débarrasser ; le poids est déclaré en Kg sur l'OF
