@@ -30,8 +30,26 @@ event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell
     balayage des libellés (ce qu'elle faisait avant, en ne rendant que l'OF du même
     numéro) : elle place son OF exact en tête, puis les correspondances de libellé.
 - **Queue**: `priorite` ranks OFs per métier (1 = running, 0 = terminé), one `est_actif`
-  max per métier; Terminer re-ranks and flips the new head active if `auto_activation=1`
-  (our endpoint owns that flip — the legacy trigger is unreadable).
+  max per métier; Terminer re-ranks and flips the new head active if `auto_activation=1`.
+  **Une seule voie de clôture** depuis le 2026-09-07 : `terminerOf()` dans
+  `ETM/apps/api/src/lib/of-queue-trm.ts` (avec `rerankQueue` / `activeOfOnMachine`),
+  appelée par `POST /of-trm/:id/terminer` **et** par « Terminer OF » / « Dernière pièce »
+  de la PWA atelier. Workflow confirmé par Nicolas (LIVA #1128) : un OF créé est « en
+  attente » ; l'OF en cours est celui du poste de visitage et du téléphone ; à sa fin,
+  le suivant démarre seul s'il a « Activation auto », sinon « Passer en cours » à la main ;
+  l'ordre de la file se règle dans l'écran OF.
+  - ⚠️ **L'app Android legacy des bonnetiers (toujours en service : `appareil =
+    'Terminal N'`) clôture à la legacy** : `AutoActivation()` bascule `est_actif` 0 → 1
+    sur le suivant et **rien d'autre** — `est_termine` reste 0, `priorite` garde son rang.
+    L'ERP lisait ce reliquat « En attente », la pastille n'offrait que « Passer en cours »
+    (409 `machine_occupee`), et le poste de visitage ouvrait l'ANCIEN OF (OF 3565 / 3566
+    du 03/09/2026). **`healHandedOverOfs()` répare à la lecture** — `GET /of-trm`,
+    `/visitage-trm/lookups/metiers`, `/visitage-trm/poste` — sur une signature sans
+    ambiguïté : `est_actif = 0`, `est_termine = 0`, `arret_prod` posé, un autre OF actif
+    sur le même métier (« Interrompre » garde `est_actif = 1`, « Passer en cours » est
+    refusé métier occupé). Règle pure `handedOverLeftovers()`, testée ; sonde
+    `probe-of-handover-trm.ts`. Côté web la pastille offre aussi « Terminer l'OF » sur
+    un OF en attente qui porte un `arret_prod` (filet, prop `arrete`).
 - **Form mapping**: consigne = `observations`; Ouvert au large = `ouvert_visiteuse`;
   1/2 Nettoyages = `Nettoyage` (capital N); Visitage int = 1 « 2 premières pièces et
   toutes les 3 pièces » / 2 « Toutes les pièces » (0 = 20 legacy rows, shown « — »);

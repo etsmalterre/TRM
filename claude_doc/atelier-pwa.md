@@ -15,7 +15,10 @@ Poste, **saisie comprise**. Les huit actions du legacy s'enregistrent (`POST
 **Ce qui manque encore, dans l'ordre où ça compte :**
 - ⚠️ **Pas d'annulation**, alors que le legacy en a une (`IMG_Annuler` sur la dernière
   action). Une mauvaise « Terminer OF » n'est donc pas rattrapable depuis le téléphone :
-  elle ferme la pièce, arrête l'OF et passe le métier au suivant via `AutoActivation()`.
+  elle ferme la pièce, arrête l'OF et **le termine** (`terminerOf()` de
+  `lib/of-queue-trm.ts` — `est_termine = 1`, re-rang, activation du suivant s'il a
+  « Activation auto » : la même voie que le bouton de l'ERP). Jusqu'au 2026-09-07 elle
+  reproduisait l'`AutoActivation()` legacy, qui ne bascule qu'`est_actif` (LIVA #1128).
 - ⚠️ **Aucun téléphone ne peut écrire aujourd'hui** : le compte-poste n'existe pas et
   personne ne détient `saisie_atelier` (fermé par défaut). Voir « Identité » plus bas.
 - Les trois écrans secondaires : Consigne (`message_of` + la consigne du régleur),

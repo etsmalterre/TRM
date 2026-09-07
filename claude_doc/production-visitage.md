@@ -104,6 +104,12 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
   **OF par OF**, et n'envoie jamais que l'OF en tête de file : une pièce dont l'OF a été
   terminé entre-temps devient **invisible pour toujours** (56 pièces terminées sans rouleau
   sur 5 mois). On scanne donc **par machine**, et les égarées reviennent en `autres_pieces`.
+  - ⚠️ **L'OF de contexte du poste est l'OF en cours (`est_actif = 1`), plus la requête
+    legacy** (`priorite <= prio_actif.priorite`, la plus basse gagne) : après la clôture
+    depuis un terminal Android (`est_actif` seul basculé), cette requête rendait
+    l'**ancien** OF et les pièces du nouveau n'étaient plus que des « isolées » (LIVA
+    #1128, 2026-09-07). `headOfForMachine` = `activeOfOnMachine`, précédé de
+    `healHandedOverOfs()` (`lib/of-queue-trm.ts`, voir le dossier Production › OF).
   - ⚠️ **Une pièce isolée n'est offerte que 7 jours** (`ORPHAN_MAX_AGE_DAYS`, décision
     utilisateur du 2026-08-26), constante **dure** : la dérogation dev
     `VISITAGE_PIECE_MAX_AGE_DAYS` (`.env.development` de l'API, la base locale étant un

@@ -520,9 +520,14 @@ function DefautsDonut({ slices }: { slices: Array<{ label: string; value: number
 // ── §29.4 status pill (Attente → En cours → Terminé) ───
 
 function StatutPill({
-  etat, onActiver, onTerminer, isChanging, disabled, canEdit,
+  etat, arrete, onActiver, onTerminer, isChanging, disabled, canEdit,
 }: {
   etat: OfEtat
+  /** The OF carries an arret_prod: it ran and was stopped. A waiting OF in that
+   *  shape is what the legacy Android handover leaves behind (LIVA #1128) — the
+   *  API repairs it on read, and should one slip through, the pill still lets
+   *  the régleur terminate it instead of the dead end « Passer en cours ». */
+  arrete: boolean
   onActiver: () => void
   onTerminer: () => void
   isChanging: boolean
@@ -550,7 +555,10 @@ function StatutPill({
   const transitions = !canEdit
     ? []
     : etat === 'attente'
-      ? [{ key: 'activer', label: 'Passer en cours', icon: Factory, run: onActiver }]
+      ? [
+          { key: 'activer', label: 'Passer en cours', icon: Factory, run: onActiver },
+          ...(arrete ? [{ key: 'terminer', label: 'Terminer l’OF', icon: CheckCircle2, run: onTerminer }] : []),
+        ]
       : etat === 'encours'
         ? [{ key: 'terminer', label: 'Terminer l’OF', icon: CheckCircle2, run: onTerminer }]
         : []
@@ -2153,6 +2161,7 @@ function OfSidebar({
 
       <StatutPill
         etat={etat}
+        arrete={!!detail.arret_prod}
         onActiver={onActiver}
         onTerminer={onTerminer}
         isChanging={isChanging}

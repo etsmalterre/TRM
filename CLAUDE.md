@@ -303,7 +303,12 @@ n'ont **pas d'`IDsociete`**). Droit `edit_of` sur les neuf routes d'écriture. D
 recherche, onglets, Observations régleur).
 
 - File : `priorite` par métier (1 = en cours, 0 = terminé), un `est_actif` par métier ;
-  Terminer re-classe et active la tête si `auto_activation = 1`.
+  Terminer re-classe et active la tête si `auto_activation = 1` — **une seule voie**,
+  `terminerOf()` dans `ETM/apps/api/src/lib/of-queue-trm.ts`, web et PWA. ⚠️ L'app
+  Android legacy (toujours en service) ne bascule qu'`est_actif` : l'ERP lisait le
+  reliquat « En attente » et le visitage ouvrait l'ancien OF (LIVA #1128) ;
+  `healHandedOverOfs()` le ferme à la lecture (OF, visitage). Ne jamais écrire
+  `est_actif` / `est_termine` / `priorite` ailleurs.
 - **Un métier est libellé par `machine.emplacement`, `nom` en repli** (`machineLabel()`,
   API + `lib/machine.ts` ; LIVA #1102 : le 1G s'affichait « Beck »). Les autres écrans
   TRM (Stock TM, Expéditions, Commandes, Maintenance) restent sur `nom`.
