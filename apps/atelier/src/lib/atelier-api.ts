@@ -23,6 +23,22 @@ export interface MachineOf {
   interrompu: boolean
 }
 
+/** The régleur build's tile decorations (legacy FEN_Choix_Metier, Appli_Regleur):
+ *  present only when the list was fetched with `regleur=1`, and only on a
+ *  métier that has an OF. `pct_defaut` is zeroed by the server when there is
+ *  no alert, exactly as the legacy tile does. */
+export interface MachineRegleur {
+  etat: 'reglage' | 'pause' | 'marche'
+  alerte: boolean
+  /** Second-choice weight ratio over the recent rolls of the article (0–1). */
+  pct_defaut: number
+  /** Unexplained stops per hour over the last 24 h (or since the OF started). */
+  freq_arret: number
+  /** A `ref_ecru_machine` sheet exists for this reference on this métier —
+   *  the legacy refuses to open the réglage screen otherwise. */
+  eligible: boolean
+}
+
 export interface Machine {
   IDmachine: number
   /** `machine.emplacement` — the code painted on the workshop floor. */
@@ -33,6 +49,48 @@ export interface Machine {
    *  one running until the yarn is gone. */
   actif: boolean
   of: MachineOf | null
+  regleur: MachineRegleur | null
+}
+
+export interface ReglageRepere {
+  tour: number
+  lfa_precedente: string
+  lfa: string
+  repere: string
+}
+
+/** The setup sheet a régleur reads before « Lancer OF » (legacy FEN_Reglage_Machine). */
+export interface ReglageMachine {
+  IDordre_fabrication: number
+  IDmachine: number
+  machine: string
+  reference: string
+  coloris: string
+  demarre: boolean
+  termine: boolean
+  eligible: boolean
+  consigne: string
+  reperes: ReglageRepere[]
+  reglages: {
+    hauteur_pl: string
+    abattage: string
+    nb_chutes: number
+    compteur: number | null
+    ecarteur: number
+    poids_piece: number
+    maille_ouverture: boolean
+    tombe_metier: string
+    ouvert_visiteuse: boolean
+  }
+  fils: string[]
+}
+
+export interface MessageOf {
+  id: number
+  observation: string
+  IDbonnetier: number
+  prenom: string
+  date_ms: number | null
 }
 
 export interface DerniereAction {
@@ -110,9 +168,35 @@ export const posterEvenement = (ofId: number, body: SaisiePayload) =>
     body: JSON.stringify(body),
   })
 
-export const fetchMachines = () => apiFetch<Machine[]>('/atelier/machines')
+/** `regleur=1` asks for the régleur tile decorations (state, alert, stop
+ *  frequency, eligibility) — bounded extra reads the bonnetier list skips. */
+export const fetchMachines = (regleur = false) =>
+  apiFetch<Machine[]>(`/atelier/machines${regleur ? '?regleur=1' : ''}`)
 
 export const fetchOf = (id: number) => apiFetch<OfContexte>(`/atelier/of/${id}`)
+
+export const fetchReglage = (ofId: number) => apiFetch<ReglageMachine>(`/atelier/of/${ofId}/reglage`)
+
+export const fetchMessages = (ofId: number) => apiFetch<MessageOf[]>(`/atelier/of/${ofId}/messages`)
+
+export const posterMessage = (ofId: number, body: { IDbonnetier: number; observation: string }) =>
+  apiFetch<{ id: number }>(`/atelier/of/${ofId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const supprimerMessage = (ofId: number, msgId: number, IDbonnetier: number) =>
+  apiFetch<void>(`/atelier/of/${ofId}/messages/${msgId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ IDbonnetier }),
+  })
+
+/** Régleur-only on the server (the named bonnetier must carry `regleur = 1`). */
+export const ecrireConsigne = (ofId: number, body: { IDbonnetier: number; consigne: string }) =>
+  apiFetch<{ ok: true; consigne: string }>(`/atelier/of/${ofId}/consigne`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
 
 /** Progression label, in the legacy's exact wording.
  *

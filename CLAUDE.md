@@ -118,7 +118,13 @@ sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réuti
 - ⚠️ `signUserId()` rend la même chaîne pour toujours (cookie copiable) ; à traiter avant
   qu'un compte régleur existe. `atelier.malterre` a son propre bocal à cookies.
 - Le legacy Android n'est pas PCS-compressé : `C:\Mes Projets\MPS\Android\dbg\Compile\`
-  est la spec (instantané du 24/03/2026).
+  est la spec **bonnetier** (instantané du 24/03/2026) et ⚠️ **`Android\gen\Compile\` est
+  le build RÉGLEUR** (`Appli_Regleur`, 25/05/2026, avec `FEN_Reglage_Machine` et
+  `FEN_Historique`) — les blocs `<COMPILE SI Appli_Regleur>` du build bonnetier sont vides.
+- **Côté régleur (2026-09-08)** : liste avec état / alerte (`?regleur=1`), fiche de réglage
+  + « Lancer OF », consigne écrite depuis le téléphone, fil `message_of`. Le rôle vient du
+  bascule dev de l'Accueil **jusqu'à la couche de sécurité** ; l'API vérifie
+  `bonnetier.regleur = 1`. Historique non porté. Dossier § « Le côté régleur ».
 
 ## TRS — la tablette murale de l'atelier (`apps/trs`)
 

@@ -35,6 +35,8 @@ import {
 } from '@/lib/atelier-api'
 import type { ActionAtelier } from '@/lib/actions'
 import { useIdentite } from '@/contexts/BonnetierContext'
+import { ConfirmSheet } from '@/components/atelier/ConfirmSheet'
+import { messagePourErreur } from '@/lib/erreurs'
 import { cn } from '@/lib/utils'
 
 export function SaisieBand({
@@ -207,8 +209,10 @@ export function SaisieBand({
 
       {confirmer && choisie && (
         <ConfirmSheet
-          metier={metier}
-          action={choisie}
+          titre={<>Voulez-vous vraiment enregistrer&nbsp;?</>}
+          detail={`${metier} — ${choisie}`}
+          oui="Oui, enregistrer"
+          icone={<Check className="h-5 w-5" />}
           onCancel={() => setConfirmer(false)}
           onConfirm={() => {
             setConfirmer(false)
@@ -249,70 +253,3 @@ function Chip({ label, actif, onClick }: { label: string; actif: boolean; onClic
   )
 }
 
-// The legacy's own confirmation, verbatim in wording: « Voulez-vous vraiment
-// enregistrer » over "<métier> - <action>".
-function ConfirmSheet({
-  metier,
-  action,
-  onCancel,
-  onConfirm,
-}: {
-  metier: string
-  action: string
-  onCancel: () => void
-  onConfirm: () => void
-}) {
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-end" onClick={onCancel} role="presentation">
-      <div
-        className="w-full bg-card text-foreground rounded-t-2xl p-5 pb-8 space-y-4 animate-slide-up"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div>
-          <h2 className="text-xl font-heading font-bold tracking-tight">
-            Voulez-vous vraiment enregistrer&nbsp;?
-          </h2>
-          <p className="text-base text-muted-foreground mt-1">
-            {metier} — {action}
-          </p>
-        </div>
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="w-full h-16 rounded-xl bg-gold text-gold-foreground text-lg font-semibold flex items-center justify-center gap-2 active:opacity-90"
-          >
-            <Check className="h-5 w-5" />
-            Oui, enregistrer
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="w-full h-16 rounded-xl border border-border bg-background text-lg font-semibold active:bg-muted"
-          >
-            Annuler
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/** Status codes → sentences the bonnetier can act on (§45.3: never a raw
- *  code, never a toast). 409 in particular is not an error the operator
- *  caused — the floor moved under them, usually because someone else advanced
- *  the same OF. */
-function messagePourErreur(e: Error & { status?: number }): string {
-  switch (e.status) {
-    case 401:
-      return "Ce téléphone n'est pas connecté. Prévenez le régleur."
-    case 403:
-      return "Ce téléphone n'a pas le droit d'enregistrer. Prévenez le régleur."
-    case 409:
-      return "Cette action n'est plus possible — l'OF a changé. Revenez en arrière et rouvrez le métier."
-    case 404:
-      return "Cet OF n'existe plus."
-    default:
-      return "L'enregistrement a échoué. Réessayez ; si ça recommence, prévenez le régleur."
-  }
-}

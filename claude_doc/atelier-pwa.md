@@ -25,6 +25,62 @@ Poste, **saisie comprise**. Les huit actions du legacy s'enregistrent (`POST
   Fils OF, Information (la checklist de nettoyage, littéraux récupérés verbatim).
 - L'hôte de prod (nginx sur `10.10.20.4` + entrée Caddy sur `10.10.20.5`).
 
+## Le côté régleur (2026-09-08)
+
+**Décision du 2026-09-08 : le côté régleur se développe avec le bascule dev de l'Accueil
+(« dev · voir la grille régleur », compilé hors prod) ; la couche de sécurité (enrôlement
+d'appareil, charge du cookie avec `deviceId`, refus des comptes privilégiés au login) se
+construit au moment de déployer.** Le rôle vient donc de `identite.regleur` (auto-déclaré),
+et **c'est l'API qui tient la règle** : chaque écriture régleur vérifie `bonnetier.regleur = 1`
+sur l'`IDbonnetier` nommé, en plus du droit `saisie_atelier` du cookie.
+
+⚠️ **La spec du régleur n'est PAS `Android\dbg\Compile` (build bonnetier du 24/03/2026) mais
+`Android\gen\Compile`** : `GWDPMPS.getNomConfiguration()` y renvoie `"Appli_Regleur"`, il
+date du **2026-05-25** et il contient deux fenêtres absentes du build bonnetier,
+`FEN_Reglage_Machine` et `FEN_Historique`. Les blocs `<COMPILE SI Configuration="Appli_Regleur">`
+du build bonnetier sont **vides** (le code est retiré à la compilation) — c'est pour ça que
+« Interrompre OF » n'y apparaissait pas. Lire `gen` pour tout ce qui touche au régleur.
+
+Ce que le build régleur ajoute, et ce qui en est porté :
+
+| Legacy (gen) | Porté | Où |
+|---|---|---|
+| Combo : « Interrompre OF » / « Relancer OF » | oui (dès le 27/08) | `actionsFor()` / `actions.ts` |
+| Choix Métier : icône d'état (réglage / pause / marche), fréquence d'arrêt, % 2nd choix, **alerte** ; Inactives = métiers **sans OF** | oui | `GET /atelier/machines?regleur=1`, `lib/atelier-regleur-trm.ts` (pur, testé), `ChoixMetier.tsx` |
+| Choix Métier : taper un OF non lancé → contrôle d'éligibilité → `FEN_Reglage_Machine` | oui | route `/metier/:id/reglage`, `GET /atelier/of/:id/reglage`, `ReglageMachine.tsx` |
+| `FEN_Reglage_Machine` : repères par tour (LFA précédente / LFA / repère), réglages, fils, consigne, **« Lancer OF »** | oui — le lancement passe par l'événement `Lancement OF` existant (une seule voie d'écriture) | idem |
+| `FEN_Consigne` plan 3 : le régleur **écrit** `ordre_fabrication.observations` | oui | `PUT /atelier/of/:id/consigne`, `Consigne.tsx` |
+| `FEN_Consigne` plan 2 : fil `message_of` (les deux rôles), suppression de **ses** messages | oui | `GET/POST/DELETE /atelier/of/:id/messages[/:msgId]` |
+| Icône Historique → `FEN_Historique` (pièces, durée, productivité vs durée mini ; événements d'une pièce ; rouleaux visités) | **non porté** | — |
+| `MAJ_auto` (version par configuration), `notif_token` / push | non (sans objet / à venir) | — |
+
+Les règles du legacy, verbatim dans l'en-tête de `lib/atelier-regleur-trm.ts` :
+- **État** : pas de `demarrage_prod` → réglage ; `arret_prod` valide → pause ; sinon marche.
+- **Fréquence d'arrêt** = arrêts **inexpliqués** par heure : `(arrêts evenement_machine etat=0
+  − événements Nettoyage/Fin du tricotage de l'OF) × 60 / minutes`, sur 24 h ou depuis le
+  début de l'OF, borné à 0. ⚠️ Sur l'instantané de mars la table `evenement_machine` est
+  quasi vide (7 arrêts/jour pour 296 événements pièce) : la fréquence y vaut toujours 0.
+  `probe-atelier-regleur-trm.ts --depuis AAAA-MM-JJ` rejoue les deux SELECT à une date choisie ;
+  à comparer aux tuiles de l'app Android sur la prod.
+- **% 2nd choix** = poids 2nd choix / poids total sur les rouleaux récents du couple
+  (référence, coloris) — tous OF, tous métiers — `TOP 100`, arrêt au rouleau qui passe 1 000 kg.
+- **Alerte** = `% > 2 % ou fréquence > 1` ; le % est **remis à 0** sans alerte, comme la tuile
+  legacy. C'est l'état d'attention §41 de la liste (liseré rouge), rare par construction.
+- Le calcul n'est fait que sur `?regleur=1` : deux balayages 24 h + un `TOP 100` par couple +
+  une lecture `ref_ecru_machine` ; la liste bonnetier ne paie rien.
+
+Écarts assumés de la fiche de réglage : la référence précédente est lue sur
+`ordre_fabrication.IDref_ecru` (le legacy passe par la ligne de commande), `arret_prod <> ''`
+n'est pas envoyé au driver (20 derniers OF du métier, premier `arret_prod` parsable) ; le
+**compteur est celui du poste** (`compteurFor`, poids pièce de l'OF) là où la fiche legacy
+divise `ref_ecru.poids` — le régleur qui règle et le bonnetier qui lit doivent voir le même
+nombre. La consigne s'enregistre sur « Enregistrer », pas à chaque frappe comme le legacy.
+
+Écrans : tous clés par le **métier** (`/metier/:id/consigne`, `/metier/:id/reglage`), le
+métier décidant l'OF comme le poste. Le poste porte une rangée « Consigne · n messages »
+(badge or) et, pour un régleur sur un OF non lancé, « Réglage ». `ConfirmSheet`,
+`Segment` et `lib/erreurs.ts` sont désormais partagés entre les écrans.
+
 **Identité — le point à trancher avant la mise en service.** Le téléphone porte le cookie
 d'un **compte-poste** (le modèle du PC de visitage, `Visitage` IDutilisateur 10), et *qui*
 travaille voyage dans `IDbonnetier`, comme le legacy l'écrit. La grille de visages +
@@ -67,9 +123,11 @@ appareil.
 - ⚠️ **Le legacy Android n'est PAS PCS-compressé** : `C:\Mes Projets\MPS\Android\dbg\Compile\`
   contient les 45 fichiers Java générés, WLanguage en commentaires et SQL en clair. C'est la
   spec, sans sonde — la première chose à ouvrir (`GWDCPCOL_Appli.java` d'abord).
-  **MAIS c'est un instantané du 24/03/2026** : son `info.build` liste 12 fenêtres et l'app
-  qui tourne en a au moins une de plus (un écran Production/Visitage atteint par une 4ᵉ
-  icône ronde). Autorité sur ce qu'il contient, pas sur l'inventaire.
+  **MAIS c'est un instantané du 24/03/2026 du build BONNETIER** : son `info.build` liste 12
+  fenêtres et l'app qui tourne en a au moins une de plus. La « 4ᵉ icône ronde » et les
+  fenêtres manquantes sont dans **`Android\gen\Compile\`, le build régleur** (25/05/2026,
+  `FEN_Reglage_Machine`, `FEN_Historique`) — voir « Le côté régleur » plus haut. Autorité sur
+  ce qu'ils contiennent, pas sur l'inventaire.
 - ⚠️ **`bonnetier` n'a pas de colonne `IDutilisateur`** alors que les droits sont clés
   dessus. Décision du 2026-08-27 : le lien sera un **store JSON côté API**
   (`data/bonnetier-utilisateur.json`, à côté de `permissions-trm.json`), **pas un

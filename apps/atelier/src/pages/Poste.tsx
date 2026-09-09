@@ -11,7 +11,16 @@
 import { useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, AlertCircle, Gauge, ClipboardList, Clock } from 'lucide-react'
+import {
+  Loader2,
+  AlertCircle,
+  Gauge,
+  ClipboardList,
+  Clock,
+  MessageSquareText,
+  Wrench,
+  ChevronRight,
+} from 'lucide-react'
 import { fetchMachines, fetchOf, progression } from '@/lib/atelier-api'
 import { actionsDisponibles } from '@/lib/actions'
 import { PosteHeader } from '@/components/layout/PosteHeader'
@@ -31,9 +40,10 @@ export function Poste() {
   // The machine list is already in cache from the picker; this resolves the
   // active OF without a dedicated round trip and refetches on its own if the
   // operator deep-linked straight here.
+  const regleur = identite?.regleur ?? false
   const machinesQ = useQuery({
-    queryKey: ['atelier', 'machines'],
-    queryFn: fetchMachines,
+    queryKey: ['atelier', 'machines', regleur],
+    queryFn: () => fetchMachines(regleur),
     staleTime: 30_000,
   })
 
@@ -141,6 +151,31 @@ export function Poste() {
             {/* §46 — the standing instruction, identical here and on the ERP's
                 OF fiche. Renders nothing when there is no consigne. */}
             <ConsigneCallout texte={of.consigne} />
+
+            {/* The legacy's top-bar icons (IMG_Warning → FEN_Consigne with the
+                message count; the réglage sheet for a régleur on an OF that has
+                not started), as station-scale rows rather than 24 px glyphs. */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <Lien
+                onClick={() => navigate(`/metier/${idMachine}/consigne`)}
+                icone={<MessageSquareText className="h-5 w-5" />}
+                label="Consigne"
+                detail={
+                  of.nb_messages > 0
+                    ? `${of.nb_messages} message${of.nb_messages > 1 ? 's' : ''}`
+                    : 'Aucun message'
+                }
+                badge={of.nb_messages > 0 ? of.nb_messages : undefined}
+              />
+              {regleur && !of.demarre && (
+                <Lien
+                  onClick={() => navigate(`/metier/${idMachine}/reglage`)}
+                  icone={<Wrench className="h-5 w-5" />}
+                  label="Réglage"
+                  detail="Fiche de réglage et lancement"
+                />
+              )}
+            </div>
           </div>
 
           {/* Band 4 — the input band, and the only place this app writes. */}
@@ -186,6 +221,44 @@ export function Poste() {
         </div>
       )}
     </div>
+  )
+}
+
+/** A navigation row of band 3: icon, label, one line of detail, chevron. Same
+ *  height as the tiles of the métier list, so a thumb finds it the same way. */
+function Lien({
+  onClick,
+  icone,
+  label,
+  detail,
+  badge,
+}: {
+  onClick: () => void
+  icone: React.ReactNode
+  label: string
+  detail: string
+  badge?: number
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-left rounded-xl border border-border bg-card shadow-sm p-3 flex items-center gap-2.5 active:bg-muted transition-colors min-w-0"
+    >
+      <span className="relative flex-shrink-0 h-9 w-9 rounded-full bg-secondary text-primary flex items-center justify-center">
+        {icone}
+        {badge !== undefined && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-gold text-gold-foreground text-[10px] font-bold flex items-center justify-center tabular-nums">
+            {badge}
+          </span>
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold truncate">{label}</span>
+        <span className="block text-xs text-muted-foreground truncate">{detail}</span>
+      </span>
+      <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+    </button>
   )
 }
 
