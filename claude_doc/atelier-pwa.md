@@ -23,7 +23,7 @@ Poste, **saisie comprise**. Les huit actions du legacy s'enregistrent (`POST
   personne ne détient `saisie_atelier` (fermé par défaut). Voir « Identité » plus bas.
 - Les trois écrans secondaires : Consigne (`message_of` + la consigne du régleur),
   Fils OF, Information (la checklist de nettoyage, littéraux récupérés verbatim).
-- L'hôte de prod (nginx sur `10.10.2.165` + entrée Caddy sur `10.10.2.167`).
+- L'hôte de prod (nginx sur `10.10.20.4` + entrée Caddy sur `10.10.20.5`).
 
 **Identité — le point à trancher avant la mise en service.** Le téléphone porte le cookie
 d'un **compte-poste** (le modèle du PC de visitage, `Visitage` IDutilisateur 10), et *qui*

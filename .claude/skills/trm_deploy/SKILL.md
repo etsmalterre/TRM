@@ -13,7 +13,7 @@ A per-app difference is a **parameter, never a fork**: the rule `createFinanceRo
 and `RapportFinance basePath` already follow, and the one `mps_designer` broke by being
 copied (709 lines of drift, teaching patterns ETM had already replaced).
 
-| target | pnpm filter | dist on 10.10.2.165 | stamp | host | version lives in |
+| target | pnpm filter | dist on 10.10.20.4 | stamp | host | version lives in |
 |---|---|---|---|---|---|
 | `web` | `@mps-trm/web` | `/home/debian/mps_trm/dist` | `mps_trm/DEPLOYED_SHA` | `trm.malterre` | **root** `package.json` |
 | `atelier` | `@mps-trm/atelier` | `/home/debian/mps_atelier/dist` | `mps_atelier/DEPLOYED_SHA` | `atelier.malterre` | `apps/atelier/package.json` |
@@ -54,7 +54,7 @@ Never "align" any of them.
 ## Scope — this skill's *steps* build web bundles only. The *deploy* is both tiers, and it is yours to finish.
 
 **TRM is a frontend-only repo.** Production `trm.malterre` proxies `/api/` to the
-**MPS API** (`10.10.2.163:8081`), which is deployed by the **ETM** workflow
+**MPS API** (`10.10.20.3:8081`), which is deployed by the **ETM** workflow
 (`/etm_deploy` in `C:\dev\etsmalterre\ETM`). §Deploy Steps below builds and uploads the
 TRM web bundle(s) named by the target and nothing else — never hand-roll an API deploy
 out of it. `atelier.malterre` and `trs.malterre` proxy `/api/` to that same API, so an
@@ -139,12 +139,12 @@ are off the factory LAN/VPN it will say so rather than wave the deploy through.
 
 | Component | Server | IP | User | Notes |
 |-----------|--------|-----|------|-------|
-| **Web** | mfprod-erp | `10.10.2.165` | `debian` | nginx site `trm.malterre` |
-| **API (shared, not deployed from here)** | mfprod-api | `10.10.2.163` | `debian` | `mps-api.service`, owned by ETM |
+| **Web** | mfprod-erp | `10.10.20.4` | `debian` | nginx site `trm.malterre` |
+| **API (shared, not deployed from here)** | mfprod-api | `10.10.20.3` | `debian` | `mps-api.service`, owned by ETM |
 
 - **Dist directory**: `/home/debian/mps_trm/dist/`
 - **Nginx config**: `/etc/nginx/sites-enabled/trm.malterre` — serves the dist, proxies
-  `/api/` → `http://10.10.2.163:8081`, SPA fallback to `/index.html`, `index.html`/`sw.js`
+  `/api/` → `http://10.10.20.3:8081`, SPA fallback to `/index.html`, `index.html`/`sw.js`
   never cached, hashed assets cached 1y, `client_max_body_size 25m`.
 - Same physical servers as ETM (`mpsng.malterre` lives in `/home/debian/mps_erp/dist/`
   on the same box — **don't mix up the two dist dirs**).
@@ -159,7 +159,7 @@ Key location varies per machine:
 - **WSL side** (factory PC `vince`): `/home/vincent/.ssh/claude_deploy/claude_deploy` —
   connect through WSL:
   ```bash
-  wsl bash -c "ssh -i /home/vincent/.ssh/claude_deploy/claude_deploy -o StrictHostKeyChecking=no debian@10.10.2.165 '<command>'"
+  wsl bash -c "ssh -i /home/vincent/.ssh/claude_deploy/claude_deploy -o StrictHostKeyChecking=no debian@10.10.20.4 '<command>'"
   ```
 - **Windows side** (laptop `malte`): `$HOME/.ssh/claude_deploy/claude_deploy` — use the
   Windows-native OpenSSH binary (`/c/Windows/System32/OpenSSH/ssh.exe`), NOT Git Bash's ssh.
