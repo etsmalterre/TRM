@@ -139,8 +139,8 @@ are off the factory LAN/VPN it will say so rather than wave the deploy through.
 
 | Component | Server | IP | User | Notes |
 |-----------|--------|-----|------|-------|
-| **Web** | mfprod-erp | `10.10.20.4` | `debian` | nginx site `trm.malterre` |
-| **API (shared, not deployed from here)** | mfprod-api | `10.10.20.3` | `debian` | `mps-api.service`, owned by ETM |
+| **Web** | mps-webapps (PVE `MPS-WebApps`, ssh alias `mps_webapps`; was `mfprod-erp` until 2026-09-09) | `10.10.20.4` | `debian` | nginx site `trm.malterre` |
+| **API (shared, not deployed from here)** | mps-api (PVE `MPS-API`, ssh alias `mps_api`; was `mfprod-api`) | `10.10.20.3` | `debian` | `mps-api.service`, owned by ETM |
 
 - **Dist directory**: `/home/debian/mps_trm/dist/`
 - **Nginx config**: `/etc/nginx/sites-enabled/trm.malterre` — serves the dist, proxies
