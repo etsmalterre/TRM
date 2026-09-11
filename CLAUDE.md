@@ -332,6 +332,9 @@ recherche, onglets, Observations régleur).
   positionnel (`DATE` réservé) ; une modification ne re-date pas la ligne.
 - ⚠️ L'écran Tombé Métier › Références (fichier ETM) reçoit l'éditeur par la prop
   `obsOfEditor` (un composant injecté depuis `router.tsx`), jamais une URL TRM.
+- ⚠️ **Stock de fil = le LOT choisi, jamais la paire (fil, coloris)** (LIVA #1147) : colonne
+  « Stock » de Tricoter, barre « Réalisable » et « Finir le fil » partagent une règle,
+  `lib/realisable-fil-trm.ts` (API) = `lib/realisable-fil.ts` (web, test de parité).
 - Deux colonnes du corps de fiche au-dessus de ~780 px de **panneau** (`useElementSize`),
   jamais un palier Tailwind ; en-tête sur une ligne ; consigne en bandeau rouge §46.
 - Approximations signalées : % par pièce, filtre faux-arrêts 120 s ; Imprimer (ETAT_OF)

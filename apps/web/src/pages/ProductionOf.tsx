@@ -68,6 +68,7 @@ import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
 import { useElementSize } from '@/hooks/useElementSize'
 import { apiFetch, API_URL } from '@/lib/api'
 import { fmtNum } from '@/lib/format'
+import { realisableSurFil } from '@/lib/realisable-fil'
 import { formatHfsqlDate } from '@/lib/dates'
 import { niceScale } from '@/lib/chart-scale'
 import { cn } from '@/lib/utils'
@@ -107,8 +108,9 @@ interface CompositionRow {
   coloris_label: string
   pourcentage: number
   lot: string
+  /** Stock of the CHOSEN lot, in Kg — never the (fil, coloris) pair's total
+   *  (LIVA #1147). */
   lot_stock: number
-  pair_stock: number
   /** This yarn is knitted by the run but absent from the reference's own
    *  `composition_ecru` — a deliberate variation (usually to burn internal
    *  stock on a run the customer won't notice). The OF froze its composition,
@@ -672,28 +674,6 @@ interface Draft {
   observations: string
   composition: DraftComp[]
   incorpore: DraftInc[]
-}
-
-
-/** « Finir le fil » — what the yarn left still allows, in Kg of fabric: per
- *  lot, stock ÷ (Σ % of the rows it feeds), the minimum over lots. Two feeding
- *  positions on one lot draw on it together, hence the grouping. `null` when no
- *  row has a lot (nothing to estimate from). Shared by draftFromDetail and the
- *  params card so the snapshot and the live draft agree — otherwise opening
- *  edit mode on a « finir le fil » OF would read as dirty before any keystroke. */
-function realisableSurFil(rows: Array<{ IDstock_fil: number; lot_stock: number; pourcentage: number | string }>): number | null {
-  const byLot = new Map<number, { stock: number; pct: number }>()
-  for (const c of rows) {
-    const pct = typeof c.pourcentage === 'number' ? c.pourcentage : parseNum(c.pourcentage)
-    if (c.IDstock_fil <= 0 || pct <= 0) continue
-    const cur = byLot.get(c.IDstock_fil) ?? { stock: c.lot_stock, pct: 0 }
-    cur.pct += pct
-    byLot.set(c.IDstock_fil, cur)
-  }
-  if (byLot.size === 0) return null
-  let min = Infinity
-  for (const { stock, pct } of byLot.values()) min = Math.min(min, Math.max(0, stock) / (pct / 100))
-  return Number.isFinite(min) ? min : null
 }
 
 function draftFromDetail(d: OfDetail): Draft {
@@ -1819,17 +1799,19 @@ function TricoterCard({
                 key: 'stock',
                 label: 'Stock',
                 align: 'right',
-                // Amber when the (fil, coloris) pair holds less than this OF
-                // needs — the per-line half of the Réalisable bar, which only
-                // ever gave the verdict for the run as a whole.
+                // The chosen lot's stock (LIVA #1147: the pair's total read
+                // 2 226 Kg against a 380 Kg lot). Amber when that lot holds
+                // less than this line needs — the per-line half of the
+                // Réalisable bar, which only ever gives the verdict for the
+                // run as a whole.
                 render: (r) => {
-                  const short = r.pair_stock < quantite * r.pourcentage / 100 - 0.001
+                  const short = r.lot_stock < quantite * r.pourcentage / 100 - 0.001
                   return (
                     <span
                       className={cn(short && 'text-amber-700 font-semibold')}
-                      title={short ? 'Stock insuffisant pour le besoin de cet OF' : undefined}
+                      title={short ? 'Stock du lot insuffisant pour le besoin de cet OF' : undefined}
                     >
-                      {fmtNum(r.pair_stock, 2)} Kg
+                      {fmtNum(r.lot_stock, 2)} Kg
                     </span>
                   )
                 },

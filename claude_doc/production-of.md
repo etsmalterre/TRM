@@ -70,7 +70,16 @@ event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell
   remplace alors quantité et nb pièces par **réalisé + réalisable**, où réalisable =
   min sur les lots de `stock ÷ Σ % des lignes nourries par ce lot` (`realisableSurFil`,
   deux positions d'alimentation sur un même lot tirent ensemble), et grise les deux
-  champs. Le stock des lots est décrémenté au visitage de chaque pièce, l'événement même
+  champs. **C'est la règle unique du stock de fil sur la fiche depuis LIVA #1147
+  (2026-09-11)** : `lib/realisable-fil-trm.ts` côté API (`realisableSurLots`, testé) nourrit
+  la barre « Réalisable (stock de fil) », et `apps/web/src/lib/realisable-fil.ts` en est la
+  copie verbatim (son test importe le fichier de l'API, `ETM_API_REALISABLE_TRM=…` en
+  worktree apparié). ⚠️ **L'unité est le LOT choisi, jamais la paire (fil, coloris)** : la
+  colonne « Stock » de Tricoter et Réalisable sommaient tous les lots de la paire (2 226 Kg
+  affichés pour un lot de 380 Kg, réalisable gonflé d'autant) alors que le sélecteur de lot
+  et « Finir le fil » comptaient déjà le lot — et les autres lots de la paire sont souvent
+  le fil d'un autre client (`stock_fil.IDclient`, TRM tricote à façon). `pair_stock` n'existe
+  plus dans la réponse de `GET /of-trm/:id`. Le stock des lots est décrémenté au visitage de chaque pièce, l'événement même
   qui fait grandir `realise` : les deux moitiés ne se comptent jamais deux fois. **Rien
   côté API** : le formulaire envoie les valeurs estimées comme des valeurs saisies, et le
   brouillon s'ouvre déjà sur l'estimation (sinon le mode édition serait « modifié » avant

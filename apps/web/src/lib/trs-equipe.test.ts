@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve, sep } from 'node:path'
 import {
   CIBLE_MIN_PX,
   echelleEquipe,
@@ -19,12 +21,17 @@ import {
 // worktree, `ETM_API_TRS_TRM` points the import at the NG worktree's copy
 // until the NG branch lands (same idea as ETM_WEB_SRC for shared screens):
 //   ETM_API_TRS_TRM=C:/dev/etsmalterre/ETM-trs-erp/apps/api/src/lib/trs-trm.ts pnpm test
+// Resolved from THIS file, not from the Vite root: a plain relative string in
+// a dynamic import is resolved against `apps/web`, which five levels up is the
+// drive root — the test then failed on `Cannot find module '/ETM/…'` (2026-09-11).
+const etmApiLib = (name: string) =>
+  resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../ETM/apps/api/src/lib', name + '.ts').replaceAll(sep, '/')
 const {
   FORFAIT_MIN: API_FORFAIT_MIN,
   INTERVENTION_MAX_S: API_INTERVENTION_MAX_S,
   SEUILS_FI_TRS: API_SEUILS,
   equipeCourante,
-} = await import(/* @vite-ignore */ process.env.ETM_API_TRS_TRM ?? '../../../../../ETM/apps/api/src/lib/trs-trm')
+} = await import(/* @vite-ignore */ process.env.ETM_API_TRS_TRM ?? etmApiLib('trs-trm'))
 
 const T0 = new Date(2026, 7, 28, 13, 0, 0, 0).getTime()
 const H = 3_600_000
