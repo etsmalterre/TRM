@@ -39,14 +39,22 @@ import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
 // layout (mps_designer §27) with a right slide-in drawer, mirroring ETM's
 // screen of the same name; the columns differ because a TRM piece is defined by
 // its production origin (OF + métier) where an ETM piece is defined by its
-// storage + dyeing state. Read-only, with ONE exception: pieces are created
-// and closed by the production/visitage flow, never edited from here — but a
-// roll's free-text observations can be written after the fact (« ouvrir dans
-// la maille » on a roll already in stock, LIVA #1108), behind the key
-// edit_stock_ecru: « Modifier » in the drawer band, the Notes card becomes a
-// textarea, PATCH /stock/ecru-trm/:id. Poids, choix, réservation stay what
-// the poste de visitage wrote. The edit mode carries the §28 guard like every
-// other one.
+// storage + dyeing state. Read-only, with TWO exceptions: pieces are created
+// and closed by the production/visitage flow, never edited from here — but
+// after the fact a roll's free-text observations can be written (« ouvrir dans
+// la maille » on a roll already in stock, LIVA #1108, key edit_stock_ecru) and
+// its choix can be flipped (a roll re-inspected on the floor, LIVA #1150, key
+// edit_choix_stock_ecru — its own key, a note is harmless, a choix moves
+// money). One edit mode for both: « Modifier » in the drawer band with either
+// key, the Notes card becomes a textarea with the first, the « 2ᵉ choix » line
+// of the Qualité card becomes a Non / Oui toggle with the second, and one
+// PATCH /stock/ecru-trm/:id carries only the fields the user's keys allow.
+// The number is NOT renumbered on a flip (it is the roll's identity on the
+// label and the avis) — so after a flip the Dymo label on the roll is wrong,
+// and the drawer says so with the reprint button until the label is printed
+// or another roll is opened. The reservation follows the flip server-side.
+// Poids stays what the poste de visitage wrote. The edit mode carries the §28
+// guard like every other one.
 
 // ── Types ──────────────────────────────────────────────
 
@@ -213,9 +221,12 @@ export function TombeMetierStock() {
   const [sort, setSort] = useState<SortState>({ key: 'date_saisie', dir: 'desc' })
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const isDesktop = useIsDesktop()
-  // Permission gate — admins always pass; non-admins need edit_stock_ecru.
-  // Only the drawer's « Modifier » hangs on it: consulting stays open.
-  const canEdit = useHasPermission('edit_stock_ecru')
+  // Permission gates — admins always pass; non-admins need edit_stock_ecru
+  // for the observations, edit_choix_stock_ecru for the choix. Only the
+  // drawer's « Modifier » (and what it unlocks) hangs on them: consulting
+  // stays open.
+  const canEditObs = useHasPermission('edit_stock_ecru')
+  const canEditChoix = useHasPermission('edit_choix_stock_ecru')
 
   const { data: rows, isLoading, isError, error } = useStockEcruTrmList({ statut, secondChoix })
 
@@ -432,7 +443,8 @@ export function TombeMetierStock() {
 
       <StockEcruTrmDrawer
         id={selectedId}
-        canEdit={canEdit}
+        canEditObs={canEditObs}
+        canEditChoix={canEditChoix}
         onClose={handleClose}
         onDirtyChange={setDrawerDirty}
         saveRef={drawerSaveRef}
@@ -589,48 +601,72 @@ function SortHeader({ label, sortKey, sort, onSort, align = 'left' }: SortHeader
 
 interface DrawerProps {
   id: number | null
-  /** edit_stock_ecru — « Modifier » in the band, the observations as a textarea. */
-  canEdit: boolean
+  /** edit_stock_ecru — the observations as a textarea in edit mode. */
+  canEditObs: boolean
+  /** edit_choix_stock_ecru — the « 2ᵉ choix » line as a Non / Oui toggle in edit mode. */
+  canEditChoix: boolean
   onClose: () => void
   onDirtyChange: (dirty: boolean) => void
   saveRef: React.MutableRefObject<() => Promise<void>>
   discardRef: React.MutableRefObject<() => void>
 }
 
-function StockEcruTrmDrawer({ id, canEdit, onClose, onDirtyChange, saveRef, discardRef }: DrawerProps) {
+interface DrawerDraft {
+  observations: string
+  second_choix: boolean
+}
+
+function StockEcruTrmDrawer({ id, canEditObs, canEditChoix, onClose, onDirtyChange, saveRef, discardRef }: DrawerProps) {
   const { data: detail, isLoading } = useStockEcruTrmDetail(id)
   const queryClient = useQueryClient()
   const drawerRef = useRef<HTMLDivElement>(null)
   const [searchParams] = useSearchParams()
   const embed = searchParams.get('embed') === 'true'
+  const canEdit = canEditObs || canEditChoix
 
-  // Edit mode — one editable field (see the file header): the observations.
+  // Edit mode — two editable fields (see the file header), each behind its
+  // own key: the observations and the choix.
   const [isEditing, setIsEditing] = useState(false)
   const [editObservations, setEditObservations] = useState('')
-  const originalDraftRef = useRef<{ observations: string } | null>(null)
+  const [editSecondChoix, setEditSecondChoix] = useState(false)
+  const originalDraftRef = useRef<DrawerDraft | null>(null)
+  // Set when a save flipped the choix: the Dymo label on the roll is wrong
+  // until it is reprinted. Cleared by the reprint or by opening another roll.
+  const [labelStale, setLabelStale] = useState(false)
 
   // Switching rolls leaves edit mode: the draft belongs to the roll it was
   // opened on. (A dirty draft never gets here — the page guard asks first.)
-  useEffect(() => { setIsEditing(false) }, [id])
+  useEffect(() => { setIsEditing(false); setLabelStale(false) }, [id])
 
   const startEdit = useCallback(() => {
     if (!detail) return
-    const snapshot = { observations: (detail.observations ?? '').trim() }
+    const snapshot: DrawerDraft = {
+      observations: (detail.observations ?? '').trim(),
+      second_choix: !!detail.second_choix,
+    }
     setEditObservations(snapshot.observations)
+    setEditSecondChoix(snapshot.second_choix)
     originalDraftRef.current = snapshot
     setIsEditing(true)
   }, [detail])
 
   const saveMutation = useMutation({
     mutationFn: () =>
-      apiFetch(`/stock/ecru-trm/${id}`, {
+      apiFetch<{ choix_change?: boolean }>(`/stock/ecru-trm/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ observations: editObservations }),
+        // Only the fields the user's keys allow — the route checks each field
+        // against its own key, so an observations-only user must not send
+        // the (unchanged) choix, and vice versa.
+        body: JSON.stringify({
+          ...(canEditObs ? { observations: editObservations } : {}),
+          ...(canEditChoix ? { second_choix: editSecondChoix } : {}),
+        }),
       }),
-    onSuccess: () => {
-      // List and detail share the key prefix — the table's Observations
-      // column and the Notes card refresh together.
+    onSuccess: (data) => {
+      // List and detail share the key prefix — the table's Observations and
+      // 2ᵉ columns and the drawer cards refresh together.
       queryClient.invalidateQueries({ queryKey: ['stock-ecru-trm'] })
+      if (data?.choix_change) setLabelStale(true)
       setIsEditing(false)
     },
   })
@@ -639,8 +675,9 @@ function StockEcruTrmDrawer({ id, canEdit, onClose, onDirtyChange, saveRef, disc
     if (!isEditing) return false
     const o = originalDraftRef.current
     if (!o) return false
-    return editObservations.trim() !== o.observations
-  }, [isEditing, editObservations])
+    return (canEditObs && editObservations.trim() !== o.observations)
+      || (canEditChoix && editSecondChoix !== o.second_choix)
+  }, [isEditing, editObservations, editSecondChoix, canEditObs, canEditChoix])
 
   useEffect(() => { onDirtyChange(isDirty) }, [isDirty, onDirtyChange])
   useEffect(() => () => { onDirtyChange(false) }, [onDirtyChange])
@@ -676,6 +713,7 @@ function StockEcruTrmDrawer({ id, canEdit, onClose, onDirtyChange, saveRef, disc
   const handlePrintEtiquette = useCallback(() => {
     if (id === null) return
     setPrinting(true)
+    setLabelStale(false)
     void printPdf(`${API_URL}/visitage-trm/etiquettes?ids=${id}`).finally(() => setPrinting(false))
   }, [id])
 
@@ -819,6 +857,30 @@ function StockEcruTrmDrawer({ id, canEdit, onClose, onDirtyChange, saveRef, disc
             </div>
           ) : (
             <>
+              {/* The label on the roll is wrong since the last save flipped
+                  the choix (a déclassé prints a black « DÉCLASSÉ » block, a
+                  1er choix none) — §7 amber warning, with the same reprint
+                  the band offers, until it is printed or the roll changes. */}
+              {labelStale && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 flex items-start gap-2.5">
+                  <AlertCircle className="h-4 w-4 text-amber-700 flex-shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <p className="text-sm text-amber-900">
+                      Le choix du rouleau a changé : l’étiquette collée dessus est à réimprimer.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 bg-white"
+                      disabled={!detail.IDordre_fabrication || printing}
+                      onClick={handlePrintEtiquette}
+                    >
+                      {printing ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Printer className="h-3.5 w-3.5 mr-1.5" />}
+                      Imprimer l’étiquette
+                    </Button>
+                  </div>
+                </div>
+              )}
               {/* Every card takes the gold edge in edit mode, the read-only ones
                   included (§27.5 edit-highlight rule): the whole drawer reads
                   as "in edit mode", not one card out of five. */}
@@ -842,10 +904,35 @@ function StockEcruTrmDrawer({ id, canEdit, onClose, onDirtyChange, saveRef, disc
               {/* Qualité */}
               <DrawerCard icon={<ShieldAlert className="h-4 w-4 text-accent" />} title="Qualité" highlight={isEditing}>
                 <div className="space-y-2">
+                  {/* Edit-mode input in the value slot (§27.5), behind
+                      edit_choix_stock_ecru: the segmented Non / Oui of the
+                      list filters (§5), sized h-7 like every drawer input.
+                      A roll only reaches this drawer while in stock, so the
+                      route's « already shipped » 409 has no UI state here. */}
                   <KV
                     label="2ᵉ choix"
                     value={
-                      detail.second_choix ? (
+                      isEditing && canEditChoix ? (
+                        <span className="inline-flex gap-1" role="radiogroup" aria-label="2ᵉ choix">
+                          {([false, true] as const).map((v) => (
+                            <button
+                              key={String(v)}
+                              type="button"
+                              role="radio"
+                              aria-checked={editSecondChoix === v}
+                              onClick={() => setEditSecondChoix(v)}
+                              className={cn(
+                                'h-7 px-2.5 text-xs rounded-md transition-colors',
+                                editSecondChoix === v
+                                  ? 'bg-accent text-accent-foreground shadow-sm font-medium'
+                                  : 'text-muted-foreground hover:bg-accent/10',
+                              )}
+                            >
+                              {v ? 'Oui' : 'Non'}
+                            </button>
+                          ))}
+                        </span>
+                      ) : detail.second_choix ? (
                         <span className="text-amber-700 font-medium">Oui</span>
                       ) : (
                         <span className="text-muted-foreground">Non</span>
@@ -929,7 +1016,7 @@ function StockEcruTrmDrawer({ id, canEdit, onClose, onDirtyChange, saveRef, disc
               <DrawerCard icon={<MessageSquare className="h-4 w-4 text-accent" />} title="Notes" highlight={isEditing}>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Observations</p>
-                  {isEditing ? (
+                  {isEditing && canEditObs ? (
                     <textarea
                       value={editObservations}
                       onChange={(e) => setEditObservations(e.target.value)}

@@ -283,9 +283,13 @@ métier, pas de magasin, expédié au client). Écran `TombeMetierStock.tsx`, AP
 - ~1 000 pièces : le double rendu §27 est gardé par `useIsDesktop()` (voir React rules).
 - **Depuis le 2026-09-02 (LIVA #1108) les observations d'un rouleau s'écrivent depuis le
   tiroir**, sous `edit_stock_ecru` (catégorie « Tombé Métier », fermé par défaut — à accorder
-  à Nicolas Antonino après déploiement) : `PATCH /api/stock/ecru-trm/:id { observations }`
-  **seul**, `z.strict`, partition `IDsociete = 2` sur la ligne. Tout le reste reste ce que le
-  poste de visitage a pesé.
+  à Nicolas Antonino après déploiement) : `PATCH /api/stock/ecru-trm/:id { observations }`,
+  `z.strict`, partition `IDsociete = 2` sur la ligne. **Et depuis le 2026-09-11 (LIVA #1150)
+  le choix**, sous sa propre clé `edit_choix_stock_ecru` (même PATCH, `second_choix`,
+  chaque champ vérifié contre sa clé) : ⚠️ **le numéro n'est pas renuméroté** (identité du
+  rouleau, tout le code lit le drapeau), la réservation suit (2ᵉ → ligne 0, 1er → ligne de
+  l'OF), 409 sur un expédié, trace `evenement_piece`, bandeau « étiquette à réimprimer ».
+  Le poids reste ce que le poste de visitage a pesé.
 
 ### Clients › Gestion (`/clients/gestion`) — port of `FI_Gestion_Client_TRM.wdw`
 

@@ -40,10 +40,10 @@ s'écrivent depuis le tiroir**, sous le droit **`edit_stock_ecru`** (catégorie 
 Métier » de `permission-keys-trm.ts` — sa première clé ; même nom que la clé ETM du même
 écran : même acte, store séparé). « Modifier » dans le bandeau du tiroir (or, §6.1, la
 tuile passe au blanc), les cinq cartes prennent le liseré or, la carte Notes devient un
-textarea, et `PATCH /api/stock/ecru-trm/:id` écrit `{ observations }` **seul** (`z.strict` :
-un `poids` ou un `second_choix` dans le corps fait 400, jamais ignoré en silence). Poids,
-choix, réservation restent ce que le poste de visitage a pesé — le rouleau n'a pas
-d'autre champ légitimement écrit après coup. Le garde-fou de partition est `IDsociete = 2`
+textarea, et `PATCH /api/stock/ecru-trm/:id` écrit `{ observations }` (`z.strict` :
+un `poids` dans le corps fait 400, jamais ignoré en silence). Poids et réservation
+restent ce que le poste de visitage a pesé ; le choix a sa propre voie depuis le
+2026-09-11 (§ ci-dessous). Le garde-fou de partition est `IDsociete = 2`
 sur la ligne même : un rouleau réceptionné par ETM (basculé en société 1) n'est plus
 annotable d'ici, c'est le stock d'ETM. La valeur passe par `sqlText` (les notes de la
 visiteuse portent des accents ; les tirets typographiques y sont repliés en `-`, ce n'est
@@ -55,3 +55,52 @@ d'écran avec un brouillon demande d'abord. Garde HTTP :
 restauré, 401 / 403 / 404 partition / 400 whitelist — écrit une valeur de sondage, **jamais
 contre la prod**). API : ETM master `6c8de8c`. ⚠️ **Fermé par défaut : à accorder dans
 Paramètres › Utilisateurs après le déploiement** (Nicolas Antonino l'a demandé).
+
+## Le choix d'un rouleau se change depuis le tiroir (2026-09-11, LIVA #1150)
+
+Nicolas Antonino a demandé à pouvoir « switcher des pièces en choix 1 / choix 2 » : un
+rouleau re-visité à l'atelier, ou déclassé par erreur au poste. Décision du 2026-09-11
+(Vincent Malterre) : oui, depuis le mode édition du tiroir, sous **sa propre clé
+`edit_choix_stock_ecru`** (catégorie « Tombé Métier », fermée par défaut — à accorder à
+Nicolas après déploiement). Pas repliée dans `edit_stock_ecru` : une note est
+inoffensive, un changement de choix déplace de l'argent (déclassements de la Prime, poids
+porté par l'avis et la facture, transfert ETM). Le même `PATCH /api/stock/ecru-trm/:id`
+prend maintenant `{ observations?, second_choix? }` (toujours `z.strict`, corps vide =
+400), **chaque champ vérifié contre sa clé** — le tiroir n'envoie que les champs que les
+clés de l'utilisateur autorisent, sinon 403 sur un champ inchangé. La ligne « 2ᵉ choix »
+de la carte Qualité devient un segmenté Non / Oui (§5, `h-7`, dans la fente valeur §27.5).
+
+- ⚠️ **Le numéro de pièce n'est PAS renuméroté** (`num_piece_OF` reste `< 1000` ou
+  `1000+` selon le choix d'origine). C'est l'identité du rouleau — sur l'étiquette collée,
+  sur les défauts, sur l'avis — et tout notre code lit le drapeau `second_choix`, jamais
+  la plage du numéro (rapport de production, Prime, TRS, freinte, valorisation ; seul
+  l'allocateur de séquence du visitage regarde la plage, pour les rouleaux futurs). Le
+  legacy ne renumérotait pas non plus : 3 % des lignes vivantes ont déjà drapeau ≠ plage.
+  Un aller-retour serait impossible une fois le numéro libéré réutilisé. Renuméroter est
+  une proposition écartée, pas un oubli.
+- **L'étiquette est donc fausse après un basculement** (un déclassé imprime le pavé noir
+  « DÉCLASSÉ », un 1er choix non) : la réponse porte `choix_change: true` et le tiroir
+  affiche un bandeau ambre §7 « l'étiquette collée dessus est à réimprimer » avec le
+  bouton d'impression, jusqu'à l'impression ou l'ouverture d'un autre rouleau.
+- **La réservation suit** (règle #1129) : 1er → 2ᵉ met `IDLigne_Commande_TRM = 0` (sinon
+  le rouleau part avec le prochain « Expédier » à plein poids comme du 1er choix) ;
+  2ᵉ → 1er reprend la ligne de l'OF (`ordre_fabrication.IDligne_commande_client`), comme
+  le poste l'aurait tamponnée — TRM n'a pas d'« affecter des pièces disponibles », sans
+  ça un rouleau repromu ne s'expédierait que depuis le legacy. Une valeur identique est un
+  no-op : ni ligne re-dérivée, ni trace.
+- **Verrou** : 409 `rouleau_expedie` si `IDligne_expedition_TRM > 0` — son choix est déjà
+  sur un avis et une facture, peut-être dans le grand livre d'ETM. Sans état UI : la
+  liste ne sert que des rouleaux en stock, le tiroir ne s'ouvre jamais sur un expédié.
+- **Trace** : une ligne `evenement_piece` positionnelle (`DATE` réservé, PK MAX+1, même
+  forme que le poste) `Passage en 2nd choix` / `Passage en 1er choix`, `IDbonnetier = 0`,
+  `observation = « par Prénom Nom »` de l'utilisateur — visible dans la timeline de la
+  pièce (`PieceEvents`, icône par défaut). Libellés ASCII (pas de « ᵉ », hors Latin-1).
+  L'échec de la trace ne fait pas échouer le basculement (l'UPDATE est fait).
+- Le fil ne bouge pas (les déclassés sont déjà comptés dans le décrément) ; Prime,
+  rapports et widgets recalculent depuis le drapeau.
+- Garde HTTP : la même `check-stock-ecru-trm-observations.ts` (403 par clé, 400 corps
+  vide, aller-retour du drapeau avec ligne suivie, numéro immobile, une trace par
+  basculement, no-op, 409 expédié — restaure drapeau et ligne **par SQL** et supprime les
+  traces de sondage, **jamais contre la prod**). ⚠️ Le script prend le secret cookie
+  dans `AUTH_COOKIE_SECRET` : sur un worktree, `SECRET=$(grep AUTH_COOKIE_SECRET
+  apps/api/.env.development | cut -d= -f2-)`, sinon tout est 401.
