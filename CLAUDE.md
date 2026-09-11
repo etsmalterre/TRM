@@ -378,8 +378,10 @@ avant de toucher `POST /valider`, la carte rouleau ou l'étiquette.
 - La carte rouleau porte sa teinte sur son corps : rien de posé dessus ne peut être un
   lavis de la même teinte. Identification par visage (`VisiteurGate`, local à l'écran).
 - **Étiquette Dymo** à la validation (`EtiquetteEcruPdf.tsx`, port de `ImprimeEtiquetteTM`,
-  `printPdf()` via blob + iframe) : ⚠️ `SAFE_RIGHT = 26` pt est une **zone imprimable**,
-  ne pas rééquilibrer ; le poste lance Chrome avec `--kiosk-printing --user-data-dir=
+  `printPdf()` via blob + iframe) : ⚠️ **noir et blanc par construction** (une Dymo est
+  thermique, jamais de couleur au poste — le test refuse toute autre couleur ; bande de
+  gauche = un « tampon », M mono + métier en réserve) ; ⚠️ `SAFE_RIGHT = 26` pt est une
+  **zone imprimable**, ne pas rééquilibrer ; le poste lance Chrome avec `--kiosk-printing --user-data-dir=
   "C:\visitage-profile" --app=https://trm.malterre/production/visitage`.
 - Scripts : `probe-visitage-trm.ts`, `check-visitage-trm.ts`, seeds dev-only.
 
