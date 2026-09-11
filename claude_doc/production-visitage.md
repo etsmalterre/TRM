@@ -161,16 +161,26 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
   `machine`, `"N° : "`, `"Poids : " %5,2f " Kg"`, `"Réf. : "` via `ref_ecru` → `colori_ecru`,
   `"Date : " JJ/MM/AAAA HH:mm:SS`. **Les champs sont donc ceux du legacy, verbatim et dans
   son ordre** ; seule la présentation change.
-  - **Deux deltas assumés** : le vieux logo pyramide `TRM.jpg` devient le **badge M carré**
-    (`logo-m-email.png`, décision utilisateur du 2026-08-27 — la bande de gauche d'une
-    89 × 36 est haute et étroite, le monogramme la remplit là où le mot-symbole large doit
-    rétrécir, et il tient mieux la trame thermique) ; et un rouleau déclassé porte
-    désormais un **pavé noir « DÉCLASSÉ »**, que le legacy n'imprime pas — or c'est
-    précisément ce que l'étiquette d'un rouleau devrait dire. Il vit sur la ligne de date,
-    et **pas** en coin haut-droit : à 22 pt un numéro à neuf caractères (« 3417/1001 »)
-    atteint ce coin.
-  - **Tout est noir sauf le badge** : une Dymo est thermique, donc tout ce qui n'est pas
-    quasi-noir sort gris. Ne pas y remettre l'ambre de l'app.
+  - **Deux deltas assumés** : le vieux logo pyramide `TRM.jpg` devient le **M Malterre**
+    (le monogramme, pas le mot-symbole large : la bande de gauche d'une 89 × 36 est haute
+    et étroite, décision du 2026-08-27) ; et un rouleau déclassé porte désormais un **pavé
+    noir « DÉCLASSÉ »**, que le legacy n'imprime pas — or c'est précisément ce que
+    l'étiquette d'un rouleau devrait dire. Il vit sur la ligne de date, et **pas** en coin
+    haut-droit : à 22 pt un numéro à neuf caractères (« 3417/1001 ») atteint ce coin.
+  - ⚠️ **NOIR ET BLANC, par construction et par le test** (`EtiquetteEcruPdf.test.ts`
+    refuse toute couleur du stylesheet hors `INK` / `PAPER`). Une Dymo est thermique : tout
+    ce qui n'est pas quasi-noir sort en trame grise, **et il n'y aura jamais d'imprimante
+    d'étiquettes couleur au poste** (décision du 2026-09-11). La première version portait
+    le badge M doré (`logo-m-email.png`) et sortait en carré gris moucheté ; depuis le
+    2026-09-11 la bande de gauche est **un seul « tampon »** : un cadre arrondi (1,6 pt)
+    avec le M script noir (`logo-m-mono.png`, le même que l'étiquette ref_fini) au-dessus
+    du code métier **en réserve blanche sur une cellule noire pleine** — un seul objet,
+    comme un tampon encreur, et chaque trait est de l'encre pleine ou du papier nu. Deux
+    variantes écartées au rendu : le badge noir avec le M en réserve (bloc lourd qui se
+    bat avec le pavé DÉCLASSÉ, et le ruban tricolore devient une encoche blanche) et le M
+    nu au-dessus du cadre métier (deux marques flottantes). Les petits libellés (N° ·
+    POIDS · RÉF.) sont des capitales espacées en noir, plus de gris `#444`. Aperçu sans
+    rouleau : `GET /api/visitage-trm/etiquettes?demo=3`.
   - ⚠️ **La tête d'impression ne va PAS jusqu'au bout de l'étiquette** : elle s'arrête à
     ~82,5 mm des 89 mm, les ~6,5 mm de droite sont perdus. Mesuré sur un tirage du poste le
     2026-08-27, où le pavé DÉCLASSÉ est sorti tranché en plein mot (« DÉCLASS ») ; le bord
