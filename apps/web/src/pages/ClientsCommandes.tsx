@@ -61,6 +61,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { PopoverSelect, SearchableCombobox } from '@/components/ui/popover-select'
 import { MasterDetailLayout } from '@/components/layout/MasterDetailLayout'
 import { cn } from '@/lib/utils'
+import { Tooltip } from '@/components/ui/tooltip'
 import { formatHfsqlDate, hfsqlDateToInput, inputDateToHfsql } from '@/lib/dates'
 import { fmtNum } from '@/lib/format'
 import { apiFetch, API_URL } from '@/lib/api'
@@ -127,6 +128,20 @@ interface LigneCommande {
   cout_revient: number | null
   /** Margin the legacy card prints next to the price, e.g. "37 %". */
   marge_pct: number | null
+  /** Where the price came from (LIVA #1151). `regle` follows the line's
+   *  origin: 'etm' = mirrored line priced by the ETM bridge (max(cost / 0,7,
+   *  base), the base retained bare), 'trm' = native line suggested as
+   *  max(cost, base) / 0,7. `prix_calcule` is the computed assiette as the
+   *  rule compares it (already marged under 'etm'); `suggere` what the rule
+   *  gives, which a native line's typed price may differ from. */
+  tarif: {
+    regle: 'etm' | 'trm'
+    cout: number
+    prix_calcule: number
+    base: number
+    suggere: number
+    retenu: 'revient' | 'base'
+  } | null
   nb_pieces: number
   produit: number
   expedie: number
@@ -1223,6 +1238,67 @@ function LignesSection({
   )
 }
 
+/** Hover panel of the margin chip — where the line's price comes from. Same
+ *  rows and vocabulary as the « Tarif suggéré » panel of the line dialog
+ *  (Prix calculé / Prix de base, gold dot on the one retained), but under the
+ *  rule that priced THIS line: the ETM bridge's for a mirrored line, the TRM
+ *  suggestion for a native one. Then the margin the chip shows, against the
+ *  cost it is measured on. Ticket LIVA #1151: a 2,30 € base price retained
+ *  flat read as « 40 % de marge » with nothing on screen to say otherwise. */
+function PrixTooltip({ line }: { line: LigneCommande }) {
+  const t = line.tarif!
+  const etm = t.regle === 'etm'
+  const ecart = Math.abs(line.prix - t.suggere) > 0.005
+  const rows = [
+    { key: 'revient' as const, label: 'Prix calculé', value: t.prix_calcule, info: etm && t.cout > 0 ? `${fmtNum(t.cout, 2)} € + 30 %` : null },
+    { key: 'base' as const, label: 'Prix de base', value: t.base, info: null },
+  ]
+  return (
+    <div className="w-max max-w-[300px] space-y-1.5 py-0.5 font-normal">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+        {etm ? 'Tarif de la commande ETM' : 'Tarif suggéré'} · {fmtNum(line.quantite, 0)} Kg
+      </p>
+      <div className="space-y-1">
+        {rows.map((row) => {
+          const retenu = t.retenu === row.key
+          return (
+            <div key={row.key} className={cn('flex items-center gap-2 text-[11px]', retenu ? 'text-foreground' : 'text-muted-foreground')}>
+              <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', retenu ? 'bg-gold' : 'bg-border')} />
+              <span className={cn('whitespace-nowrap', retenu && 'font-medium')}>{row.label}</span>
+              {row.info && <span className="text-[10px] whitespace-nowrap">({row.info})</span>}
+              <span className="ml-auto pl-3 tabular-nums whitespace-nowrap">
+                {row.value > 0 ? `${fmtNum(row.value, 2)} €` : <span className="italic">aucune donnée machine</span>}
+              </span>
+              {retenu && (
+                <span className="rounded bg-gold/20 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-gold-foreground">
+                  Retenu
+                </span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <p className="text-[10px] leading-snug text-muted-foreground">
+        {etm
+          ? 'Règle des commandes sous-traitées : la plus haute des deux est retenue telle quelle.'
+          : 'La plus haute des deux assiettes porte les 30 % de marge.'}
+      </p>
+      <div className="border-t border-border/60 pt-1.5 space-y-0.5 text-[11px]">
+        {ecart && (
+          <p className="whitespace-nowrap">
+            Prix de la ligne <span className="font-medium tabular-nums">{fmtNum(line.prix, 2)} €</span>
+            <span className="text-muted-foreground"> · règle {fmtNum(t.suggere, 2)} €</span>
+          </p>
+        )}
+        <p className="whitespace-nowrap">
+          Marge <span className="font-medium tabular-nums">{line.marge_pct} %</span>
+          <span className="text-muted-foreground"> sur le coût de revient {fmtNum(t.cout, 2)} €/Kg</span>
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function LineStat({ label, value, className, valueClass }: {
   label: string
   value: string
@@ -1319,19 +1395,26 @@ function LineCard({
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Prix u.</p>
             <p className="text-xs font-semibold tabular-nums flex items-center gap-1.5">
               {fmtNum(line.prix, 2)} €
-              {line.marge_pct !== null && (
-                <span
-                  title={line.cout_revient !== null ? `Prix de revient TRM : ${fmtNum(line.cout_revient, 2)} €/kg` : undefined}
-                  className={cn(
-                    'px-1 rounded text-[10px] font-medium',
-                    line.marge_pct >= 25 ? 'bg-green-500/10 text-green-700'
-                      : line.marge_pct >= 10 ? 'bg-amber-500/15 text-amber-800'
-                        : 'bg-destructive/10 text-destructive',
-                  )}
-                >
-                  {line.marge_pct} %
-                </span>
-              )}
+              {line.marge_pct !== null && (() => {
+                const chip = (
+                  <span
+                    className={cn(
+                      'px-1 rounded text-[10px] font-medium',
+                      line.marge_pct >= 25 ? 'bg-green-500/10 text-green-700'
+                        : line.marge_pct >= 10 ? 'bg-amber-500/15 text-amber-800'
+                          : 'bg-destructive/10 text-destructive',
+                    )}
+                  >
+                    {line.marge_pct} %
+                  </span>
+                )
+                // The chip explains itself on hover (LIVA #1151): the same
+                // two-assiette panel as the line dialog, under the rule that
+                // actually priced this line.
+                return line.tarif
+                  ? <Tooltip side="bottom" content={<PrixTooltip line={line} />}>{chip}</Tooltip>
+                  : chip
+              })()}
             </p>
           </div>
         )}
