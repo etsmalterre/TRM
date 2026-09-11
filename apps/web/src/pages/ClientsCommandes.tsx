@@ -128,12 +128,11 @@ interface LigneCommande {
   cout_revient: number | null
   /** Margin the legacy card prints next to the price, e.g. "37 %". */
   marge_pct: number | null
-  /** Where the price came from (LIVA #1151). `regle` follows the line's
-   *  origin: 'etm' = mirrored line priced by the ETM bridge (max(cost / 0,7,
-   *  base), the base retained bare), 'trm' = native line suggested as
-   *  max(cost, base) / 0,7. `prix_calcule` is the computed assiette as the
-   *  rule compares it (already marged under 'etm'); `suggere` what the rule
-   *  gives, which a native line's typed price may differ from. */
+  /** Where the price came from (LIVA #1151). One rule for every line —
+   *  max(cost / 0,7, base), the base retained flat when it wins; `regle` only
+   *  says who priced it: 'etm' = mirrored line written by the ETM bridge,
+   *  'trm' = native line, where the typed price may differ from `suggere`.
+   *  `prix_calcule` = `cout` + 30 %. */
   tarif: {
     regle: 'etm' | 'trm'
     cout: number
@@ -1238,51 +1237,65 @@ function LignesSection({
   )
 }
 
-/** Hover panel of the margin chip — where the line's price comes from. Same
- *  rows and vocabulary as the « Tarif suggéré » panel of the line dialog
- *  (Prix calculé / Prix de base, gold dot on the one retained), but under the
- *  rule that priced THIS line: the ETM bridge's for a mirrored line, the TRM
- *  suggestion for a native one. Then the margin the chip shows, against the
- *  cost it is measured on. Ticket LIVA #1151: a 2,30 € base price retained
- *  flat read as « 40 % de marge » with nothing on screen to say otherwise. */
+/** The one pricing rule, in the user's words — printed under every
+ *  two-assiette panel (line dialog, margin chip). Since 2026-09-11 (LIVA
+ *  #1151) the native suggestion and the ETM bridge share it: the fiche's base
+ *  is a floor on the sale price, retained flat when it wins. */
+const REGLE_TARIF = 'La plus haute des deux est retenue telle quelle.'
+
+/** The two assiettes of the rule — « Prix calculé » (coût + 30 %) and « Prix
+ *  de base » (the fiche's price) — with a gold dot and a « Retenu » tag on the
+ *  one that won. Rows are never colour-coded as an alarm: neither assiette is
+ *  a problem. Wording is the user's (2026-08-26); the `key`s match the API's
+ *  `retenu` discriminant. Shared by the line dialog and the margin chip's
+ *  tooltip so the two never drift. */
+function TarifAssiettes({ tarif }: {
+  tarif: { cout: number; prix_calcule: number; base: number; retenu: 'revient' | 'base' }
+}) {
+  const rows = [
+    { key: 'revient' as const, label: 'Prix calculé', value: tarif.prix_calcule, info: tarif.cout > 0 ? `${fmtNum(tarif.cout, 2)} € + 30 %` : null },
+    { key: 'base' as const, label: 'Prix de base', value: tarif.base, info: null },
+  ]
+  return (
+    <div className="space-y-1">
+      {rows.map((row) => {
+        const retenu = tarif.retenu === row.key
+        return (
+          <div key={row.key} className={cn('flex items-center gap-2 text-[11px]', retenu ? 'text-foreground' : 'text-muted-foreground')}>
+            <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', retenu ? 'bg-gold' : 'bg-border')} />
+            <span className={cn('whitespace-nowrap', retenu && 'font-medium')}>{row.label}</span>
+            {row.info && <span className="text-[10px] whitespace-nowrap">({row.info})</span>}
+            <span className="ml-auto pl-3 tabular-nums whitespace-nowrap">
+              {row.value > 0 ? `${fmtNum(row.value, 2)} €` : <span className="italic">aucune donnée machine</span>}
+            </span>
+            {retenu && (
+              <span className="rounded bg-gold/20 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-gold-foreground">
+                Retenu
+              </span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Hover panel of the margin chip — where the line's price comes from: the
+ *  same two assiettes as the line dialog, then the gap between the line's
+ *  price and the rule when there is one, then the margin the chip shows,
+ *  against the cost it is measured on. Ticket LIVA #1151: a 2,30 € base price
+ *  retained flat read as « 40 % de marge » with nothing on screen to say
+ *  otherwise. */
 function PrixTooltip({ line }: { line: LigneCommande }) {
   const t = line.tarif!
-  const etm = t.regle === 'etm'
   const ecart = Math.abs(line.prix - t.suggere) > 0.005
-  const rows = [
-    { key: 'revient' as const, label: 'Prix calculé', value: t.prix_calcule, info: etm && t.cout > 0 ? `${fmtNum(t.cout, 2)} € + 30 %` : null },
-    { key: 'base' as const, label: 'Prix de base', value: t.base, info: null },
-  ]
   return (
     <div className="w-max max-w-[300px] space-y-1.5 py-0.5 font-normal">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
-        {etm ? 'Tarif de la commande ETM' : 'Tarif suggéré'} · {fmtNum(line.quantite, 0)} Kg
+        {t.regle === 'etm' ? 'Tarif de la commande ETM' : 'Tarif suggéré'} · {fmtNum(line.quantite, 0)} Kg
       </p>
-      <div className="space-y-1">
-        {rows.map((row) => {
-          const retenu = t.retenu === row.key
-          return (
-            <div key={row.key} className={cn('flex items-center gap-2 text-[11px]', retenu ? 'text-foreground' : 'text-muted-foreground')}>
-              <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', retenu ? 'bg-gold' : 'bg-border')} />
-              <span className={cn('whitespace-nowrap', retenu && 'font-medium')}>{row.label}</span>
-              {row.info && <span className="text-[10px] whitespace-nowrap">({row.info})</span>}
-              <span className="ml-auto pl-3 tabular-nums whitespace-nowrap">
-                {row.value > 0 ? `${fmtNum(row.value, 2)} €` : <span className="italic">aucune donnée machine</span>}
-              </span>
-              {retenu && (
-                <span className="rounded bg-gold/20 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-gold-foreground">
-                  Retenu
-                </span>
-              )}
-            </div>
-          )
-        })}
-      </div>
-      <p className="text-[10px] leading-snug text-muted-foreground">
-        {etm
-          ? 'Règle des commandes sous-traitées : la plus haute des deux est retenue telle quelle.'
-          : 'La plus haute des deux assiettes porte les 30 % de marge.'}
-      </p>
+      <TarifAssiettes tarif={t} />
+      <p className="text-[10px] leading-snug text-muted-foreground">{REGLE_TARIF}</p>
       <div className="border-t border-border/60 pt-1.5 space-y-0.5 text-[11px]">
         {ecart && (
           <p className="whitespace-nowrap">
@@ -2322,15 +2335,14 @@ function LineFormDialog({
     enabled: open && form.IDreference > 0,
   })
 
-  // Suggested price — max(prix de revient, ref_ecru.prix) / 0.7: the base is a
-  // floor on the *cost*, so the higher of the two assiettes carries TRM's 30 %
-  // margin. NOT the rule the ETM bridge uses for its mirrored lines (there the
-  // base is a floor on the price and wins flat) — see the endpoint's comment.
-  // Advisory only: the field stays editable and is never overwritten once the
-  // user has typed a price.
+  // Suggested price — max(prix de revient / 0,7, ref_ecru.prix): the base is
+  // a floor on the sale price, retained flat when it wins — the same rule the
+  // ETM bridge writes on a mirrored line (one rule since 2026-09-11, LIVA
+  // #1151). Advisory only: the field stays editable and is never overwritten
+  // once the user has typed a price.
   const qteNum = Number(form.quantite) || 0
   const { data: priceHint } = useQuery<{
-    priceable: boolean; prix: number; cout: number; base: number; retenu: 'revient' | 'base'
+    priceable: boolean; prix: number; cout: number; prix_calcule: number; base: number; retenu: 'revient' | 'base'
   }>({
     queryKey: ['trm-line-price', form.IDreference, qteNum],
     queryFn: () => apiFetch(`/commandes-trm/lookups/line-price?ref=${form.IDreference}&quantite=${qteNum}`),
@@ -2408,14 +2420,12 @@ function LineFormDialog({
             </div>
           </div>
           {/* Where the suggested price comes from. A small read-only panel and
-              not a sentence: it is a two-assiette comparison plus a rate, and
-              the prose version ("Prix de revient 2,02 € + 30 % de marge — base
-              fiche 2,01 €, plus basse") made the reader work out which number
-              won. Rows are never colour-coded as an alarm — neither assiette is
-              a problem; the gold dot only marks the one carrying the margin.
-              The legacy window proposes the bare base (ref_ecru.prix), so
-              without this the two apps quote different numbers with no
-              explanation. */}
+              not a sentence: it is a two-assiette comparison, and the prose
+              version ("Prix de revient 2,02 € + 30 % de marge — base fiche
+              2,01 €, plus basse") made the reader work out which number won.
+              The legacy window proposes the bare base (ref_ecru.prix) and
+              never the marged cost, so without this the two apps could quote
+              different numbers with no explanation. */}
           {!!priceHint?.priceable && (
             <div className="rounded-md border border-border/60 bg-zinc-100/70 px-3 py-2.5 space-y-2">
               <div className="flex items-center justify-between gap-3">
@@ -2436,39 +2446,10 @@ function LineFormDialog({
                   Appliquer
                 </Button>
               </div>
-              <div className="space-y-1 border-t border-border/60 pt-2">
-                {([
-                  // Wording is the user's (2026-08-26). The `key`s stay as they
-                  // are — they match the API's `retenu` discriminant.
-                  { key: 'revient', label: 'Prix calculé', value: priceHint.cout },
-                  { key: 'base', label: 'Prix de base', value: priceHint.base },
-                ] as const).map((row) => {
-                  const retenu = priceHint.retenu === row.key
-                  return (
-                    <div
-                      key={row.key}
-                      className={cn(
-                        'flex items-center gap-2 text-[11px]',
-                        retenu ? 'text-foreground' : 'text-muted-foreground',
-                      )}
-                    >
-                      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', retenu ? 'bg-gold' : 'bg-border')} />
-                      <span className={cn('flex-1 truncate', retenu && 'font-medium')}>{row.label}</span>
-                      {row.value > 0
-                        ? <span className="tabular-nums">{fmtNum(row.value, 2)} €</span>
-                        : <span className="italic">aucune donnée machine</span>}
-                      {retenu && (
-                        <span className="rounded bg-gold/20 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-gold-foreground">
-                          Retenu
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
+              <div className="border-t border-border/60 pt-2">
+                <TarifAssiettes tarif={priceHint} />
               </div>
-              <p className="text-[10px] leading-snug text-muted-foreground">
-                La plus haute des deux assiettes porte les 30 % de marge.
-              </p>
+              <p className="text-[10px] leading-snug text-muted-foreground">{REGLE_TARIF}</p>
             </div>
           )}
           <div className="space-y-1">

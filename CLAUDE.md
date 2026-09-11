@@ -219,9 +219,11 @@ All other screens are `PagePlaceholder`s for now. Legacy references for each dom
   de la carte de ligne, actif sur un miroir. **La liste de gauche se colore sur le délai**
   (§30 : rouge = à faire de notre côté — sans délai ou dépassé ; ambre = sous 3 jours), la
   pastille compteur compte les rouges ; la phase reste dans sa pastille.
-- ⚠️ **Tarif suggéré = `max(PrixDeRevientTRM, ref_ecru.prix) / 0,7`** (`'cost-floor'`),
-  **pas** `trmLinePrix` (`'price-floor'`, sous-traitance ETM → TRM, colle au WinDev). Ne pas
-  unifier sans trancher le prix de transfert intercompany.
+- **Tarif suggéré = `max(PrixDeRevientTRM / 0,7, ref_ecru.prix)`**, la base retenue telle
+  quelle quand elle gagne — **la même règle que `trmLinePrix`** (sous-traitance ETM → TRM,
+  colle au WinDev) depuis le 2026-09-11 (LIVA #1151). La règle « base = plancher sur le coût »
+  (`max(cost, base) / 0,7`) du 2026-08-26 est retirée ; ne pas la réintroduire. La pastille
+  de marge s'explique au survol (`PrixTooltip`).
 - ⚠️ **L'onglet Stock de fil est scopé au client de la commande** (`IDclient`, `IDMagasin = 1`,
   `terminé = 0` — les trois, `stock > 0` ≠ `terminé = 0`). TRM tricote à façon.
 - ⚠️ **Une composition est une liste de POSITIONS D'ALIMENTATION, pas de fils** : lignes en
