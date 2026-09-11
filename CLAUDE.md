@@ -4,9 +4,10 @@
 > folder were renamed to **TRM** (alongside its sister `MPS_NG` → **ETM**).
 > Deliberately unchanged because they are deployed infrastructure, not the project
 > identity: the server dist path `/home/debian/mps_trm` and the workspace package
-> name `@mps-trm/web`. The production **hostname did follow**, on 2026-08-26:
-> `mpstrm.malterre` → **`trm.malterre`** (the DNS moved first; the old name no longer
-> resolves, though nginx still answers to it as an alias).
+> name `@mps-trm/web`. The production **hostname did follow**: since 2026-09-10 it is
+> **`trm.intra.etsmalterre.com`** (HTTPS only, Caddy on `10.10.20.5` terminates TLS in front
+> of nginx). None of the earlier internal names resolve any more — never write one in a
+> doc, a script or a kiosk shortcut.
 
 ## Project Overview
 
@@ -33,7 +34,7 @@ display screens.
   feature needing an endpoint is a normal change to that repo, landed through a paired NG
   worktree. Full reasoning in `ETM/CLAUDE.md` §"MPS — the platform".
 - **Deploying it affects every client at once** (one `systemctl restart mps-api`), so after an
-  API deploy smoke-check `mpsng.malterre` as well as `trm.malterre`.
+  API deploy smoke-check `etm.intra.etsmalterre.com` as well as `trm.intra.etsmalterre.com`.
 - `node ETM/scripts/deploy/preflight.mjs` answers "what needs deploying?" for the whole
   platform — both stamps, both repos, clean-tree checks, and owed prod seeds — in one
   read-only command.
@@ -102,7 +103,7 @@ warnings that would bite in the first hour) with a pointer to the dossier.
 ## Atelier — la PWA mobile de l'atelier (`apps/atelier`)
 
 Migration de l'app Android legacy des bonnetiers/régleurs : **deuxième app du monorepo**,
-hôte **`atelier.malterre`** (en ligne depuis le 2026-08-28), port dev **5176**, version
+hôte **`atelier.intra.etsmalterre.com`** (en ligne depuis le 2026-08-28), port dev **5176**, version
 propre (`apps/atelier/package.json`). Accueil (grille de visages) → Choix Métier → Poste
 avec saisie : les huit actions du legacy s'enregistrent via `POST /api/atelier/of/:id/evenement`
 sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réutilise
@@ -116,7 +117,7 @@ sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   et `routes/atelier.ts` se changent ensemble, l'API faisant foi.
 - ⚠️ Le libellé d'un métier est `machine.emplacement`, l'**inverse** d'Atelier › Maintenance.
 - ⚠️ `signUserId()` rend la même chaîne pour toujours (cookie copiable) ; à traiter avant
-  qu'un compte régleur existe. `atelier.malterre` a son propre bocal à cookies.
+  qu'un compte régleur existe. `atelier.intra.etsmalterre.com` a son propre bocal à cookies.
 - Le legacy Android n'est pas PCS-compressé : `C:\Mes Projets\MPS\Android\dbg\Compile\`
   est la spec **bonnetier** (instantané du 24/03/2026) et ⚠️ **`Android\gen\Compile\` est
   le build RÉGLEUR** (`Appli_Regleur`, 25/05/2026, avec `FEN_Reglage_Machine` et
@@ -129,7 +130,7 @@ sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réuti
 ## TRS — la tablette murale de l'atelier (`apps/trs`)
 
 Port de `Appli_TRS` : **une tablette au mur** montrant le plan du parc, une tuile par métier,
-état lu **dans la base** (jamais l'automate). **Troisième app**, hôte **`trs.malterre`**
+état lu **dans la base** (jamais l'automate). **Troisième app**, hôte **`trs.intra.etsmalterre.com`**
 (en ligne), port dev **5177**, version propre. Passive, lecture seule, **aucune identité ni
 cookie**. API `GET /api/trs/atelier` (`routes/trs.ts`), calcul pur et testé dans
 `lib/trs-trm.ts`, poll 10 s. Conception : `~/.claude/plans/trs-atelier.md`.
@@ -153,8 +154,8 @@ tuile, barèmes, ⓘ, bandeau, logo, `--u`).
 
 ## Production / deploy
 
-- **Host**: `http://trm.malterre` — nginx on `mps-webapps` (`10.10.20.4`, hostname `mfprod-erp` until 2026-09-09), dist at `/home/debian/mps_trm/dist`, `/api/` proxied to the MPS API (`10.10.20.3:8081`).
-- **Deploy ownership**: this repo's `/trm_deploy` skill ships the **TRM web bundle only**. The shared API (and `mpsng.malterre`) is deployed exclusively from the ETM checkout with its `/etm_deploy`. If a TRM feature needed API changes, the API deploy (from ETM) must happen **before or with** the TRM web deploy — and that ETM leg is part of the job: on `/trm_deploy`, go run `/etm_deploy` in the ETM checkout rather than handing the deploy back to the user (see `trm_deploy` §Scope).
+- **Host**: `https://trm.intra.etsmalterre.com` (HTTPS only since 2026-09-10; Caddy `10.10.20.5` terminates TLS) → nginx on `mps-webapps` (`10.10.20.4`, hostname `mfprod-erp` until 2026-09-09), dist at `/home/debian/mps_trm/dist`, `/api/` proxied to the MPS API (`10.10.20.3:8081`).
+- **Deploy ownership**: this repo's `/trm_deploy` skill ships the **TRM web bundle only**. The shared API (and `etm.intra.etsmalterre.com`) is deployed exclusively from the ETM checkout with its `/etm_deploy`. If a TRM feature needed API changes, the API deploy (from ETM) must happen **before or with** the TRM web deploy — and that ETM leg is part of the job: on `/trm_deploy`, go run `/etm_deploy` in the ETM checkout rather than handing the deploy back to the user (see `trm_deploy` §Scope).
 
 ## Branding
 
@@ -387,7 +388,7 @@ avant de toucher `POST /valider`, la carte rouleau ou l'étiquette.
   thermique, jamais de couleur au poste — le test refuse toute autre couleur ; bande de
   gauche = un « tampon », M mono + métier en réserve) ; ⚠️ `SAFE_RIGHT = 26` pt est une
   **zone imprimable**, ne pas rééquilibrer ; le poste lance Chrome avec `--kiosk-printing --user-data-dir=
-  "C:\visitage-profile" --app=https://trm.malterre/production/visitage`.
+  "C:\visitage-profile" --app=https://trm.intra.etsmalterre.com/production/visitage`.
 - Scripts : `probe-visitage-trm.ts`, `check-visitage-trm.ts`, seeds dev-only.
 
 ### Production › TRS (`/production/trs`) — port de `FI_TRS.wdw`

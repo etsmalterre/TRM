@@ -6,7 +6,7 @@
 
 Port de l'app WinDev `Appli_TRS` (`FEN_Main_App_TRS.wdw`) : **une tablette au mur de
 l'atelier** qui montre le plan du parc, une tuile par métier, avec l'état lu **dans la
-base** — jamais l'automate en direct. **Troisième app du monorepo**, hôte **`trs.malterre`**,
+base** — jamais l'automate en direct. **Troisième app du monorepo**, hôte **`trs.intra.etsmalterre.com`**,
 port dev **5177**, version propre (`apps/trs/package.json`, démarrée à 0.0.1). Dossier de
 conception : **`~/.claude/plans/trs-atelier.md`** — la spec du calcul y est citée verbatim.
 
@@ -149,6 +149,6 @@ le dépôt TRS, la vitrine vit ici.
 - **Dev** : `cd apps/trs && pnpm exec vite --port 5177`, `.env.local` (gitignoré) portant
   `VITE_API_URL=http://localhost:808N/api`. 5176 et 5177 sont dans `TRM_PWA_PORTS` de
   `ETM/scripts/worktree/lib.mjs`, donc dans le CORS de toute API de worktree.
-- **Reste à faire** : l'hôte de prod `trs.malterre` (même travail que `atelier.malterre`,
-  ni l'un ni l'autre n'est fait) et la tablette en mode kiosque.
+- **Reste à faire** : la tablette en mode kiosque. L'hôte de prod est en ligne
+  (`https://trs.intra.etsmalterre.com`, HTTPS via Caddy depuis le 2026-09-10).
 

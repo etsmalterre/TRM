@@ -2,7 +2,7 @@
  * Deploy gate: does the PRODUCTION shared API actually serve every route this
  * web bundle calls?
  *
- *   node scripts/check-api-routes.mjs [--base https://trm.malterre/api] [--verbose]
+ *   node scripts/check-api-routes.mjs [--base https://trm.intra.etsmalterre.com/api] [--verbose]
  *
  * TRM is a frontend-only repo: its `/api/` is proxied to the shared ETM API,
  * which deploys from the ETM checkout via `/etm_deploy`. A TRM feature whose
@@ -32,9 +32,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 // /api/atelier - the two newest routers, on two brand-new hosts - were exactly
 // the ones it could not see. Add an app here when you add it to the monorepo.
 const APPS = [
-  { name: 'web',     host: 'https://trm.malterre/api' },
-  { name: 'atelier', host: 'https://atelier.malterre/api' },
-  { name: 'trs',     host: 'https://trs.malterre/api' },
+  { name: 'web',     host: 'https://trm.intra.etsmalterre.com/api' },
+  { name: 'atelier', host: 'https://atelier.intra.etsmalterre.com/api' },
+  { name: 'trs',     host: 'https://trs.intra.etsmalterre.com/api' },
 ].map((a) => ({ ...a, src: join(__dirname, '..', 'apps', a.name, 'src') }))
   .filter((a) => existsSync(a.src))
 
@@ -53,7 +53,7 @@ if (!APPS_TO_SCAN.length) {
 // that app's nginx host, which is the path its users' requests actually take.
 // Scanning several apps at once, fall back to TRM's host - they share one API.
 const BASE = baseArg !== -1 ? args[baseArg + 1]
-  : APPS_TO_SCAN.length === 1 ? APPS_TO_SCAN[0].host : 'https://trm.malterre/api'
+  : APPS_TO_SCAN.length === 1 ? APPS_TO_SCAN[0].host : 'https://trm.intra.etsmalterre.com/api'
 
 /** Roots that are infrastructure rather than a feature's backend. Probing them
  *  adds noise, not signal — they have shipped for as long as the app has. */
@@ -169,7 +169,7 @@ function collectTargets() {
   return { targets, blindSpots }
 }
 
-/** GET a URL, following redirects (trm.malterre answers 308 http->https).
+/** GET a URL, following redirects (trm.intra.etsmalterre.com answers 308 http->https).
  *  Resolves to a status number, or rejects if the API cannot be reached. */
 function probe(url, redirects = 0) {
   return new Promise((resolve, reject) => {

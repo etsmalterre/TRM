@@ -202,7 +202,7 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
     sans ce drapeau la boîte s'ouvre pré-chargée. Tout échec retombe sur `window.open`, et
     la barre de validation dit lequel des deux a eu lieu et offre « Réimprimer ».
   - **Le raccourci du poste** (à refaire tel quel si le PC est réinstallé) :
-    `chrome.exe --kiosk-printing --user-data-dir="C:\visitage-profile" --app=https://trm.malterre/production/visitage`.
+    `chrome.exe --kiosk-printing --user-data-dir="C:\visitage-profile" --app=https://trm.intra.etsmalterre.com/production/visitage`.
     ⚠️ Le `--user-data-dir` séparé n'est pas cosmétique : Chrome est un singleton par
     profil, donc lancé sur un profil déjà ouvert il passe l'URL au processus existant et
     **jette `--kiosk-printing`** — la boîte de dialogue revient et le drapeau a l'air cassé.

@@ -5,7 +5,7 @@
 ## Atelier — la PWA mobile de l'atelier (`apps/atelier`)
 
 Migration de l'app Android legacy des bonnetiers/régleurs. **Deuxième app du monorepo**,
-hôte **`atelier.malterre`**, parc Android. Dossier de conception :
+hôte **`atelier.intra.etsmalterre.com`**, parc Android. Dossier de conception :
 **`~/.claude/plans/atelier-malterre.md`** — décisions, pièges vérifiés, questions ouvertes.
 
 **État au 2026-08-27** : Accueil (grille de visages) → Choix Métier (Actives / Inactives) →
@@ -137,8 +137,8 @@ appareil.
   de compte privilégié serait copiable et irrévocable. La charge doit porter un `deviceId`
   avant qu'un compte régleur existe. `cookieOptions()` est aussi `secure: false` : à épingler
   sur `Secure` pour ce hôte le jour où le cookie porte un privilège.
-- ⚠️ **`atelier.malterre` a son PROPRE bocal à cookies** : `res.cookie()` ne pose pas de
-  `domain`, donc la session de `trm.malterre` ne suit pas. Bonne isolation, mais l'app porte
+- ⚠️ **`atelier.intra.etsmalterre.com` a son PROPRE bocal à cookies** : `res.cookie()` ne pose pas de
+  `domain`, donc la session de `trm.intra.etsmalterre.com` ne suit pas. Bonne isolation, mais l'app porte
   son propre chemin d'identification depuis le premier jour.
 - **L'identité bonnetier n'est PAS une authentification** : grille de visages +
   `localStorage`, exactement le modèle de confiance du legacy (`SauveParamètre`) et du poste

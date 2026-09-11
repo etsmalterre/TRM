@@ -15,9 +15,9 @@ copied (709 lines of drift, teaching patterns ETM had already replaced).
 
 | target | pnpm filter | dist on 10.10.20.4 | stamp | host | version lives in |
 |---|---|---|---|---|---|
-| `web` | `@mps-trm/web` | `/home/debian/mps_trm/dist` | `mps_trm/DEPLOYED_SHA` | `trm.malterre` | **root** `package.json` |
-| `atelier` | `@mps-trm/atelier` | `/home/debian/mps_atelier/dist` | `mps_atelier/DEPLOYED_SHA` | `atelier.malterre` | `apps/atelier/package.json` |
-| `trs` | `@mps-trm/trs` | `/home/debian/mps_trs/dist` | `mps_trs/DEPLOYED_SHA` | `trs.malterre` | `apps/trs/package.json` |
+| `web` | `@mps-trm/web` | `/home/debian/mps_trm/dist` | `mps_trm/DEPLOYED_SHA` | `trm.intra.etsmalterre.com` | **root** `package.json` |
+| `atelier` | `@mps-trm/atelier` | `/home/debian/mps_atelier/dist` | `mps_atelier/DEPLOYED_SHA` | `atelier.intra.etsmalterre.com` | `apps/atelier/package.json` |
+| `trs` | `@mps-trm/trs` | `/home/debian/mps_trs/dist` | `mps_trs/DEPLOYED_SHA` | `trs.intra.etsmalterre.com` | `apps/trs/package.json` |
 
 **With no target, deploy every bundle that is actually BEHIND** — as reported by
 `preflight.mjs`, which compares each tier's stamp against its own `apps/<x>` path.
@@ -53,11 +53,11 @@ Never "align" any of them.
 
 ## Scope — this skill's *steps* build web bundles only. The *deploy* is both tiers, and it is yours to finish.
 
-**TRM is a frontend-only repo.** Production `trm.malterre` proxies `/api/` to the
+**TRM is a frontend-only repo.** Production `trm.intra.etsmalterre.com` proxies `/api/` to the
 **MPS API** (`10.10.20.3:8081`), which is deployed by the **ETM** workflow
 (`/etm_deploy` in `C:\dev\etsmalterre\ETM`). §Deploy Steps below builds and uploads the
 TRM web bundle(s) named by the target and nothing else — never hand-roll an API deploy
-out of it. `atelier.malterre` and `trs.malterre` proxy `/api/` to that same API, so an
+out of it. `atelier.intra.etsmalterre.com` and `trs.intra.etsmalterre.com` proxy `/api/` to that same API, so an
 API deploy blips all three fronts and all three want a smoke-check afterwards.
 
 ⚠️ **That is a constraint on *mechanism*, not on *agency*. `/trm_deploy` is a request to
@@ -139,14 +139,15 @@ are off the factory LAN/VPN it will say so rather than wave the deploy through.
 
 | Component | Server | IP | User | Notes |
 |-----------|--------|-----|------|-------|
-| **Web** | mps-webapps (PVE `MPS-WebApps`, ssh alias `mps_webapps`; was `mfprod-erp` until 2026-09-09) | `10.10.20.4` | `debian` | nginx site `trm.malterre` |
+| **Web** | mps-webapps (PVE `MPS-WebApps`, ssh alias `mps_webapps`; was `mfprod-erp` until 2026-09-09) | `10.10.20.4` | `debian` | nginx site for `trm.intra.etsmalterre.com` (behind Caddy `10.10.20.5`, which terminates HTTPS) |
 | **API (shared, not deployed from here)** | mps-api (PVE `MPS-API`, ssh alias `mps_api`; was `mfprod-api`) | `10.10.20.3` | `debian` | `mps-api.service`, owned by ETM |
 
 - **Dist directory**: `/home/debian/mps_trm/dist/`
-- **Nginx config**: `/etc/nginx/sites-enabled/trm.malterre` — serves the dist, proxies
+- **Nginx config**: `/etc/nginx/sites-enabled/trm.malterre` (the file kept its pre-2026-09-10
+  name; Caddy forwards `trm.intra.etsmalterre.com` to it) — serves the dist, proxies
   `/api/` → `http://10.10.20.3:8081`, SPA fallback to `/index.html`, `index.html`/`sw.js`
   never cached, hashed assets cached 1y, `client_max_body_size 25m`.
-- Same physical servers as ETM (`mpsng.malterre` lives in `/home/debian/mps_erp/dist/`
+- Same physical servers as ETM (`etm.intra.etsmalterre.com` lives in `/home/debian/mps_erp/dist/`
   on the same box — **don't mix up the two dist dirs**).
 
 ## SSH Access
@@ -222,9 +223,9 @@ Run everything with **absolute paths** — the Bash tool's cwd drifts between ca
 2. **Each web bundle preflight reported behind** (no target = every one that is behind;
    `all` = all three; never default to `web` alone):
    ```bash
-   cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-web.mjs --app trm       # web  → trm.malterre
-   cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-web.mjs --app atelier   # atelier.malterre
-   cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-web.mjs --app trs       # trs.malterre
+   cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-web.mjs --app trm       # web  → trm.intra.etsmalterre.com
+   cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-web.mjs --app atelier   # atelier.intra.etsmalterre.com
+   cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-web.mjs --app trs       # trs.intra.etsmalterre.com
    ```
    Each run: guards the app's checkout (and the ETM one for `trm`, whose build imports
    shared screens through the `@etm` alias), `pnpm install`, builds with `VITE_API_URL=/api`
@@ -238,7 +239,7 @@ Run everything with **absolute paths** — the Bash tool's cwd drifts between ca
    ships the dist already there.
 
 3. **Confirm**: `node C:/dev/etsmalterre/ETM/scripts/deploy/preflight.mjs` must now say
-   « Everything is current », then open `https://trm.malterre/` in a browser (the hosts
+   « Everything is current », then open `https://trm.intra.etsmalterre.com/` in a browser (the hosts
    are **https only** — `http://` answers 308, not 200). Update the deploy-state memory.
 
 ## After the deploy — one-off prod scripts
@@ -255,11 +256,11 @@ once, silently, with nothing in the log. Measured 2026-08-27: 10 `edit_of` grant
 ## Verification Checklist
 
 - [ ] `preflight.mjs` reports every tier current
-- [ ] `curl -sk https://trm.malterre/` returns HTML (https — http is a 308)
-- [ ] `curl -sk https://trm.malterre/api/auth/users` returns JSON (proxy → shared API)
+- [ ] `curl -sk https://trm.intra.etsmalterre.com/` returns HTML (https — http is a 308)
+- [ ] `curl -sk https://trm.intra.etsmalterre.com/api/auth/users` returns JSON (proxy → shared API)
 - [ ] `deploy-web.mjs` printed « served bundle: API base /api » — that line *is* the
       served-bundle check (it fetches the chunk nginx serves and greps it)
-- [ ] Navigate to `https://trm.malterre/atelier/planning` in a browser
+- [ ] Navigate to `https://trm.intra.etsmalterre.com/atelier/planning` in a browser
 
 ## Known issues (inherited from ETM — same infra)
 
