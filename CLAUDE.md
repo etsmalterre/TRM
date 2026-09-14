@@ -124,8 +124,10 @@ sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   `FEN_Historique`) — les blocs `<COMPILE SI Appli_Regleur>` du build bonnetier sont vides.
 - **Côté régleur (2026-09-08)** : liste avec état / alerte (`?regleur=1`), fiche de réglage
   + « Lancer OF », consigne écrite depuis le téléphone, fil `message_of`. Le rôle vient du
-  bascule dev de l'Accueil **jusqu'à la couche de sécurité** ; l'API vérifie
-  `bonnetier.regleur = 1`. Historique non porté. Dossier § « Le côté régleur ».
+  bascule « dev · voir la grille régleur » de l'Accueil **jusqu'à la couche de sécurité**
+  — ⚠️ **livré en prod depuis le 2026-09-14** (plus compilé hors prod), à retirer le jour de
+  l'enrôlement ; l'API vérifie `bonnetier.regleur = 1`. Historique non porté. Dossier
+  § « Le côté régleur ».
 
 ## TRS — la tablette murale de l'atelier (`apps/trs`)
 
