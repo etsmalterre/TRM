@@ -1,6 +1,6 @@
 // The constant three-cell bar at the top of every atelier screen:
 //
-//     [ M | ←  ]      MÉTIER      [ photo + prénom ]
+//     [ M | ←  ]      MÉTIER      [ photo ]
 //
 // This is §45.2's "barre poste" promoted to app chrome. The atelier PWA has no
 // sidebar (§3 is the ERP shell, on a desk), so the app's navy has to live here
@@ -66,20 +66,23 @@ export function PosteHeader({
           <span className="text-3xl font-heading font-bold tracking-tight truncate">{titre}</span>
         </div>
 
+        {/* Same width as the left cell so the title is centred on the screen,
+            not 8px off it. The face alone is the identity: the bonnetier just
+            picked it on the Accueil, and a 10px first name under a 36px photo
+            was a squint on the shop floor (2026-09-14). The name stays in the
+            accessible label and the quit sheet. */}
         <button
           type="button"
           onClick={() => setConfirmQuit(true)}
-          title="Quitter votre poste"
+          title={identite ? `${identite.prenom} · Quitter votre poste` : 'Quitter votre poste'}
+          aria-label={identite ? `${identite.prenom} · Quitter votre poste` : 'Quitter votre poste'}
           disabled={!identite}
           className={cn(
-            'w-20 flex-shrink-0 flex flex-col items-center justify-center gap-0.5',
+            'w-16 flex-shrink-0 flex items-center justify-center',
             'active:bg-white/10 transition-colors disabled:opacity-40',
           )}
         >
-          <BonnetierPhoto id={identite?.id ?? 0} nom={identite?.prenom ?? ''} size={36} />
-          <span className="text-[10px] leading-none max-w-full truncate px-1">
-            {identite?.prenom ?? '—'}
-          </span>
+          <BonnetierPhoto id={identite?.id ?? 0} nom={identite?.prenom ?? ''} size={40} />
         </button>
       </div>
       {children}
