@@ -192,8 +192,10 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
       {figures && (
         <span className="col-start-2 col-span-3 flex flex-nowrap gap-1.5 min-w-0 overflow-hidden">
           {alerte && r.pct_defaut > 0 && (
+            // Just the figure: red and a percentage is enough for a régleur to
+            // read « 2nd choix » — the label crowded the tile (2026-09-14).
             <Pastille rouge title="Poids de 2nd choix sur les derniers rouleaux de la référence">
-              {pct.format(r.pct_defaut)} 2nd choix
+              {pct.format(r.pct_defaut)}
             </Pastille>
           )}
           {r.arrets_piece.moyenne !== null && (
