@@ -233,7 +233,12 @@ All other screens are `PagePlaceholder`s for now. Legacy references for each dom
 - « Créer un OF » (`CreateOfDialog.tsx`, partagé avec Production › OF, sous `edit_of`)
   n'apparaît que si chaque fil de la composition a un lot coché ; « Ajouter un fil » sert à
   tricoter hors fiche **et** à servir une part depuis plusieurs lots (badge « hors réf »
-  neutre). `obs_ref_ecru` y est en lecture seule.
+  neutre). `obs_ref_ecru` y est en lecture seule. ⚠️ **Sur le miroir d'une sst ETM, un OF ne
+  tricote que des fils AFFECTÉS sur la ligne ETM** (LIVA #1159, décision du 2026-09-14) :
+  `lookups/composition` renvoie `affectation` (lot affecté = lot par défaut, « affecté » dans
+  le picker), le dialogue barre « Créer l'OF » avec un encart rouge nommant le fil manquant,
+  et l'API répond 409 `fil_non_affecte` (`POST /of-trm`, `PUT /of-trm/:id/composition`). Le
+  fil (réf + coloris) est imposé, pas le lot ; une commande TRM native n'est jamais bloquée.
 - `ligne_commande_client.prix` est un réel 4 octets : arrondir le bruit flottant à l'affichage.
 - Le PDF de confirmation est `CommandeClientPdf.tsx` d'ETM rendu avec `company: companyTrm`,
   disponible aussi sur les miroirs, pas de CGV, journal `envoi_email` `IDtype_doc = 7`.

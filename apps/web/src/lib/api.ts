@@ -23,8 +23,11 @@ export async function apiFetch<T = any>(
   if (!res.ok) {
     // Surface a machine-readable error so callers can distinguish
     // "not authenticated" (401) from generic failure.
-    const err: Error & { status?: number } = new Error(`API ${res.status}`)
+    const err: Error & { status?: number; body?: any } = new Error(`API ${res.status}`)
     err.status = res.status
+    // The JSON body when there is one — a 409 carries `error` + `message`
+    // (e.g. `fil_non_affecte` on OF launch) that the caller shows verbatim.
+    err.body = await res.json().catch(() => undefined)
     throw err
   }
   // Some endpoints (logout) return 204 No Content, which has no body.

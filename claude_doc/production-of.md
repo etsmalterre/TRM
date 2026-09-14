@@ -218,3 +218,18 @@ confirmation de suppression), CRUD `ETM/apps/api/src/routes/of-trm.ts`
   assumé du §41** : 6 des 10 OF en cours portent une consigne, dont quatre la même phrase
   type. À surveiller — voir §46.2 pour le décompte à rejouer.
 
+- **Le lancement d'OF exige l'affectation ETM du fil** (LIVA #1159, décision Vincent du
+  2026-09-14). Le widget « État des stocks de fil » d'ETM ne voyait pas la commande 9032 :
+  ses trois OF avaient été lancés ici avec le lot 10379 choisi dans le dialogue, sans que
+  Pierrot ait affecté le fil sur la commande sst — et 9 des 16 couples (ligne, fil) en cours
+  de tricotage ce jour-là étaient dans ce cas. Choisir le fil est **sa** décision, donc :
+  `GET /of-trm/lookups/composition` renvoie `affectation` (`suivi`, `sst_numero`, `lots`) et
+  trie les lots affectés en tête (`affecte`, lot par défaut, « affecté » en secondaire dans
+  le `LotPicker`) ; `CreateOfDialog` calcule `nonAffectes` sur les lignes du brouillon, affiche
+  l'encart rouge « Fil non affecté sur la commande ETM N°… » sous le tableau et désactive
+  « Créer l'OF » ; `POST /of-trm` et `PUT /of-trm/:id/composition` répondent 409
+  `fil_non_affecte` avec `message` (relayé tel quel dans le pied du dialogue — `apiFetch`
+  porte désormais le corps JSON sur `err.body`). Le **fil** (réf + coloris, coloris 0 =
+  joker) est imposé, pas le lot : changer de lot en cours d'OF reste le geste du régleur. Une
+  commande TRM native (sans `IDligne_commande_ETM`) n'est jamais bloquée. Règle et test :
+  `ETM/apps/api/src/lib/affectation-fil-trm.ts`.

@@ -45,6 +45,9 @@ export interface LotLookup {
   IDcolori_fil: number
   stock: number
   emplacement: string
+  /** Affected to the ETM sst line behind this commande (only set by the
+   *  composition lookup, LIVA #1159) — the row's default lot. */
+  affecte?: boolean
 }
 
 /** Client-side row ids for draft compositions. Module-level so the fiche and

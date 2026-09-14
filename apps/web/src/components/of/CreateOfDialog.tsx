@@ -116,11 +116,20 @@ interface RefObservation {
   cible_coloris: boolean
 }
 
+/** The ETM affectation behind the line (LIVA #1159). `suivi` false = a
+ *  TRM-native commande, no ETM sst behind it, nothing to check. */
+interface EtmAffectation {
+  suivi: boolean
+  sst_numero: number
+  lots: Array<{ IDstock_fil: number; IDref_fil: number; IDcolori_fil: number; lot: string; quantite: number }>
+}
+
 interface CompositionSeed {
   components: SeedComponent[]
   compatibles: Array<{ id: number; nom: string }>
   defaults: { poids_piece: number; ouvert_visiteuse: number; maille_ouverture: number; sonneter: number }
   total_pourcentage: number
+  affectation: EtmAffectation
 }
 
 function parseNum(v: string): number {
@@ -227,6 +236,7 @@ function LotPicker({
         return {
           id: l.id,
           primary: l.lot || `#${l.id}`,
+          secondary: l.affecte ? 'affecté' : undefined,
           description: pris > 0
             ? `${fmtNum(l.stock, 1)} Kg en stock\ndéjà ${fmtNum(pris, 1)} Kg pris par une autre ligne`
             : `${fmtNum(l.stock, 1)} Kg en stock`,
@@ -569,6 +579,23 @@ export function CreateOfDialog({
     return presetLotIds.filter((id) => !usable.has(id)).length
   }, [seed, presetLotIds])
 
+  // Fils of the draft with no affectation on the ETM sst line (LIVA #1159):
+  // the API refuses the OF, so say it here, on the rows, before the click.
+  // A composition row without coloris (older refs) accepts any coloris of
+  // the fil — the same rule as the API's.
+  const nonAffectes = useMemo(() => {
+    const aff = seed?.affectation
+    if (!aff?.suivi) return []
+    const out: string[] = []
+    for (const c of comp) {
+      const ok = aff.lots.some((l) => l.IDref_fil === c.IDref_fil && (c.IDcolori_fil === 0 || l.IDcolori_fil === c.IDcolori_fil))
+      if (ok) continue
+      const label = c.coloris_label ? `${c.ref_label} ${c.coloris_label}` : c.ref_label
+      if (!out.includes(label)) out.push(label)
+    }
+    return out
+  }, [seed, comp])
+
   const createMut = useMutation({
     mutationFn: async () => {
       const body = {
@@ -597,14 +624,18 @@ export function CreateOfDialog({
       return apiFetch<{ id: number }>('/of-trm', { method: 'POST', body: JSON.stringify(body) })
     },
     onSuccess: (r) => onCreated(r.id),
-    onError: () => setError('Création refusée — vérifiez la ligne de commande et la composition.'),
+    onError: (err: Error & { status?: number; body?: { error?: string; message?: string } }) => {
+      setError(err.status === 409 && err.body?.message
+        ? err.body.message
+        : 'Création refusée — vérifiez la ligne de commande et la composition.')
+    },
   })
 
   const totalPct = comp.reduce((s, c) => s + parseNum(c.pourcentage), 0)
   // Every row must carry a share: the API rejects 0, and a row at 0 % would
   // consume nothing anyway.
   const compValid = comp.length > 0 && comp.every((c) => parseNum(c.pourcentage) > 0)
-  const canCreate = effectiveLigneId > 0 && machineId > 0 && qte > 0 && compValid
+  const canCreate = effectiveLigneId > 0 && machineId > 0 && qte > 0 && compValid && nonAffectes.length === 0
 
   const options: Array<{ label: string; checked: boolean; set: (v: boolean) => void }> = [
     { label: 'Finir le fil', checked: finirFil, set: setFinirFil },
@@ -866,6 +897,16 @@ export function CreateOfDialog({
                     {ignoredLots} lot{ignoredLots > 1 ? 's' : ''} sélectionné{ignoredLots > 1 ? 's' : ''} n'entre{ignoredLots > 1 ? 'nt' : ''} pas dans cette composition et {ignoredLots > 1 ? 'sont ignorés' : 'est ignoré'}.
                   </p>
                 )}
+                {nonAffectes.length > 0 && seed?.affectation && (
+                  <div className="mt-2 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-[11px]">
+                    <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 text-destructive mt-px" />
+                    <p className="min-w-0">
+                      <span className="font-semibold text-destructive">Fil non affecté sur la commande ETM N°{seed.affectation.sst_numero}</span>
+                      {' : '}{nonAffectes.join(', ')}.
+                      {' '}Affectez-le dans ETM (Sous-traitants › Commandes, onglet Stock fil) avant de lancer l'OF.
+                    </p>
+                  </div>
+                )}
               </Section>
 
               {/* "Incorporer un fil" — the legacy's second table: extra lots
@@ -1033,7 +1074,9 @@ export function CreateOfDialog({
             <Button
               disabled={!canCreate || createMut.isPending}
               onClick={() => createMut.mutate()}
-              title={!canCreate ? 'Choisissez un métier et une quantité' : undefined}
+              title={!canCreate
+                ? (nonAffectes.length > 0 ? 'Fil non affecté sur la commande ETM' : 'Choisissez un métier et une quantité')
+                : undefined}
             >
               {createMut.isPending
                 ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
