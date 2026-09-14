@@ -26,7 +26,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, AlertCircle, ChevronRight, Wrench, Pause, Play } from 'lucide-react'
-import { fetchMachines, progression, type Machine } from '@/lib/atelier-api'
+import { fetchMachines, type Machine } from '@/lib/atelier-api'
 import { PosteHeader } from '@/components/layout/PosteHeader'
 import { Segment } from '@/components/atelier/Segment'
 import { useIdentite } from '@/contexts/BonnetierContext'
@@ -168,18 +168,15 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
         {m.label}
       </span>
 
-      <span className="flex-1 min-w-0">
+      <span className="flex-1 min-w-0 self-center">
         {of ? (
           <>
-            <span className="block text-sm font-medium truncate">
-              {of.reference}
-              {of.coloris ? <span className="text-muted-foreground"> · {of.coloris}</span> : null}
-            </span>
-            <span className="block text-xs text-muted-foreground mt-0.5 tabular-nums">
-              OF {of.IDordre_fabrication} · {progression(of)}
-            </span>
+            {/* The one thing a régleur reads at a glance: how far the OF is.
+                The reference, coloris and OF number live on the poste screen
+                one tap away (decision 2026-09-14). */}
+            <Avancement of={of} />
             {r && (alerte || r.arrets_piece.moyenne !== null) && (
-              <span className="flex flex-wrap gap-1.5 mt-1.5">
+              <span className="flex flex-wrap gap-1.5 mt-2">
                 {alerte && r.pct_defaut > 0 && (
                   <Pastille rouge>{pct.format(r.pct_defaut)} de 2nd choix</Pastille>
                 )}
@@ -204,6 +201,38 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
       )}
       <ChevronRight className="h-6 w-6 text-muted-foreground flex-shrink-0" />
     </button>
+  )
+}
+
+/** The OF's progress as a bar: pieces done over pieces ordered. Deep blue while
+ *  running, success green once the order is reached (§29 pill colours — amber
+ *  is reserved for warnings). On a « finir le fil » OF the target is an
+ *  estimate that the count routinely passes, so the bar caps at 100 % and the
+ *  tilde stays on the number: `3 / ~5`. */
+function Avancement({ of }: { of: { produites: number; nb_pieces: number; finir_fil: boolean } }) {
+  const cible = Math.max(of.nb_pieces, 0)
+  const ratio = cible > 0 ? Math.min(of.produites / cible, 1) : 0
+  const atteint = cible > 0 && of.produites >= cible
+  return (
+    <span className="flex items-center gap-2.5">
+      <span
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={cible}
+        aria-valuenow={Math.min(of.produites, cible)}
+        aria-label={`${of.produites} pièces sur ${of.finir_fil ? 'environ ' : ''}${cible}`}
+        className="flex-1 min-w-0 h-2 rounded-full bg-secondary overflow-hidden"
+      >
+        <span
+          className={cn('block h-full rounded-full transition-[width]', atteint && !of.finir_fil ? 'bg-success' : 'bg-primary')}
+          style={{ width: `${Math.round(ratio * 100)}%` }}
+        />
+      </span>
+      <span className="flex-shrink-0 text-sm tabular-nums leading-none">
+        <span className="font-semibold text-foreground">{of.produites}</span>
+        <span className="text-muted-foreground"> / {of.finir_fil ? '~' : ''}{cible}</span>
+      </span>
+    </span>
   )
 }
 
