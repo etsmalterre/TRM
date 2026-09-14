@@ -144,13 +144,18 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
   const of = m.of
   const r = m.regleur
   const alerte = !!r?.alerte
+  // The régleur figures get a row of their own, running under the glyph and
+  // the chevron: on a 360 px phone the middle column alone is ~140 px, not
+  // enough for the two pills side by side — and the defect pill must always
+  // sit left of the stops pill, never wrap under it (2026-09-14).
+  const figures = !!of && !!r && (alerte || r.arrets_piece.moyenne !== null)
   return (
     <button
       type="button"
       onClick={onOpen}
       className={cn(
         'w-full text-left rounded-xl border bg-card shadow-sm p-3.5',
-        'flex items-center gap-3 active:bg-muted transition-colors',
+        'grid grid-cols-[auto_1fr_auto_auto] items-center gap-x-3 gap-y-2 active:bg-muted transition-colors',
         of ? 'border-border' : 'border-border/60',
         // §41: the frame colour is reserved for "needs my attention now" —
         // and on the régleur list that is exactly what the legacy alert means.
@@ -158,48 +163,49 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
       )}
     >
       {/* The métier code is the biggest thing on the tile: it is what the
-          bonnetier matches against the machine in front of them. */}
+          bonnetier matches against the machine in front of them. It spans
+          both rows so it stays centred on the whole tile. */}
       <span
         className={cn(
-          'text-4xl font-heading font-bold tracking-tight tabular-nums w-[4.5rem] flex-shrink-0',
+          'text-4xl font-heading font-bold tracking-tight tabular-nums w-16',
           of ? 'text-foreground' : 'text-muted-foreground',
+          figures && 'row-span-2',
         )}
       >
         {m.label}
       </span>
 
-      <span className="flex-1 min-w-0 self-center">
+      <span className="min-w-0">
         {of ? (
-          <>
-            {/* The one thing a régleur reads at a glance: how far the OF is.
-                The reference, coloris and OF number live on the poste screen
-                one tap away (decision 2026-09-14). */}
-            <Avancement of={of} />
-            {r && (alerte || r.arrets_piece.moyenne !== null) && (
-              <span className="flex flex-wrap gap-1.5 mt-2">
-                {alerte && r.pct_defaut > 0 && (
-                  <Pastille rouge>{pct.format(r.pct_defaut)} de 2nd choix</Pastille>
-                )}
-                {r.arrets_piece.moyenne !== null && (
-                  <Pastille
-                    rouge={alerte && r.arrets_piece.moyenne > SEUIL_ARRETS_PIECE}
-                    title={`Arrêts anormaux par pièce, en moyenne sur les ${r.arrets_piece.pieces} dernières pièces terminées de l'OF — le chiffre de la tablette TRS`}
-                  >
-                    {arrets.format(r.arrets_piece.moyenne)} arrêt{r.arrets_piece.moyenne >= 2 ? 's' : ''} / pièce
-                  </Pastille>
-                )}
-              </span>
-            )}
-          </>
+          // The one thing a régleur reads at a glance: how far the OF is.
+          // The reference, coloris and OF number live on the poste screen
+          // one tap away (decision 2026-09-14).
+          <Avancement of={of} />
         ) : (
           <span className="block text-sm text-muted-foreground italic">Aucun OF en cours</span>
         )}
       </span>
 
-      {r && (
-        <EtatGlyphe etat={r.etat} />
+      {r ? <EtatGlyphe etat={r.etat} /> : <span />}
+      <ChevronRight className="h-6 w-6 text-muted-foreground" />
+
+      {figures && (
+        <span className="col-start-2 col-span-3 flex flex-nowrap gap-1.5 min-w-0 overflow-hidden">
+          {alerte && r.pct_defaut > 0 && (
+            <Pastille rouge title="Poids de 2nd choix sur les derniers rouleaux de la référence">
+              {pct.format(r.pct_defaut)} 2nd choix
+            </Pastille>
+          )}
+          {r.arrets_piece.moyenne !== null && (
+            <Pastille
+              rouge={alerte && r.arrets_piece.moyenne > SEUIL_ARRETS_PIECE}
+              title={`Arrêts anormaux par pièce, en moyenne sur les ${r.arrets_piece.pieces} dernières pièces terminées de l'OF — le chiffre de la tablette TRS`}
+            >
+              {arrets.format(r.arrets_piece.moyenne)} arrêt{r.arrets_piece.moyenne >= 2 ? 's' : ''} / pièce
+            </Pastille>
+          )}
+        </span>
       )}
-      <ChevronRight className="h-6 w-6 text-muted-foreground flex-shrink-0" />
     </button>
   )
 }
@@ -252,7 +258,7 @@ function Pastille({ rouge, title, children }: { rouge?: boolean; title?: string;
     <span
       title={title}
       className={cn(
-        'inline-flex items-center rounded-full px-2 h-6 text-xs font-medium tabular-nums border',
+        'inline-flex items-center rounded-full px-2 h-6 text-xs font-medium tabular-nums border whitespace-nowrap flex-shrink-0',
         rouge
           ? 'bg-destructive/10 text-destructive border-destructive/30'
           : 'bg-secondary text-muted-foreground border-border/60',
