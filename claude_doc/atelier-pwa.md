@@ -79,9 +79,11 @@ Les règles du legacy, verbatim dans l'en-tête de `lib/atelier-regleur-trm.ts` 
   (référence, coloris) — tous OF, tous métiers — `TOP 100`, arrêt au rouleau qui passe 1 000 kg.
 - **Alerte** = `% > 2 % ou arrêts/pièce > 1` (le palier ambre de la tablette,
   `SEUIL_ARRETS_PIECE`) ; le % est **remis à 0** sans alerte, comme la tuile legacy — donc
-  un 1,2 % ne s'affiche que sous une cloche allumée par les arrêts, jamais seul. Le chiffre
-  d'arrêts n'est jamais remis à 0 (pastille neutre, rouge sous alerte). C'est l'état
-  d'attention §41 de la liste (liseré rouge).
+  un 1,2 % ne s'affiche que sous une cloche allumée par les arrêts, jamais seul — et
+  **jamais sous 1 %** (`SEUIL_PCT_DEFAUT`, 2026-09-14). Le chiffre d'arrêts n'est jamais
+  remis à 0 et **sa pastille porte la couleur de la tablette** (≤ 1 vert · ≤ 3 ambre · > 3
+  rouge, `lib/teinte-arrets.ts`, test de parité qui importe `apps/trs/src/lib/affichage.ts`
+  — décision 2026-09-14). C'est l'état d'attention §41 de la liste (liseré rouge).
 - Le calcul n'est fait que sur `?regleur=1` : le lecteur arrêts/pièce (cache par OF, une
   lecture `piece_production` par appel) + un `TOP 100` par couple + une lecture
   `ref_ecru_machine` ; la liste bonnetier ne paie rien.

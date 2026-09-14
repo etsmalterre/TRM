@@ -31,6 +31,7 @@ import { PosteHeader } from '@/components/layout/PosteHeader'
 import { Segment } from '@/components/atelier/Segment'
 import { useIdentite } from '@/contexts/BonnetierContext'
 import { cn } from '@/lib/utils'
+import { teinteArrets, type TeinteArrets } from '@/lib/teinte-arrets'
 
 export function ChoixMetier() {
   const navigate = useNavigate()
@@ -135,10 +136,10 @@ const ETATS = {
 const pct = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 1 })
 const arrets = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 })
 
-/** The bell lights above this many unexplained stops per piece — the TRS
- *  tablet's amber step, and the API's `SEUIL_ARRETS_PIECE` (the server decides
- *  `alerte`; this only picks which pastille to paint red). */
-const SEUIL_ARRETS_PIECE = 1
+/** The 2nd-choice pill only earns its place from 1 %: below that the figure
+ *  rounds to « 0 % » or « 0,5 % » and tells the régleur nothing the bell has
+ *  not already said (2026-09-14). The API zeroes it without an alert anyway. */
+const SEUIL_PCT_DEFAUT = 0.01
 
 function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
   const of = m.of
@@ -191,7 +192,7 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
 
       {figures && (
         <span className="col-start-2 col-span-3 flex flex-nowrap gap-1.5 min-w-0 overflow-hidden">
-          {alerte && r.pct_defaut > 0 && (
+          {alerte && r.pct_defaut >= SEUIL_PCT_DEFAUT && (
             // Just the figure: red and a percentage is enough for a régleur to
             // read « 2nd choix » — the label crowded the tile (2026-09-14).
             <Pastille rouge title="Poids de 2nd choix sur les derniers rouleaux de la référence">
@@ -199,8 +200,10 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
             </Pastille>
           )}
           {r.arrets_piece.moyenne !== null && (
+            // Same colour as the tablet's pill for the same figure — the
+            // ladder lives in lib/teinte-arrets.ts, tested against the TRS source.
             <Pastille
-              rouge={alerte && r.arrets_piece.moyenne > SEUIL_ARRETS_PIECE}
+              teinte={teinteArrets(r.arrets_piece.moyenne)}
               title={`Arrêts anormaux par pièce, en moyenne sur les ${r.arrets_piece.pieces} dernières pièces terminées de l'OF — le chiffre de la tablette TRS`}
             >
               {arrets.format(r.arrets_piece.moyenne)} arrêt{r.arrets_piece.moyenne >= 2 ? 's' : ''} / pièce
@@ -255,15 +258,36 @@ function EtatGlyphe({ etat }: { etat: keyof typeof ETATS }) {
 
 /** A régleur figure on the tile: red when it is the reason for the alert,
  *  plain otherwise (the legacy shows the stop figure on every tile). */
-function Pastille({ rouge, title, children }: { rouge?: boolean; title?: string; children: React.ReactNode }) {
+/** Soft tints of the tablet's status colours (it paints them solid; the
+ *  phone's pills are tinted like the rest of the app). `rouge` is the plain
+ *  alert pill; `teinte` is the three-step ladder. */
+const TEINTE_PASTILLE: Record<TeinteArrets, string> = {
+  vert: 'bg-emerald-500/15 text-emerald-800 border-emerald-500/30',
+  ambre: 'bg-amber-500/15 text-amber-800 border-amber-500/30',
+  rouge: 'bg-destructive/10 text-destructive border-destructive/30',
+}
+
+function Pastille({
+  rouge,
+  teinte,
+  title,
+  children,
+}: {
+  rouge?: boolean
+  teinte?: TeinteArrets
+  title?: string
+  children: React.ReactNode
+}) {
   return (
     <span
       title={title}
       className={cn(
         'inline-flex items-center rounded-full px-2 h-6 text-xs font-medium tabular-nums border whitespace-nowrap flex-shrink-0',
-        rouge
-          ? 'bg-destructive/10 text-destructive border-destructive/30'
-          : 'bg-secondary text-muted-foreground border-border/60',
+        teinte
+          ? TEINTE_PASTILLE[teinte]
+          : rouge
+            ? TEINTE_PASTILLE.rouge
+            : 'bg-secondary text-muted-foreground border-border/60',
       )}
     >
       {children}
