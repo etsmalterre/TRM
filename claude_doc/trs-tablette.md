@@ -19,6 +19,10 @@ le dépôt TRS, la vitrine vit ici.
   testé dans `lib/trs-trm.ts` (18 tests). Sonde `scripts/probe-trs-trm.ts`
   (`TRS_API_URL=…`, lecture seule — **à rejouer sur la prod après `/etm_deploy`**, c'est
   le seul exercice du chemin Linux). La tablette interroge toutes les 10 s.
+- **Le lecteur « arrêts / pièce » est `lib/arrets-par-piece-trm.ts`** (sorti de
+  `routes/trs.ts` le 2026-09-14, cache par (OF, ids des dernières pièces) compris) : la
+  liste régleur de la PWA atelier lit le même module pour sa cloche, donc le mur et le
+  téléphone montrent le même chiffre. Toute évolution de la lecture se fait là, une fois.
 - **La formule est celle de `FI_TRS`** (procédure `MAJAffichageAtelier`), fournie par
   l'utilisateur le 2026-08-28 — la fenêtre de la tablette est PCS-compressée et son
   `TRSEquipeEnCours` irrécupérable. Par métier, sur **l'équipe en cours** (5–13 / 13–21 /

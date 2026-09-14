@@ -61,18 +61,30 @@ Ce que le build régleur ajoute, et ce qui en est porté :
 
 Les règles du legacy, verbatim dans l'en-tête de `lib/atelier-regleur-trm.ts` :
 - **État** : pas de `demarrage_prod` → réglage ; `arret_prod` valide → pause ; sinon marche.
-- **Fréquence d'arrêt** = arrêts **inexpliqués** par heure : `(arrêts evenement_machine etat=0
-  − événements Nettoyage/Fin du tricotage de l'OF) × 60 / minutes`, sur 24 h ou depuis le
-  début de l'OF, borné à 0. ⚠️ Sur l'instantané de mars la table `evenement_machine` est
-  quasi vide (7 arrêts/jour pour 296 événements pièce) : la fréquence y vaut toujours 0.
-  `probe-atelier-regleur-trm.ts --depuis AAAA-MM-JJ` rejoue les deux SELECT à une date choisie ;
-  à comparer aux tuiles de l'app Android sur la prod.
+- **Le chiffre de la cloche n'est PAS la fréquence horaire du legacy — c'est le chiffre
+  de la tablette TRS** (décision du 2026-09-14) : moyenne des arrêts **anormaux par pièce**
+  sur les 3 dernières pièces terminées de l'OF, `arretsParPiece()` de `lib/trs-trm.ts`, lu
+  par **`lib/arrets-par-piece-trm.ts`** (un seul lecteur + cache par OF, partagé avec
+  `routes/trs.ts`). ⚠️ **Le legacy est bogué** : `FrequenceArret` divise 24 h d'arrêts par
+  `DateHeureDifférence(dhDateRef, DateSys)` — `DateSys` est une DATE, l'intervalle court
+  jusqu'à **minuit d'aujourd'hui** alors que les comptes vont jusqu'à maintenant. À 17 h 37
+  la cloche est gonflée ×3,8 (les 4 / 4 / 2 / 3 / 6 de la photo du 14/09 se reproduisent
+  tous ainsi), en soirée elle explose, un OF lancé le jour même n'a jamais de cloche. La
+  fréquence horaire honnête vaut « 1 » partout et ne dit rien au régleur ; le « ≈ 4 par
+  rouleau » qu'il a appris à lire est précisément le chiffre du mur. Ne pas réintroduire
+  la formule horaire. `probe-atelier-regleur-trm.ts` (sur la prod, `node --env-file=.env
+  --import tsx …`) imprime le chiffre de la tuile ET la cloche legacy bug compris, pour
+  comparer à un téléphone Android encore en service.
 - **% 2nd choix** = poids 2nd choix / poids total sur les rouleaux récents du couple
   (référence, coloris) — tous OF, tous métiers — `TOP 100`, arrêt au rouleau qui passe 1 000 kg.
-- **Alerte** = `% > 2 % ou fréquence > 1` ; le % est **remis à 0** sans alerte, comme la tuile
-  legacy. C'est l'état d'attention §41 de la liste (liseré rouge), rare par construction.
-- Le calcul n'est fait que sur `?regleur=1` : deux balayages 24 h + un `TOP 100` par couple +
-  une lecture `ref_ecru_machine` ; la liste bonnetier ne paie rien.
+- **Alerte** = `% > 2 % ou arrêts/pièce > 1` (le palier ambre de la tablette,
+  `SEUIL_ARRETS_PIECE`) ; le % est **remis à 0** sans alerte, comme la tuile legacy — donc
+  un 1,2 % ne s'affiche que sous une cloche allumée par les arrêts, jamais seul. Le chiffre
+  d'arrêts n'est jamais remis à 0 (pastille neutre, rouge sous alerte). C'est l'état
+  d'attention §41 de la liste (liseré rouge).
+- Le calcul n'est fait que sur `?regleur=1` : le lecteur arrêts/pièce (cache par OF, une
+  lecture `piece_production` par appel) + un `TOP 100` par couple + une lecture
+  `ref_ecru_machine` ; la liste bonnetier ne paie rien.
 
 Écarts assumés de la fiche de réglage : la référence précédente est lue sur
 `ordre_fabrication.IDref_ecru` (le legacy passe par la ligne de commande), `arret_prod <> ''`

@@ -133,6 +133,12 @@ const ETATS = {
 } as const
 
 const pct = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 1 })
+const arrets = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 })
+
+/** The bell lights above this many unexplained stops per piece — the TRS
+ *  tablet's amber step, and the API's `SEUIL_ARRETS_PIECE` (the server decides
+ *  `alerte`; this only picks which pastille to paint red). */
+const SEUIL_ARRETS_PIECE = 1
 
 function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
   const of = m.of
@@ -172,14 +178,17 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
             <span className="block text-xs text-muted-foreground mt-0.5 tabular-nums">
               OF {of.IDordre_fabrication} · {progression(of)}
             </span>
-            {r && (alerte || r.freq_arret > 0) && (
+            {r && (alerte || r.arrets_piece.moyenne !== null) && (
               <span className="flex flex-wrap gap-1.5 mt-1.5">
                 {alerte && r.pct_defaut > 0 && (
                   <Pastille rouge>{pct.format(r.pct_defaut)} de 2nd choix</Pastille>
                 )}
-                {r.freq_arret > 0 && (
-                  <Pastille rouge={alerte && r.freq_arret > 1}>
-                    {r.freq_arret} arrêt{r.freq_arret > 1 ? 's' : ''}/h
+                {r.arrets_piece.moyenne !== null && (
+                  <Pastille
+                    rouge={alerte && r.arrets_piece.moyenne > SEUIL_ARRETS_PIECE}
+                    title={`Arrêts anormaux par pièce, en moyenne sur les ${r.arrets_piece.pieces} dernières pièces terminées de l'OF — le chiffre de la tablette TRS`}
+                  >
+                    {arrets.format(r.arrets_piece.moyenne)} arrêt{r.arrets_piece.moyenne >= 2 ? 's' : ''} / pièce
                   </Pastille>
                 )}
               </span>
@@ -208,10 +217,11 @@ function EtatGlyphe({ etat }: { etat: keyof typeof ETATS }) {
 }
 
 /** A régleur figure on the tile: red when it is the reason for the alert,
- *  plain otherwise (the legacy shows the stop frequency on every tile). */
-function Pastille({ rouge, children }: { rouge?: boolean; children: React.ReactNode }) {
+ *  plain otherwise (the legacy shows the stop figure on every tile). */
+function Pastille({ rouge, title, children }: { rouge?: boolean; title?: string; children: React.ReactNode }) {
   return (
     <span
+      title={title}
       className={cn(
         'inline-flex items-center rounded-full px-2 h-6 text-xs font-medium tabular-nums border',
         rouge

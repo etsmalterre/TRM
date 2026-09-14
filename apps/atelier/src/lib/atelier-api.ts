@@ -32,8 +32,10 @@ export interface MachineRegleur {
   alerte: boolean
   /** Second-choice weight ratio over the recent rolls of the article (0–1). */
   pct_defaut: number
-  /** Unexplained stops per hour over the last 24 h (or since the OF started). */
-  freq_arret: number
+  /** The TRS tablet's number: mean unexplained stops per piece over the last
+   *  3 finished pieces of the OF (`moyenne` null until there is one). Never
+   *  zeroed — only its colour follows `alerte`. */
+  arrets_piece: { moyenne: number | null; pieces: number }
   /** A `ref_ecru_machine` sheet exists for this reference on this métier —
    *  the legacy refuses to open the réglage screen otherwise. */
   eligible: boolean

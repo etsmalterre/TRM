@@ -127,7 +127,10 @@ sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   bascule « dev · voir la grille régleur » de l'Accueil **jusqu'à la couche de sécurité**
   — ⚠️ **livré en prod depuis le 2026-09-14** (plus compilé hors prod), à retirer le jour de
   l'enrôlement ; l'API vérifie `bonnetier.regleur = 1`. Historique non porté. Dossier
-  § « Le côté régleur ».
+  § « Le côté régleur ». ⚠️ **La cloche de la liste n'est pas la fréquence horaire du
+  legacy** (`FrequenceArret` divise par l'intervalle jusqu'à **minuit** — `DateSys` —, ×3,8
+  à 17 h) : depuis le 2026-09-14 c'est l'« arrêts / pièce » de la tablette TRS, lecteur
+  partagé `lib/arrets-par-piece-trm.ts`, alerte au-dessus de 1. Ne pas réintroduire.
 
 ## TRS — la tablette murale de l'atelier (`apps/trs`)
 
@@ -146,7 +149,9 @@ tuile, barèmes, ⓘ, bandeau, logo, `--u`).
 - ⚠️ **Le plan est tourné de 180°** à l'écran (1A en haut à droite) et la rotation vit dans
   `plan.ts`, jamais en CSS. **1B est un emplacement vide.**
 - ⚠️ La pastille « arrêts / pièce » n'est **pas** le compte d'équipe : moyenne sur les 3
-  dernières pièces terminées de l'OF actif, cachée par (OF, ids). Trois barèmes sont des
+  dernières pièces terminées de l'OF actif, cachée par (OF, ids) — lecteur
+  `lib/arrets-par-piece-trm.ts` (API), **partagé avec la cloche de la liste régleur de la
+  PWA depuis le 2026-09-14** : le mur et le téléphone montrent le même chiffre. Trois barèmes sont des
   approximations (`lib/affichage.ts`, dossier §4.3) ; les seuils 1 min / 5 min ne
   s'harmonisent pas.
 - ⚠️ **Aucun chiffre du dialogue ⓘ n'est un littéral** : `lib/regles.ts`, dont le test
