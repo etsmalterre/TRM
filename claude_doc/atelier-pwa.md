@@ -154,6 +154,14 @@ appareil.
   en dessous — 6ᵉ bonnetier, lien régleur — n'était atteignable (2026-09-14). Corrigé, et
   la grille est calibrée pour **six visages + le lien sans défiler** à cette taille
   (logo `h-12`, photo 96 px, `gap-y-3`).
+- **La barre poste (`PosteHeader.tsx`, décisions du 2026-09-14)** : à gauche le « M »
+  Malterre (`public/logo-m.png`, le badge or des emails `malterre_email_report` **détouré**
+  de sa tuile, précaché dans `includeAssets`), jamais une lettre typographique ; **pas de
+  séparateurs** entre les cellules ; **les deux cellules font 64 px** pour que le titre soit
+  centré sur l'écran ; à droite **le visage seul** (40 px, sans prénom — le nom reste dans
+  l'`aria-label` et la feuille « Quitter votre poste »). ⚠️ **Rien ne parle de pointage** :
+  le legacy imprimait « Pointage » + la date dans la feuille de sortie, retiré parce que le
+  pointage a sa propre tablette dédiée.
 - **Dev** : `cd apps/atelier && VITE_API_URL=http://localhost:808N/api pnpm exec vite --port 5176`
   (5176 est déjà dans le `CORS_ORIGIN` de l'API ; 5175 reste à l'ERP). `host: true` est
   activé pour qu'un vrai téléphone du parc puisse taper le serveur de dev sur le LAN.
