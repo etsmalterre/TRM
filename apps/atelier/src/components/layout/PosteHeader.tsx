@@ -48,12 +48,12 @@ export function PosteHeader({
             type="button"
             onClick={onBack}
             title="Retour"
-            className="w-16 flex-shrink-0 flex items-center justify-center border-r border-white/15 active:bg-white/10 transition-colors"
+            className="w-16 flex-shrink-0 flex items-center justify-center active:bg-white/10 transition-colors"
           >
             <ArrowLeft className="h-7 w-7" />
           </button>
         ) : (
-          <div className="w-16 flex-shrink-0 flex items-center justify-center border-r border-white/15">
+          <div className="w-16 flex-shrink-0 flex items-center justify-center">
             {/* The Malterre « M » — the email header's gold badge
                 (malterre_email_report) with its tile keyed out, so the white
                 calligraphic mark sits straight on the navy like the wordmark
@@ -73,7 +73,7 @@ export function PosteHeader({
           disabled={!identite}
           className={cn(
             'w-20 flex-shrink-0 flex flex-col items-center justify-center gap-0.5',
-            'border-l border-white/15 active:bg-white/10 transition-colors disabled:opacity-40',
+            'active:bg-white/10 transition-colors disabled:opacity-40',
           )}
         >
           <BonnetierPhoto id={identite?.id ?? 0} nom={identite?.prenom ?? ''} size={36} />
