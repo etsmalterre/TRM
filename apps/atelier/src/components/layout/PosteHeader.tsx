@@ -102,7 +102,9 @@ export function PosteHeader({
 }
 
 // Leaving your post is confirmed, as in the legacy (« Confirmez-vous vouloir
-// quitter votre poste » + « Pointage » + the date).
+// quitter votre poste »). The legacy also printed « Pointage » + the date
+// here; dropped on 2026-09-14 — pointage has its own dedicated tablet, and
+// nothing in this app clocks anyone in or out.
 //
 // Purpose-built rather than the ERP's ConfirmDialog (§33): that component is a
 // desk-sized centred dialog with `h-9` buttons, and this is a phone held in a
@@ -118,10 +120,6 @@ function QuitterSheet({
   onCancel: () => void
   onConfirm: () => void
 }) {
-  const maintenant = new Date().toLocaleString('fr-FR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  })
   return (
     <div
       className="fixed inset-0 z-50 bg-black/60 flex items-end"
@@ -134,9 +132,7 @@ function QuitterSheet({
       >
         <div>
           <h2 className="text-xl font-heading font-bold tracking-tight">Quitter votre poste ?</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            {prenom} · Pointage {maintenant}
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">{prenom}</p>
         </div>
         <div className="space-y-2">
           <button
