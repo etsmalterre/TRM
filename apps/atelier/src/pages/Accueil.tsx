@@ -18,13 +18,17 @@ import { cn } from '@/lib/utils'
 
 export function Accueil() {
   const { choisir } = useIdentite()
-  // ⚠️ TEMPORARY, dev-only. The régleur grid must NOT be reachable from a
-  // bonnetier's phone — that is the one real security constraint of this
-  // project (dossier §1, §3.3), and the rule is meant to be expressed by the
-  // grid simply not offering those faces. Until device enrolment exists there
-  // is no way to tell the two phones apart, so this switch stands in for it
-  // and is compiled out of production builds. Delete it the day enrolment
-  // lands; do NOT let it ship as a user-facing toggle.
+  // ⚠️ TEMPORARY. The régleur grid must NOT be reachable from a bonnetier's
+  // phone — that is the one real security constraint of this project (dossier
+  // §1, §3.3), and the rule is meant to be expressed by the grid simply not
+  // offering those faces. Until device enrolment exists there is no way to
+  // tell the two phones apart, so this switch stands in for it. It was
+  // compiled out of production builds until 2026-09-14, when Vincent asked to
+  // see the régleur screens on the prod host while they are being built: it
+  // now ships, deliberately discreet, and is harmless only as long as the API
+  // keeps the rule (`bonnetier.regleur = 1` on every régleur write, plus the
+  // `saisie_atelier` right nobody holds yet). Delete it the day enrolment
+  // lands; it is not meant to survive as a user-facing toggle.
   const [role, setRole] = useState<'bonnetier' | 'regleur'>('bonnetier')
   const regleur = role === 'regleur'
 
@@ -91,17 +95,15 @@ export function Accueil() {
         )}
       </main>
 
-      {import.meta.env.DEV && (
-        <div className="flex-shrink-0 px-5 pb-8 text-center">
-          <button
-            type="button"
-            onClick={() => setRole(regleur ? 'bonnetier' : 'regleur')}
-            className="text-xs text-white/50 underline underline-offset-4"
-          >
-            dev · voir la grille {regleur ? 'bonnetier' : 'régleur'}
-          </button>
-        </div>
-      )}
+      <div className="flex-shrink-0 px-5 pb-8 text-center">
+        <button
+          type="button"
+          onClick={() => setRole(regleur ? 'bonnetier' : 'regleur')}
+          className="text-xs text-white/50 underline underline-offset-4"
+        >
+          dev · voir la grille {regleur ? 'bonnetier' : 'régleur'}
+        </button>
+      </div>
     </div>
   )
 }

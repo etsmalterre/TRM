@@ -28,9 +28,14 @@ Poste, **saisie comprise**. Les huit actions du legacy s'enregistrent (`POST
 ## Le côté régleur (2026-09-08)
 
 **Décision du 2026-09-08 : le côté régleur se développe avec le bascule dev de l'Accueil
-(« dev · voir la grille régleur », compilé hors prod) ; la couche de sécurité (enrôlement
+(« dev · voir la grille régleur ») ; la couche de sécurité (enrôlement
 d'appareil, charge du cookie avec `deviceId`, refus des comptes privilégiés au login) se
-construit au moment de déployer.** Le rôle vient donc de `identite.regleur` (auto-déclaré),
+construit au moment de déployer.** ⚠️ **Depuis le 2026-09-14 le bascule est LIVRÉ en prod**
+(il était compilé hors prod, `import.meta.env.DEV`) : Vincent veut voir les écrans régleur
+sur `atelier.intra.etsmalterre.com` pendant qu'ils se construisent. Il reste discret (lien
+gris sous la grille) et sans danger tant que l'API tient la règle ci-dessous et que
+`saisie_atelier` n'est accordé à personne — **à retirer le jour où l'enrôlement arrive**,
+jamais à promouvoir en réglage utilisateur. Le rôle vient donc de `identite.regleur` (auto-déclaré),
 et **c'est l'API qui tient la règle** : chaque écriture régleur vérifie `bonnetier.regleur = 1`
 sur l'`IDbonnetier` nommé, en plus du droit `saisie_atelier` du cookie.
 
