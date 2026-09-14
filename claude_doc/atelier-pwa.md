@@ -148,6 +148,12 @@ appareil.
 - **L'identité bonnetier n'est PAS une authentification** : grille de visages +
   `localStorage`, exactement le modèle de confiance du legacy (`SauveParamètre`) et du poste
   de visitage (§45.4). Le garde-fou réel viendra de l'enrôlement d'appareil côté régleur.
+- ⚠️ **`#root` est verrouillé à `100dvh` + `overflow: hidden` (`index.css`) : chaque écran
+  porte SON conteneur de défilement** (`flex-1 min-h-0 overflow-y-auto`). L'Accueil ne
+  l'avait pas : sur le téléphone de Nicolas (≈ 360×720) le 5ᵉ visage était coupé et rien
+  en dessous — 6ᵉ bonnetier, lien régleur — n'était atteignable (2026-09-14). Corrigé, et
+  la grille est calibrée pour **six visages + le lien sans défiler** à cette taille
+  (logo `h-12`, photo 96 px, `gap-y-3`).
 - **Dev** : `cd apps/atelier && VITE_API_URL=http://localhost:808N/api pnpm exec vite --port 5176`
   (5176 est déjà dans le `CORS_ORIGIN` de l'API ; 5175 reste à l'ERP). `host: true` est
   activé pour qu'un vrai téléphone du parc puisse taper le serveur de dev sur le LAN.

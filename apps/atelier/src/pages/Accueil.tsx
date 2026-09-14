@@ -38,20 +38,27 @@ export function Accueil() {
   })
 
   return (
-    <div className="min-h-full bg-gradient-brand text-white flex flex-col">
-      <div style={{ height: 'env(safe-area-inset-top)' }} />
+    // `h-full overflow-y-auto`, not `min-h-full`: #root is locked to 100dvh
+    // and hides its overflow (index.css), so this screen must own its scroll
+    // like every other one. Without it the grid was simply clipped — on a
+    // 360×720 phone the fifth face was half visible and nothing below it
+    // (a sixth bonnetier, the dev link) could ever be tapped (2026-09-14).
+    <div className="h-full overflow-y-auto scrollbar-transparent bg-gradient-brand text-white flex flex-col">
+      <div className="flex-shrink-0" style={{ height: 'env(safe-area-inset-top)' }} />
 
       {/* The Malterre wordmark, and nothing else. No title, no instruction:
           the faces ARE the instruction, and on the one screen with no machine
           context the brand is the only thing worth saying. The white-on-
           transparent PNG is the group mark (shared with ETM — it is Malterre's,
           not one app's), so it sits straight on the navy.
-          `alt` carries the page's accessible name now that no heading does. */}
-      <header className="pt-12 pb-10 px-6 flex justify-center flex-shrink-0">
-        <img src="/logo-full.png" alt="Malterre" className="h-16 w-auto" />
+          `alt` carries the page's accessible name now that no heading does.
+          Kept compact: the budget is six faces (three rows) plus the link
+          below them, all visible at once on a 360×720 phone. */}
+      <header className="pt-6 pb-5 px-6 flex justify-center flex-shrink-0">
+        <img src="/logo-full.png" alt="Malterre" className="h-12 w-auto" />
       </header>
 
-      <main className="flex-1 px-5 pb-10">
+      <main className="flex-1 px-5 pb-4">
         {isLoading && (
           <div className="flex justify-center pt-10">
             <Loader2 className="h-8 w-8 animate-spin text-gold" />
@@ -76,7 +83,7 @@ export function Accueil() {
         )}
 
         {data && data.length > 0 && (
-          <ul className="grid grid-cols-2 gap-x-4 gap-y-6 max-w-md mx-auto">
+          <ul className="grid grid-cols-2 gap-x-4 gap-y-3 max-w-md mx-auto">
             {data.map((b) => (
               <FaceTile
                 key={b.IDbonnetier}
@@ -95,7 +102,7 @@ export function Accueil() {
         )}
       </main>
 
-      <div className="flex-shrink-0 px-5 pb-8 text-center">
+      <div className="flex-shrink-0 px-5 pb-6 text-center">
         <button
           type="button"
           onClick={() => setRole(regleur ? 'bonnetier' : 'regleur')}
@@ -115,13 +122,16 @@ function FaceTile({ b, onPick }: { b: Bonnetier; onPick: () => void }) {
         type="button"
         onClick={onPick}
         className={cn(
-          'w-full flex flex-col items-center gap-2 rounded-2xl p-3',
+          'w-full flex flex-col items-center gap-1.5 rounded-2xl px-3 py-2',
           'active:bg-white/10 transition-colors',
         )}
       >
-        {/* 104px: a gloved fingertip is ~20mm, and the face has to be
-            recognisable at arm's length under workshop lighting. */}
-        <BonnetierPhoto id={b.IDbonnetier} nom={`${b.prenom} ${b.nom}`} size={104} />
+        {/* 96px (~17mm on a 360px-wide phone): a gloved fingertip is ~20mm
+            and the whole tile is the target, and the face has to be
+            recognisable at arm's length under workshop lighting. Was 104
+            until 2026-09-14; the 8px were what kept the third row off a
+            720px-tall screen. */}
+        <BonnetierPhoto id={b.IDbonnetier} nom={`${b.prenom} ${b.nom}`} size={96} />
         <span className="text-lg font-semibold leading-tight text-center">{b.prenom}</span>
       </button>
     </li>
