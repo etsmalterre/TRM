@@ -33,7 +33,7 @@ export default defineConfig({
       // anything that must be offline lists itself here. logo-full.png is the
       // first thing the picker paints — without it a cold launch on a dropped
       // connection shows a broken image where the brand should be.
-      includeAssets: ['favicon.svg', 'icons/*.png', 'logo-full.png'],
+      includeAssets: ['favicon.svg', 'icons/*.png', 'logo-full.png', 'logo-m.png'],
       injectManifest: {
         // `png` deliberately omitted — icons are precached via includeAssets,
         // and this keeps a future large asset out of the precache size cap.

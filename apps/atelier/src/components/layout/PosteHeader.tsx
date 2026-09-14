@@ -54,8 +54,10 @@ export function PosteHeader({
           </button>
         ) : (
           <div className="w-16 flex-shrink-0 flex items-center justify-center border-r border-white/15">
-            {/* Same mark as the ERP sidebar's collapsed logo (§3). */}
-            <span className="text-gold font-heading font-bold text-3xl leading-none">M</span>
+            {/* The Malterre « M » badge — the same asset as the email header's
+                gold badge (malterre_email_report), so every Malterre surface
+                wears the one mark. Precached with the other brand assets. */}
+            <img src="/logo-m.png" alt="Malterre" className="h-10 w-10 rounded-lg" />
           </div>
         )}
 
