@@ -4,6 +4,7 @@ import { RouterProvider } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { router } from './router'
 import { BonnetierProvider, useIdentite } from './contexts/BonnetierContext'
+import { POLL_MS } from './lib/rafraichissement'
 import { Accueil } from './pages/Accueil'
 import './index.css'
 
@@ -18,9 +19,18 @@ if (import.meta.env.DEV && worktreeLabel) {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Shorter than the ERP's five minutes: this app shows the state of
-      // machines that change under the operator while they hold the phone.
-      staleTime: 1000 * 30,
+      // Every screen shows the state of machines that change under the
+      // operator while they hold the phone, and under OTHER hands too (the
+      // ERP, a régleur's phone, the poste next door). So the app polls: every
+      // mounted query re-reads the server on POLL_MS, and again the moment
+      // the phone comes back to the foreground or the network returns. The
+      // few queries that must not poll (window content, the faces grid) say
+      // so themselves with `refetchInterval: false`.
+      staleTime: POLL_MS,
+      refetchInterval: POLL_MS,
+      refetchIntervalInBackground: false,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
       retry: 1,
     },
   },

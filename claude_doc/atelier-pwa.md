@@ -25,6 +25,45 @@ Poste, **saisie comprise**. Les huit actions du legacy s'enregistrent (`POST
   Fils OF, Information (la checklist de nettoyage, littéraux récupérés verbatim).
 - L'hôte de prod (nginx sur `10.10.20.4` + entrée Caddy sur `10.10.20.5`).
 
+## Rafraîchissement — les téléphones convergent en 10 s (2026-09-15)
+
+Décision de Vincent du 2026-09-15 : une action faite ailleurs (l'ERP termine un OF, un
+régleur lance le suivant depuis son téléphone, un bonnetier enregistre une fin de pièce
+sur le poste d'à côté) doit apparaître sur tous les téléphones « plus ou moins
+instantanément ». Jusque-là l'app ne relisait qu'au retour au premier plan, derrière des
+`staleTime` de 15 à 30 s : deux téléphones pouvaient montrer deux vérités pendant une
+demi-minute.
+
+- **Une seule constante, `POLL_MS = 10 s`** (`apps/atelier/src/lib/rafraichissement.ts`),
+  posée en **défaut du `QueryClient`** (`main.tsx`) : `refetchInterval`, `staleTime`,
+  `refetchOnWindowFocus`, `refetchOnReconnect`, et `refetchIntervalInBackground: false`.
+  C'est le `POLL_MS` de la tablette TRS : l'enregistreur réécrit l'état toutes les ~10 s,
+  rien n'est plus frais. **Aucun écran ne porte de `staleTime` propre** — un écran qui en
+  remettrait un plus long recouvrirait le poll au retour au premier plan.
+- Seules les requêtes **montées** interrogent, et **jamais en arrière-plan** (écran éteint,
+  app derrière une autre) : un téléphone sur le poste coûte deux lectures bornées toutes
+  les 10 s, un téléphone dans une poche ne coûte rien ; au réveil, une relecture immédiate.
+  ⚠️ La liste `?regleur=1` est la plus chère (deux balayages 24 h + `TOP 100` par couple
+  réf/coloris, cache par OF côté API) — si le nombre de régleurs monte, c'est elle à
+  surveiller.
+- **Deux requêtes disent explicitement `refetchInterval: false`** : les lookups de défauts
+  (`SaisieBand`, contenu de fenêtre, `staleTime: Infinity`) et la grille de visages de
+  l'Accueil (`staleTime` 5 min) — un téléphone laissé sur la grille toute la journée ne
+  doit pas taxer l'API pour une liste qui ne bouge jamais.
+- **Deux gardes contre le poll qui arrive sous les doigts** :
+  - `EditeurConsigne` (Consigne) ne réarme le champ sur une nouvelle valeur serveur que
+    si le brouillon est **intact** (`initialePrecedente` ref) ; un brouillon touché reste,
+    et se lit « modifié » contre le texte plus récent.
+  - `SaisieBand` laisse tomber une action choisie que l'OF rafraîchi **ne propose plus**
+    (et ferme la feuille de confirmation) avec la raison en ligne, plutôt que de l'envoyer
+    pour que le serveur la refuse. `actions` est mémoïsé sur l'objet OF, que React Query
+    garde stable tant que la charge utile ne change pas : la garde ne tire que sur un vrai
+    changement.
+- Le Poste résout son OF **par la liste des métiers** : quand l'ERP termine l'OF et active
+  le suivant, l'`ofId` change au poll suivant et l'écran bascule seul sur le nouvel OF.
+- Non fait : l'ERP (`apps/web`) reste à 5 min de `staleTime` ; Production › OF et Visitage
+  ne voient une saisie téléphone qu'au focus ou après leur propre écriture.
+
 ## Le côté régleur (2026-09-08)
 
 **Décision du 2026-09-08 : le côté régleur se développe avec le bascule dev de l'Accueil

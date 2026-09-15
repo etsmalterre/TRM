@@ -44,7 +44,6 @@ export function ReglageMachine() {
   const machinesQ = useQuery({
     queryKey: ['atelier', 'machines', regleur],
     queryFn: () => fetchMachines(regleur),
-    staleTime: 30_000,
   })
   const machine = machinesQ.data?.find((m) => m.IDmachine === idMachine)
   const ofId = machine?.of?.IDordre_fabrication ?? 0
@@ -53,7 +52,6 @@ export function ReglageMachine() {
     queryKey: ['atelier', 'reglage', ofId],
     queryFn: () => fetchReglage(ofId),
     enabled: ofId > 0,
-    staleTime: 15_000,
   })
   const sheet = sheetQ.data
 

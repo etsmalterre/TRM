@@ -44,7 +44,6 @@ export function Poste() {
   const machinesQ = useQuery({
     queryKey: ['atelier', 'machines', regleur],
     queryFn: () => fetchMachines(regleur),
-    staleTime: 30_000,
   })
 
   const machine = machinesQ.data?.find((m) => m.IDmachine === idMachine)
@@ -54,8 +53,6 @@ export function Poste() {
     queryKey: ['atelier', 'of', ofId],
     queryFn: () => fetchOf(ofId),
     enabled: ofId > 0,
-    staleTime: 15_000,
-    refetchOnWindowFocus: true,
   })
 
   const of = ofQ.data

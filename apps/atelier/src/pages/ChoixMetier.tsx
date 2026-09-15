@@ -45,10 +45,9 @@ export function ChoixMetier() {
     queryKey: ['atelier', 'machines', regleur],
     queryFn: () => fetchMachines(regleur),
     // The floor changes under the operator's feet — an OF gets terminé, the
-    // next one activates. Short and refetched on focus, so coming back to the
-    // list after a commit shows the truth.
-    staleTime: 30_000,
-    refetchOnWindowFocus: true,
+    // next one activates. Polled and refetched on focus by the QueryClient
+    // defaults (lib/rafraichissement.ts), so the list is never more than
+    // POLL_MS behind another phone or the ERP.
   })
 
   const { actives, inactives } = useMemo(() => {

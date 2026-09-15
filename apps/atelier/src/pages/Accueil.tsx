@@ -35,6 +35,11 @@ export function Accueil() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['atelier', 'bonnetiers', regleur],
     queryFn: () => fetchBonnetiers(regleur),
+    // The faces grid is not workshop state: a new bonnetier is a rare ERP
+    // event, and the phone re-reads it on focus anyway. Polling it would
+    // only tax the API from every idle phone left on the gate.
+    refetchInterval: false,
+    staleTime: 5 * 60_000,
   })
 
   return (

@@ -24,7 +24,7 @@
 // The legacy's confirmation ("Voulez-vous vraiment enregistrer" + métier +
 // action) is kept: these actions are consequential, several are effectively
 // irreversible from the phone today, and the bonnetiers already expect it.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Loader2, AlertTriangle } from 'lucide-react'
 import {
@@ -62,7 +62,25 @@ export function SaisieBand({
     queryFn: fetchLookupsDefauts,
     // Legacy window content — it does not change between deploys.
     staleTime: Infinity,
+    refetchInterval: false,
   })
+
+  // The OF is polled (lib/rafraichissement.ts), so the offered actions can
+  // change under a choice: another phone recorded the fin de pièce, the ERP
+  // terminated the OF, the next one activated. A choice the fresh OF no longer
+  // offers is dropped — and the confirmation sheet with it — with the reason
+  // inline, rather than sent for the server to refuse. `actions` is memoised
+  // on the OF object and React Query keeps that object stable while the
+  // payload is unchanged, so this only fires on a real change.
+  useEffect(() => {
+    if (choisie && !actions.includes(choisie)) {
+      setChoisie(null)
+      setTypeDefaut(null)
+      setTaille(null)
+      setConfirmer(false)
+      setErreur("L'OF a évolué depuis un autre poste : l'action choisie n'est plus proposée.")
+    }
+  }, [actions, choisie])
 
   const uniteDuType = useMemo(() => {
     if (!typeDefaut) return null

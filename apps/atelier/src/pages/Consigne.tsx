@@ -18,7 +18,7 @@
 //
 // Messages are what a bonnetier leaves for the next shift on this OF. The
 // server, not the button, decides whose message can be deleted.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, AlertCircle, AlertTriangle, Send, Trash2, Save, Check } from 'lucide-react'
@@ -54,7 +54,6 @@ export function Consigne() {
   const machinesQ = useQuery({
     queryKey: ['atelier', 'machines', regleur],
     queryFn: () => fetchMachines(regleur),
-    staleTime: 30_000,
   })
   const machine = machinesQ.data?.find((m) => m.IDmachine === idMachine)
   const ofId = machine?.of?.IDordre_fabrication ?? 0
@@ -63,14 +62,11 @@ export function Consigne() {
     queryKey: ['atelier', 'of', ofId],
     queryFn: () => fetchOf(ofId),
     enabled: ofId > 0,
-    staleTime: 15_000,
   })
   const messagesQ = useQuery({
     queryKey: ['atelier', 'messages', ofId],
     queryFn: () => fetchMessages(ofId),
     enabled: ofId > 0,
-    staleTime: 10_000,
-    refetchOnWindowFocus: true,
   })
   const of = ofQ.data
 
@@ -170,9 +166,15 @@ function EditeurConsigne({ ofId, initiale, IDbonnetier }: { ofId: number; initia
   const [texte, setTexte] = useState(initiale)
   const [erreur, setErreur] = useState<string | null>(null)
   const [enregistre, setEnregistre] = useState(false)
-  // Re-arm on a fresh OF read (another phone may have written it meanwhile).
+  // Re-arm on a fresh OF read (another phone may have written it meanwhile)
+  // — but only while the field is untouched. The OF is polled every POLL_MS
+  // now, so a re-arm that ignored the draft would wipe a half-typed consigne
+  // the moment another régleur saved theirs. A touched draft stays; it then
+  // reads as « modifié » against the newer server text, which is the truth.
+  const initialePrecedente = useRef(initiale)
   useEffect(() => {
-    setTexte(initiale)
+    setTexte((courant) => (courant === initialePrecedente.current ? initiale : courant))
+    initialePrecedente.current = initiale
   }, [initiale])
 
   const mut = useMutation({

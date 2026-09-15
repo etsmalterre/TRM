@@ -116,6 +116,11 @@ sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   et **la liste des actions est recalculée au serveur** : `apps/atelier/src/lib/actions.ts`
   et `routes/atelier.ts` se changent ensemble, l'API faisant foi.
 - ⚠️ Le libellé d'un métier est `machine.emplacement`, l'**inverse** d'Atelier › Maintenance.
+- **Les téléphones se synchronisent par poll** (2026-09-15) : `POLL_MS = 10 s` dans
+  `lib/rafraichissement.ts`, posé en défaut du `QueryClient` (jamais en arrière-plan,
+  relecture au retour au premier plan). ⚠️ **Aucun `staleTime` propre sur un écran** — il
+  recouvrirait le poll ; une requête qui ne doit pas interroger dit `refetchInterval: false`.
+  Dossier § « Rafraîchissement ».
 - ⚠️ `signUserId()` rend la même chaîne pour toujours (cookie copiable) ; à traiter avant
   qu'un compte régleur existe. `atelier.intra.etsmalterre.com` a son propre bocal à cookies.
 - Le legacy Android n'est pas PCS-compressé : `C:\Mes Projets\MPS\Android\dbg\Compile\`
