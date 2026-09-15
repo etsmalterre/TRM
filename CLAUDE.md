@@ -225,7 +225,10 @@ boutons. **Quatrième app**, port dev **5178**, hôte prévu `pointage.intra.ets
 - ⚠️ **Les boutons viennent du serveur** (`lib/pointage-etat.ts`) et **un seul module écrit**
   (`lib/pointage-ecritures.ts` : `lst_horaire` → `lst_pointage` par `debut` → `mps.pointage`).
 - ⚠️ **Cookie `mps_pointeuse`**, appareil de type `pointeuse` émis dans Paramètres ›
-  Utilisateurs › Appareils ; 5178 doit être dans le `CORS_ORIGIN` de dev.
+  Utilisateurs › Appareils ; 5178 doit être dans le `CORS_ORIGIN` de dev. **Pas d'enrôlement
+  en dev local** (API hors production + base locale, `lib/pointage-dev.ts`).
+- Fidèle au legacy (code donné par Vincent) : table d'accueil « En poste » = lignes ouvertes ;
+  « Semaine N » = la semaine **précédente**, « Cumul » = Σ lissage − Σ prev − Σ info, « HH:MM ».
 
 ## Production / deploy
 
