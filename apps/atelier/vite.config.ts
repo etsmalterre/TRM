@@ -53,7 +53,16 @@ export default defineConfig({
         description: "Poste bonnetier et régleur — atelier de tricotage Tricotage Malterre",
         theme_color: '#143D6B',
         background_color: '#143D6B',
-        display: 'standalone',
+        // `fullscreen`, not `standalone`: the phone's status bar (clock, signal,
+        // battery) is noise at a machine and ate a strip of a small screen
+        // (user, 2026-09-15). Android hides it and the gesture bar in the
+        // installed app; a swipe from the edge brings them back. Browsers that
+        // do not support it fall back to `standalone` on their own. The navy
+        // header still owns `safe-area-inset-top` (viewport-fit=cover), which
+        // is the camera cutout once the status bar is gone.
+        // ⚠️ An installed phone picks a manifest change up only when Chrome
+        // refreshes its WebAPK (can take a day) — reinstall to get it now.
+        display: 'fullscreen',
         orientation: 'portrait',
         start_url: '/',
         icons: [

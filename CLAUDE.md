@@ -147,6 +147,10 @@ depuis un téléphone enrôlé. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   (`injectRegister: null`), vérifie toutes les 60 s, recharge sur `controllerchange` une
   fois les écritures en vol terminées. ⚠️ Le premier déploiement qui le porte demande un
   rechargement manuel des téléphones. Dossier § « Rafraîchissement ».
+- **Plein écran** (`display: 'fullscreen'`, 2026-09-15) : pas de barre d'état du téléphone.
+  ⚠️ Un changement de manifeste n'atteint un téléphone installé qu'au rafraîchissement de sa
+  WebAPK (jusqu'à un jour) — réinstaller. Rien en `fixed` par-dessus la liste : la version
+  vit dans un `<footer>` blanc de la colonne flex.
 - `atelier.intra.etsmalterre.com` a son propre bocal à cookies ; le cookie du téléphone est
   `Secure` en prod seulement (`appareilCookieOptions`), pour qu'un téléphone du LAN puisse
   taper un serveur de dev en HTTP.

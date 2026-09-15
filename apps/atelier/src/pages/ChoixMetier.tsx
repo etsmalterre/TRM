@@ -131,23 +131,21 @@ export function ChoixMetier() {
         {liste.map((m) => (
           <MetierTile key={m.IDmachine} m={m} regleur={regleur} onOpen={() => ouvrir(m)} />
         ))}
-
-        {/* The safe-area inset as trailing padding, so the last tile clears the
-            gesture bar instead of sitting under it. */}
-        <div style={{ height: 'env(safe-area-inset-bottom)' }} />
       </main>
 
-      {/* The build's version, pinned to the bottom-right corner and kept out of
-          the way: 10px, muted, `pointer-events-none` so a thumb reaching for the
-          last tile never lands on it, and lifted above the gesture bar. It sits
-          inside the list's own `p-3` bottom padding, so at the end of the scroll
-          it clears the last tile. */}
-      <p
-        className="fixed right-2 text-[10px] leading-none text-muted-foreground/70 tabular-nums pointer-events-none select-none"
-        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 2px)' }}
+      {/* The build's version, on a thin white strip of its own under the list.
+          It used to float over the bottom-right corner and sat on top of the
+          tiles as they scrolled by (user, 2026-09-15): a strip in the flex
+          column never covers content. It also owns the bottom safe-area
+          inset, so the list no longer needs its own trailing spacer. */}
+      <footer
+        className="flex-shrink-0 flex justify-end px-3 pt-1 bg-card border-t border-border select-none"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.25rem)' }}
       >
-        Version {__APP_VERSION__}
-      </p>
+        <span className="text-[10px] leading-none text-muted-foreground tabular-nums">
+          Version {__APP_VERSION__}
+        </span>
+      </footer>
     </div>
   )
 }

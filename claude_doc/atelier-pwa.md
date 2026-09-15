@@ -369,9 +369,16 @@ dans son propre cookie. Conception : plan §3.2–3.4 ; décision de Vincent du 
 - **Version propre** (`apps/atelier/package.json`, démarrée à 0.0.1), **pas** celle de la
   racine comme `apps/web` : les deux bundles se déploient indépendamment. **Affichée depuis
   le 2026-09-15** (demande de Vincent), discrètement, « Version X » comme le menu profil de
-  l'ERP : sous la ligne du téléphone de l'Accueil, et épinglée en bas à droite de l'écran
-  Métiers (`pointer-events-none`, dans le `p-3` de la liste). Rendue, elle est désormais
+  l'ERP : sous la ligne du téléphone de l'Accueil, et sur une **fine barre blanche** en pied
+  de l'écran Métiers (un `<footer>` de la colonne flex, qui porte aussi
+  `safe-area-inset-bottom`) — ⚠️ plus jamais en `fixed` : épinglée par-dessus la liste,
+  elle recouvrait les tuiles (retour de Vincent, 2026-09-15). Rendue, elle est désormais
   vérifiée dans le bundle servi par `deploy-web.mjs`.
+- **Plein écran** (`display: 'fullscreen'` dans le manifeste, 2026-09-15) : la barre d'état
+  du téléphone (heure, réseau, batterie) est masquée dans l'app installée, un glissement
+  depuis le bord la ramène. ⚠️ Un téléphone déjà installé ne voit le changement qu'au
+  rafraîchissement de sa WebAPK par Chrome (jusqu'à un jour) — **réinstaller** pour
+  l'avoir tout de suite. Le bandeau navy garde `safe-area-inset-top` (l'encoche caméra).
 - **Service worker `injectManifest`** (`src/sw.ts`), pas le `generateSW` d'`apps/web` :
   c'est le seul endroit où un handler `push` peut vivre, et basculer après coup toucherait
   le chemin de mise à jour déjà corrigé une fois (`lib/sw-refresh.ts`). Éteint en dev.
