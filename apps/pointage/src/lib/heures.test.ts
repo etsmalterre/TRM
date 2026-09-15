@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { debutStatut, duree, heure, jourCourt, jourLong, phraseStatut } from './heures'
+import { debutStatut, duree, heure, heuresMinutes, jourCourt, jourLong, phraseStatut } from './heures'
 import type { Ligne } from './pointage-api'
 
 const at = (h: number, m: number) => Date.UTC(2026, 8, 15, h - 2, m) // Paris = UTC+2 in September
@@ -30,6 +30,16 @@ describe('duree', () => {
     expect(duree(1)).toBe('1 h')
     expect(duree(1.5)).toBe('1 h 30')
     expect(duree(0.75)).toBe('45 min')
+  })
+})
+
+describe('heuresMinutes', () => {
+  it('writes minutes the MinToFormat way: HH:MM, negatives signed', () => {
+    expect(heuresMinutes(2175)).toBe('36:15')
+    expect(heuresMinutes(0)).toBe('00:00')
+    expect(heuresMinutes(-150)).toBe('-02:30')
+    expect(heuresMinutes(-15)).toBe('-00:15')
+    expect(heuresMinutes(6030)).toBe('100:30')
   })
 })
 

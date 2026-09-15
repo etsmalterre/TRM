@@ -76,9 +76,16 @@ prod, `--replace` pour reconstruire). Détails pilote : `ETM/claude_doc/hfsql_od
   Erreurs en texte sous les boutons (`lib/erreurs.ts`).
 - Poll 10 s, mise à jour du bundle seule (`lib/mise-a-jour.ts`, copie de l'atelier), SW
   `injectManifest`. Pas de vibration (tablette).
-- **Non affiché** : le « Cumul » du legacy à côté de « Semaine N » — solde d'heures annualisé
-  (`lst_lissage.cumul_semaine`, `lst_prev.prev`, `lst_info_sal_annee.info`) dont la formule
-  n'a pas survécu au bytecode. Question posée à Vincent.
+- **« Semaine N : » et « Cumul »** (SAI_Semaine / SAI_Cumul ; code de la fenêtre et des trois
+  requêtes donnés par Vincent le 2026-09-15, `soldeHeures` dans `lib/pointage.ts`) :
+  - ⚠️ **la semaine est la PRÉCÉDENTE** : `NuméroDeSemaine(DateSys()) - 1`, dans l'**année
+    civile** du jour (`semaineDeReference`, testé) ; masqués en semaine 1 et quand
+    `lst_lissage` n'a pas de ligne (salarié, année, semaine, non supprimée) ;
+  - « Semaine N : » = `lst_lissage.cumul_semaine` de cette semaine (minutes travaillées) ;
+  - « Cumul » = Σ `cumul_semaine` (semaines ≤ N) − Σ `lst_prev.prev` (semaines ≤ N) −
+    Σ `lst_info_sal_annee.info` (l'année), tout `is_deleted = 0`, en minutes ;
+  - format = `MinToFormat` du legacy (`heuresMinutes`) : « HH:MM », heures sur deux
+    chiffres au moins, négatif « -HH:MM » (« 36:15 », « -02:30 »).
 
 ## Deltas assumés vis-à-vis du legacy
 

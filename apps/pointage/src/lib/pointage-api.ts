@@ -62,7 +62,9 @@ export interface EtatSalarie {
   posteNonFerme: Ligne | null
   actions: ActionOfferte[]
   messages: { id: number; texte: string }[]
-  semaine: { annee: number; numero: number }
+  /** Legacy « Semaine N : » (last week, worked minutes) and « Cumul » (annual
+   *  balance in minutes); null = hidden, as the legacy does. */
+  semaine: { annee: number; numero: number; semaineMin: number; cumulMin: number } | null
   /** Hours of « temps hors prod » today; null = nothing recorded yet. */
   horsProd: number | null
   maintenantMs: number

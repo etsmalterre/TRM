@@ -44,6 +44,16 @@ export function duree(h: number): string {
   return mm ? `${hh} h ${String(mm).padStart(2, '0')}` : `${hh} h`
 }
 
+/** Minutes as the legacy MinToFormat (COL_ProcéduresGlobales) writes them:
+ *  « HH:MM », hours padded to two digits (never cut past two), negatives
+ *  « -HH:MM » — « 36:15 », « -02:30 », « 00:00 ». */
+export function heuresMinutes(min: number): string {
+  const total = Math.round(min)
+  const a = Math.abs(total)
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  return `${total < 0 ? '-' : ''}${p2(Math.floor(a / 60))}:${p2(a % 60)}`
+}
+
 /** When the current status began: the start of the running pause, or the
  *  latest return to work (arrival or end of a pause). */
 export function debutStatut(statut: Statut, ligne: Ligne | null): number | null {
