@@ -69,7 +69,7 @@ never the cause of this banner.
 
 2. **Run the spin-up script** (hosted in ETM) from the TRM main checkout:
    ```bash
-   node C:/dev/etsmalterre/ETM/scripts/worktree/up.mjs <feature-name> [--api <port>]
+   node C:/dev/etsmalterre/ETM/scripts/worktree/up.mjs <feature-name> --terminal [--api <port>]
    ```
    Run from the TRM checkout, it defaults to a TRM worktree: fetches origin, allocates
    a free TRM slot, creates the worktree off `origin/master`, `pnpm install`, writes
@@ -85,10 +85,18 @@ never the cause of this banner.
    If it says the MPS API isn't reachable, start it (see the Prerequisite section) — the
    TRM web will show the « Impossible de charger la liste » banner until then.
 
-4. **Report to the user** the worktree path, the web URL (`http://localhost:517N`), and the
-   slot number. Tell them to **open a new Claude Code session in the worktree directory** to
-   do the screen work — that session has `/feature-checkpoint` (sync) and `/feature-complete`
-   (land) available.
+4. **Report to the user** the worktree path, the web URL (`http://localhost:517N`), the
+   slot number, and which terminal now carries the feature (the script's `wt-slot:` line).
+   That session has `/feature-checkpoint` (sync) and `/feature-complete` (land) available.
+
+   **The session opens by itself.** `--terminal` hands the worktree to one of the six
+   Windows Terminal windows of the 2x3 grid whose title is exactly « free »: that window is
+   replaced on the same spot by one titled after the feature, running the context launcher
+   (`yolo-ets` under `C:devetsmalterre`, `yolo-liva` under `C:devliva`) in the
+   worktree. When Claude exits there, the window turns back into a « free » one. The
+   mechanics live in `C:devclaude_configinwt-slot.ps1` (`list` / `claim` / `free` /
+   `layout`). No « free » window (all six busy, or the grid not open) → the script says so
+   and the user opens the session by hand; a « busy » title means someone is typing there.
 
 ## Feature needs shared-API changes? → paired NG worktree
 
