@@ -29,6 +29,11 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.ts',
       registerType: 'autoUpdate',
+      // No injected `registerSW.js`: src/lib/mise-a-jour.ts registers the
+      // worker itself, because the injected script registers and then does
+      // nothing — no update check, no reload — and an installed PWA that is
+      // never closed would keep the old bundle for a day after a deploy.
+      injectRegister: null,
       // `png` is deliberately out of injectManifest.globPatterns below, so
       // anything that must be offline lists itself here. logo-full.png is the
       // first thing the picker paints — without it a cold launch on a dropped

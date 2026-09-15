@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { router } from './router'
 import { BonnetierProvider, useIdentite } from './contexts/BonnetierContext'
 import { POLL_MS } from './lib/rafraichissement'
+import { installerMiseAJour } from './lib/mise-a-jour'
 import { Accueil } from './pages/Accueil'
 import './index.css'
 
@@ -35,6 +36,10 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// A deploy reaches the phones on its own: register the worker, check for a
+// newer build every minute, reload once it has taken over (lib/mise-a-jour.ts).
+installerMiseAJour(queryClient)
 
 /** §45.4 — identification is a gate, not a field. Nothing in the app renders
  *  until someone has said who they are, so no screen can produce work

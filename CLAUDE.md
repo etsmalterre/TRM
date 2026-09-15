@@ -120,7 +120,10 @@ sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   `lib/rafraichissement.ts`, posé en défaut du `QueryClient` (jamais en arrière-plan,
   relecture au retour au premier plan). ⚠️ **Aucun `staleTime` propre sur un écran** — il
   recouvrirait le poll ; une requête qui ne doit pas interroger dit `refetchInterval: false`.
-  Dossier § « Rafraîchissement ».
+  **Et un déploiement arrive seul** : `lib/mise-a-jour.ts` enregistre `/sw.js` lui-même
+  (`injectRegister: null`), vérifie toutes les 60 s, recharge sur `controllerchange` une
+  fois les écritures en vol terminées. ⚠️ Le premier déploiement qui le porte demande un
+  rechargement manuel des téléphones. Dossier § « Rafraîchissement ».
 - ⚠️ `signUserId()` rend la même chaîne pour toujours (cookie copiable) ; à traiter avant
   qu'un compte régleur existe. `atelier.intra.etsmalterre.com` a son propre bocal à cookies.
 - Le legacy Android n'est pas PCS-compressé : `C:\Mes Projets\MPS\Android\dbg\Compile\`

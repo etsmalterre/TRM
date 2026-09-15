@@ -64,6 +64,40 @@ demi-minute.
 - Non fait : l'ERP (`apps/web`) reste à 5 min de `staleTime` ; Production › OF et Visitage
   ne voient une saisie téléphone qu'au focus ou après leur propre écriture.
 
+### Un déploiement arrive seul sur les téléphones (`lib/mise-a-jour.ts`, 2026-09-15)
+
+Le second volet de la même décision : « quand je pousse une mise à jour, le téléphone se
+met à jour tout seul ». Jusque-là le script injecté par vite-plugin-pwa (`registerSW.js`)
+enregistrait le worker **et rien d'autre** : aucune vérification (le navigateur ne
+vérifie qu'à une navigation ou toutes les 24 h, et une PWA installée jamais fermée ne
+navigue pas), et quand le nouveau worker finissait par s'installer et prendre la page
+(`skipWaiting` + `clientsClaim` dans `sw.ts`), la page continuait à faire tourner
+**l'ancien bundle**. Un déploiement pouvait rester invisible un jour entier.
+
+- `injectRegister: null` dans `vite.config.ts` ; `installerMiseAJour(queryClient)` dans
+  `main.tsx` enregistre `/sw.js` lui-même, appelle `registration.update()` toutes les
+  **`CHECK_MS = 60 s`** et à chaque retour au premier plan, et **recharge la page sur
+  `controllerchange`** — c'est-à-dire une fois que le nouveau worker contrôle la page,
+  donc que la navigation sera servie par son `index.html` précaché et ses assets hachés
+  (la même leçon que `sw-refresh.ts` d'`apps/web` : recharger avant, c'est resservir
+  l'ancien build).
+- ⚠️ **Le rechargement attend qu'aucune écriture ne soit en vol** (`qc.isMutating()`,
+  abonnement au `MutationCache`) : recharger au milieu d'une « Fin de pièce » abandonne
+  la requête côté téléphone alors que le serveur peut la commettre. Ce qui n'est pas
+  enregistré (brouillon de consigne, action choisie non confirmée) est perdu ; l'identité
+  survit (localStorage), le téléphone revient sur le même poste.
+- Le tout premier `controllerchange` (page sans contrôleur au démarrage = première
+  installation, pas une mise à jour) ne recharge pas. Rien ne tourne en dev
+  (`import.meta.env.PROD`, `devOptions.enabled: false`).
+- nginx sert `sw.js` en `no-store` (vérifié sur la prod le 2026-09-15) et le navigateur
+  contourne de toute façon le cache HTTP pour le script du worker.
+- ⚠️ **Le premier déploiement qui porte ce mécanisme ne s'installe pas seul** : les
+  téléphones en service tournent encore l'ancienne inscription, sans vérification. Une
+  fois — recharger chaque téléphone à la main (ou attendre le contrôle des 24 h). Tous
+  les déploiements suivants arrivent seuls en ≤ 1 min + un rechargement.
+- La tablette TRS (`apps/trs`) a exactement le même trou (script injecté, jamais fermée)
+  et n'est pas traitée ici.
+
 ## Le côté régleur (2026-09-08)
 
 **Décision du 2026-09-08 : le côté régleur se développe avec le bascule dev de l'Accueil
