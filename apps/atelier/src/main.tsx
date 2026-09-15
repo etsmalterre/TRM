@@ -68,7 +68,7 @@ function IdentiteGate({ children }: { children: React.ReactNode }) {
 function Attente() {
   return (
     <div className="h-full bg-gradient-brand text-white flex flex-col">
-      <div className="flex-shrink-0" style={{ height: 'env(safe-area-inset-top)' }} />
+      <div className="safe-top" />
       <header className="pt-6 pb-5 px-6 flex justify-center flex-shrink-0">
         <img src="/logo-full.png" alt="Malterre" className="h-12 w-auto" />
       </header>

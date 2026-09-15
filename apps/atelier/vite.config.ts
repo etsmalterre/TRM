@@ -57,9 +57,10 @@ export default defineConfig({
         // battery) is noise at a machine and ate a strip of a small screen
         // (user, 2026-09-15). Android hides it and the gesture bar in the
         // installed app; a swipe from the edge brings them back. Browsers that
-        // do not support it fall back to `standalone` on their own. The navy
-        // header still owns `safe-area-inset-top` (viewport-fit=cover), which
-        // is the camera cutout once the status bar is gone.
+        // do not support it fall back to `standalone` on their own. The header
+        // spacer (`.safe-top`, index.css) is zeroed in `display-mode:
+        // fullscreen`: Chrome keeps reporting the hidden bar's height as
+        // safe-area-inset-top, which drew an empty navy strip (2026-09-15).
         // ⚠️ An installed phone picks a manifest change up only when Chrome
         // refreshes its WebAPK (can take a day) — reinstall to get it now.
         display: 'fullscreen',

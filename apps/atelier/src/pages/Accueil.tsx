@@ -46,7 +46,7 @@ export function Accueil() {
     // 360×720 phone the fifth face was half visible and nothing below it
     // (a sixth bonnetier, the footer link) could ever be tapped (2026-09-14).
     <div className="h-full overflow-y-auto scrollbar-transparent bg-gradient-brand text-white flex flex-col">
-      <div className="flex-shrink-0" style={{ height: 'env(safe-area-inset-top)' }} />
+      <div className="safe-top" />
 
       {/* The Malterre wordmark, and nothing else. No title, no instruction:
           the faces ARE the instruction, and on the one screen with no machine

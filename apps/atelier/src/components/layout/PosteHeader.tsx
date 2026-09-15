@@ -40,8 +40,9 @@ export function PosteHeader({
   return (
     <header className="flex-shrink-0 bg-gradient-brand text-white shadow-lg">
       {/* The installed PWA paints under the status bar (viewport-fit=cover),
-          so the navy band owns the inset instead of leaving a white strip. */}
-      <div style={{ height: 'env(safe-area-inset-top)' }} />
+          so the navy band owns the inset instead of leaving a white strip —
+          zero in the fullscreen install, where there is no bar (index.css). */}
+      <div className="safe-top" />
       <div className="h-16 flex items-stretch">
         {onBack ? (
           <button

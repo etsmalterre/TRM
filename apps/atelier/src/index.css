@@ -401,6 +401,21 @@
   .stagger-children > *:nth-child(7) { animation-delay: 300ms; }
   .stagger-children > *:nth-child(8) { animation-delay: 350ms; }
 
+  /* The spacer above a top header. viewport-fit=cover lets the navy band paint
+     under the status bar, so in a browser tab or a `standalone` install it must
+     clear it. In the `fullscreen` install there is no status bar — but Chrome
+     on Android still reports its height as safe-area-inset-top, which left an
+     empty navy strip above the header (user, 2026-09-15). */
+  .safe-top {
+    height: env(safe-area-inset-top);
+    flex-shrink: 0;
+  }
+  @media (display-mode: fullscreen) {
+    .safe-top {
+      height: 0;
+    }
+  }
+
   /* Number font feature */
   .tabular-nums {
     font-variant-numeric: tabular-nums;

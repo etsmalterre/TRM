@@ -428,7 +428,13 @@ dans son propre cookie. Conception : plan §3.2–3.4 ; décision de Vincent du 
   du téléphone (heure, réseau, batterie) est masquée dans l'app installée, un glissement
   depuis le bord la ramène. ⚠️ Un téléphone déjà installé ne voit le changement qu'au
   rafraîchissement de sa WebAPK par Chrome (jusqu'à un jour) — **réinstaller** pour
-  l'avoir tout de suite. Le bandeau navy garde `safe-area-inset-top` (l'encoche caméra).
+  l'avoir tout de suite. ⚠️ **L'espace au-dessus d'un en-tête passe par `.safe-top`
+  (`index.css`), jamais un `env(safe-area-inset-top)` en ligne** : en `fullscreen`, Chrome
+  Android continue de rapporter la hauteur de la barre masquée comme inset, ce qui laissait
+  une bande navy vide au-dessus de l'en-tête (photo de Vincent, 2026-09-15). La classe met
+  l'espace à zéro sous `@media (display-mode: fullscreen)` et le garde dans un onglet ou en
+  `standalone`. Écart assumé : un téléphone à caméra poinçonnée dans l'écran aurait le titre
+  sous l'objectif — le parc actuel a la caméra dans la bordure.
 - **Service worker `injectManifest`** (`src/sw.ts`), pas le `generateSW` d'`apps/web` :
   c'est le seul endroit où un handler `push` peut vivre, et basculer après coup toucherait
   le chemin de mise à jour déjà corrigé une fois (`lib/sw-refresh.ts`). Éteint en dev.
