@@ -8,9 +8,44 @@ Migration de l'app Android legacy des bonnetiers/régleurs. **Deuxième app du m
 hôte **`atelier.intra.etsmalterre.com`**, parc Android. Dossier de conception :
 **`~/.claude/plans/atelier-malterre.md`** — décisions, pièges vérifiés, questions ouvertes.
 
-**État au 2026-08-27** : Accueil (grille de visages) → Choix Métier (Actives / Inactives) →
+**État au 2026-08-27** : Accueil (grille de visages) → Choix Métier (Actifs / Inactifs) →
 Poste, **saisie comprise**. Les huit actions du legacy s'enregistrent (`POST
 /api/atelier/of/:id/evenement`), sous le droit `saisie_atelier`.
+
+## Les métiers inactifs — dernier OF, à suivre, historique (2026-09-15)
+
+Décision de Vincent du 2026-09-15 : la tuile d'un métier **sans OF** n'est plus vide, et
+le poste d'un métier sans OF n'est plus un état vide.
+
+- **Les segments disent « Actifs / Inactifs »**, pas « Actives / Inactives » comme le legacy :
+  sa liste s'appelait « Machines Actives », la nôtre est titrée « Métiers », et métier est
+  masculin. Ne pas réintroduire le féminin (commentaires compris).
+- **La tuile inactive** (`Repos` dans `ChoixMetier.tsx`) porte deux lignes : « Dernier OF ·
+  il y a 3 j » + réf · coloris, et « À suivre » + réf · coloris quand la file du métier a une
+  tête. Les chiffres (pièces, poids, 2ᵉ choix) restent sur le poste. Les deux rôles voient
+  la même tuile.
+- **Le poste d'un métier sans OF** (`components/atelier/MetierAuRepos.tsx`) : en-tête §5
+  « Aucun OF en cours », carte « À suivre » (l'OF en tête de file, que l'ERP active par
+  « Passer en cours » ou l'`auto_activation`), puis **les 20 derniers OF terminés du
+  métier** (`GET /api/atelier/machines/:id/derniers-of`, `DERNIERS_OF_MAX`) : n° OF, réf ·
+  coloris, « il y a … », pièces faites / commandées, Σ poids visité et la part 2ᵉ choix
+  quand elle existe. Lecture seule, pollée avec les défauts de l'app.
+- **API** : `inactif` sur chaque ligne de `GET /machines` (`null` dès qu'un OF tourne),
+  calculé par `reposDesMetiers()` en trois lectures bornées pour toute la liste (GROUP BY
+  `MAX(IDordre_fabrication)` par métier, ces lignes, la file d'attente). Les choix sont
+  purs et testés dans `lib/metier-repos-trm.ts`. Coût mesuré en dev : ~120 ms de plus
+  sur la liste régleur (0,25 → 0,37 s), ~40 ms sur la liste bonnetier.
+- ⚠️ **« Dernier OF » = l'id le plus haut parmi les OF terminés du métier**, pas le
+  `MAX(arret_prod)` (empty-vs-null du DATETIME entre ODBC et le pont) — la même lecture que
+  l'onglet Terminés de l'ERP et la référence précédente de la fiche de réglage. **La date
+  de fin est `arret_prod`** (3 162 des 3 163 OF terminés la portent, sondé le 2026-09-15),
+  repli sur la fin de la dernière pièce pour le reliquat Android.
+- ⚠️ **« À suivre » = la tête de file comme `rerankQueue()` l'ordonne** (`priorite ASC`, les
+  non classés après, puis id) — le téléphone nomme l'OF que l'ERP activerait.
+- Le libellé relatif (`lib/depuis.ts`, testé) : minutes, heures, jours jusqu'à 30, puis la
+  date — un métier arrêté depuis novembre dit « le 29/11/2025 », pas « il y a 290 j ».
+- **Pas un portage** : `FEN_Historique` du build régleur est l'historique **par pièce d'un
+  OF** (porté à part) ; l'historique par métier n'existe pas dans le legacy.
 
 **Ce qui manque encore, dans l'ordre où ça compte :**
 - ⚠️ **Pas d'annulation**, alors que le legacy en a une (`IMG_Annuler` sur la dernière
@@ -174,7 +209,7 @@ Ce que le build régleur ajoute, et ce qui en est porté :
 | Legacy (gen) | Porté | Où |
 |---|---|---|
 | Combo : « Interrompre OF » / « Relancer OF » | oui (dès le 27/08) | `actionsFor()` / `actions.ts` |
-| Choix Métier : icône d'état (réglage / pause / marche), fréquence d'arrêt, % 2nd choix, **alerte** ; Inactives = métiers **sans OF** | oui | `GET /atelier/machines?regleur=1`, `lib/atelier-regleur-trm.ts` (pur, testé), `ChoixMetier.tsx` |
+| Choix Métier : icône d'état (réglage / pause / marche), fréquence d'arrêt, % 2nd choix, **alerte** ; Inactifs = métiers **sans OF** | oui | `GET /atelier/machines?regleur=1`, `lib/atelier-regleur-trm.ts` (pur, testé), `ChoixMetier.tsx` |
 | Choix Métier : taper un OF non lancé → contrôle d'éligibilité → `FEN_Reglage_Machine` | oui | route `/metier/:id/reglage`, `GET /atelier/of/:id/reglage`, `ReglageMachine.tsx` |
 | `FEN_Reglage_Machine` : repères par tour (LFA précédente / LFA / repère), réglages, fils, consigne, **« Lancer OF »** | oui — le lancement passe par l'événement `Lancement OF` existant (une seule voie d'écriture) | idem |
 | `FEN_Consigne` plan 3 : le régleur **écrit** `ordre_fabrication.observations` | oui — **et depuis la fiche de réglage** (2026-09-15 : Modifier / Supprimer / Ajouter, `ConsigneSheet`) | `PUT /atelier/of/:id/consigne`, `Consigne.tsx`, `ReglageMachine.tsx` |

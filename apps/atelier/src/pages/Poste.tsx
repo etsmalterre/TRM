@@ -29,6 +29,7 @@ import { ConsigneCallout } from '@/components/of/ConsigneCallout'
 import { SaisieBand } from '@/components/atelier/SaisieBand'
 import { BonnetierPhoto } from '@/components/atelier/BonnetierPhoto'
 import { Lien } from '@/components/atelier/Lien'
+import { MetierAuRepos } from '@/components/atelier/MetierAuRepos'
 import { useIdentite } from '@/contexts/BonnetierContext'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -85,10 +86,14 @@ export function Poste() {
         />
       )}
 
-      {!chargement && machine && !of && (
+      {/* An idle métier is a screen of its own, not an empty state: the OF
+          waiting next and the last twenty that ran here (2026-09-15). */}
+      {!chargement && machine && !machine.of && <MetierAuRepos machine={machine} />}
+
+      {!chargement && machine && machine.of && !of && (
         <EtatVide
-          titre="Aucun OF en cours"
-          detail={`Le métier ${machine.label} ne tourne sur aucun ordre de fabrication.`}
+          titre="OF illisible"
+          detail={`L'OF ${machine.of.IDordre_fabrication} du métier ${machine.label} n'a pas pu être chargé.`}
         />
       )}
 

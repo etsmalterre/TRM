@@ -52,6 +52,49 @@ export interface Machine {
   actif: boolean
   of: MachineOf | null
   regleur: MachineRegleur | null
+  /** What an idle métier says about itself — only when `of` is null. */
+  inactif: MachineInactif | null
+}
+
+/** The idle tile's two lines (2026-09-15): the last OF that ran on the métier
+ *  and the head of its waiting queue. Either may be missing — a métier never
+ *  used, or one with nothing planned. */
+export interface MachineInactif {
+  dernier_of: {
+    IDordre_fabrication: number
+    reference: string
+    coloris: string
+    /** When it stopped (`arret_prod`, else the end of its last piece). */
+    fin_ms: number | null
+  } | null
+  prochain_of: {
+    IDordre_fabrication: number
+    reference: string
+    coloris: string
+    nb_pieces: number
+    finir_fil: boolean
+  } | null
+}
+
+/** One finished OF of a métier, for the poste's history of an idle machine. */
+export interface DernierOfMetier {
+  IDordre_fabrication: number
+  reference: string
+  coloris: string
+  nb_pieces: number
+  finir_fil: boolean
+  produites: number
+  /** Σ stock_ecru.poids of the OF, in kg, and the second-choice share of it. */
+  poids: number
+  poids_second_choix: number
+  debut_ms: number | null
+  fin_ms: number | null
+}
+
+export interface DerniersOfMetier {
+  IDmachine: number
+  label: string
+  ofs: DernierOfMetier[]
 }
 
 export interface ReglageRepere {
@@ -197,6 +240,11 @@ export const fetchMachines = (regleur = false) =>
   apiFetch<Machine[]>(`/atelier/machines${regleur ? '?regleur=1' : ''}`)
 
 export const fetchOf = (id: number) => apiFetch<OfContexte>(`/atelier/of/${id}`)
+
+/** The last twenty finished OFs of a métier, newest first — the poste's
+ *  history when the machine has no OF. */
+export const fetchDerniersOf = (machineId: number) =>
+  apiFetch<DerniersOfMetier>(`/atelier/machines/${machineId}/derniers-of`)
 
 export const fetchReglage = (ofId: number) => apiFetch<ReglageMachine>(`/atelier/of/${ofId}/reglage`)
 

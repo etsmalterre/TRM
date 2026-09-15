@@ -1,9 +1,20 @@
 // The métier picker — legacy FEN_Choix_Metier.
 //
 // Two lists behind one switch, exactly as the legacy has it: the métiers that
-// still owe pieces ("Actives") and everything else. The bonnetier arrives here
+// still owe pieces (« Actifs ») and everything else. The bonnetier arrives here
 // knowing which machine they are standing at, so this screen's only job is to
 // let them hit the right tile without looking twice.
+//
+// The segments say « Actifs / Inactifs », not the legacy's « Actives /
+// Inactives »: the legacy's list was titled « Machines Actives », this screen
+// is titled « Métiers », and métier is masculine (user, 2026-09-15).
+//
+// An IDLE tile is not blank (user, 2026-09-15): it carries the last OF that
+// ran on the métier — reference, coloris, how long ago it stopped — and the
+// head of its waiting queue. The régleur reads the « Inactifs » list as the
+// machines to set up next; a re-run of the same reference is a short setup, a
+// machine idle for a week is a signal, and the waiting OF is what they will
+// mount. The full history lives one tap away, on the poste's empty state.
 //
 // Tiles are deliberately NOT colour-coded by consigne. §41 says a colour is
 // only worth spending when it discriminates, and 7 of the 9 running OFs on the
@@ -18,7 +29,7 @@
 //  - the alert of `bAlert = pctDefaut > 2 % ou nFreqArret > 1`, which IS the
 //    §41 attention state this list is allowed to spend red on: it is rare by
 //    construction, and it names the métier the régleur should walk to next;
-//  - « Inactives » = métiers with NO active OF (the bonnetier build also lists
+//  - « Inactifs » = métiers with NO active OF (the bonnetier build also lists
 //    the finished-but-still-active ones there);
 //  - tapping a métier whose OF has not started opens the réglage sheet, not
 //    the poste — the legacy's own routing, eligibility check included.
@@ -26,7 +37,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, AlertCircle, ChevronRight, Wrench, Pause, Play } from 'lucide-react'
-import { fetchMachines, type Machine } from '@/lib/atelier-api'
+import { fetchMachines, type Machine, type MachineInactif } from '@/lib/atelier-api'
+import { depuis } from '@/lib/depuis'
 import { PosteHeader } from '@/components/layout/PosteHeader'
 import { Segment } from '@/components/atelier/Segment'
 import { useIdentite } from '@/contexts/BonnetierContext'
@@ -79,13 +91,13 @@ export function ChoixMetier() {
       <div className="flex-shrink-0 p-2 bg-zinc-200/50 border-b border-border">
         <div className="flex gap-1 rounded-lg bg-background p-1">
           <Segment
-            label="Actives"
+            label="Actifs"
             count={actives.length}
             active={voirActives}
             onClick={() => setVoirActives(true)}
           />
           <Segment
-            label="Inactives"
+            label="Inactifs"
             count={inactives.length}
             active={!voirActives}
             onClick={() => setVoirActives(false)}
@@ -182,7 +194,7 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
           // one tap away (decision 2026-09-14).
           <Avancement of={of} />
         ) : (
-          <span className="block text-sm text-muted-foreground italic">Aucun OF en cours</span>
+          <Repos inactif={m.inactif} />
         )}
       </span>
 
@@ -211,6 +223,42 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
         </span>
       )}
     </button>
+  )
+}
+
+/** The idle tile's middle column: the last OF that ran here and the one waiting
+ *  next, each as a tiny label over one line of reference · coloris. Nothing
+ *  else: the numbers (pieces, weight, second choice) belong to the history on
+ *  the poste, one tap away. A métier with neither reads as it always did. */
+function Repos({ inactif }: { inactif: MachineInactif | null }) {
+  const dernier = inactif?.dernier_of ?? null
+  const prochain = inactif?.prochain_of ?? null
+  if (!dernier && !prochain) {
+    return <span className="block text-sm text-muted-foreground italic">Aucun OF en cours</span>
+  }
+  return (
+    <span className="block space-y-1">
+      {dernier && (
+        <span className="block">
+          <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
+            Dernier OF · {depuis(dernier.fin_ms)}
+          </span>
+          <span className="block text-sm font-medium truncate">
+            {dernier.reference}
+            {dernier.coloris ? ` · ${dernier.coloris}` : ''}
+          </span>
+        </span>
+      )}
+      {prochain && (
+        <span className="block">
+          <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">À suivre</span>
+          <span className="block text-sm truncate">
+            {prochain.reference}
+            {prochain.coloris ? ` · ${prochain.coloris}` : ''}
+          </span>
+        </span>
+      )}
+    </span>
   )
 }
 
