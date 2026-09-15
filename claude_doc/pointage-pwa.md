@@ -35,7 +35,7 @@ prod, `--replace` pour reconstruire). Détails pilote : `ETM/claude_doc/hfsql_od
   `mps_appareil` : sur `localhost` les cookies ignorent le port, enrôler la tablette en dev
   remplacerait celui du téléphone d'atelier. Un code n'enrôle que son type ; `gateSaisie`
   (atelier) refuse une pointeuse.
-- **Lectures** (tablette enrôlée ou admin) : `/jour`, `/salaries`, `/salaries/:id/photo`,
+- **Lectures** (tablette enrôlée ou admin) : `/en-poste`, `/salaries`, `/salaries/:id/photo`,
   `/salaries/:id/etat`. **Écritures** (tablette seulement) : `POST /salaries/:id/pointage
   { action, ligneId }`, `PUT /salaries/:id/hors-prod { duree }` (0–12 h, pas de 0,25).
 - **Les boutons sont calculés au serveur** (`lib/pointage-etat.ts`, port de
@@ -60,7 +60,13 @@ prod, `--replace` pour reconstruire). Détails pilote : `ETM/claude_doc/hfsql_od
 - **Accueil** : horloge en bandeau navy ; à gauche les visages (anneau vert « Au travail »,
   ambre « En pause ») — **toucher sa photo, c'est pointer** : le bouton « Pointage » +
   FEN_Choix_salarié du legacy disparaissent (7 salariés tiennent sur l'accueil) ; à droite
-  la table du jour (arrivée, pauses, départ), **la plus récente en haut**.
+  la table **« En poste »** = TABLE_Pointage du legacy (requête donnée par Vincent le
+  2026-09-15) : **toutes les lignes ouvertes** (`fin = 0 AND is_deleted = 0`, quel que soit
+  le jour, salariés supprimés compris), colonnes Salarié · Arrivée · Pauses · Cumul ; ⚠️ le
+  cumul ne compte **que les pauses terminées** (`ROUND(secondes / 60)`, `cumulPausesMin`),
+  **pas de colonne Départ** (une ligne fermée quitte la table). Arrivée d'un autre jour =
+  date affichée ; poste de plus de 14 h = ligne ambre « non fermé » (le legacy la listait
+  sans rien dire). Plus récente arrivée en haut.
 - **Écran salarié** (§45 Poste) : photo, nom, semaine ISO, phrase d'état (« Au travail
   depuis 08:02 »), récap de la ligne, pas-à-pas « temps hors prod » (demi-heures, enregistré
   700 ms après le dernier appui et à la sortie), messages ; à droite **un ou deux boutons**

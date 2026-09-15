@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { debutStatut, duree, heure, jourLong, phraseStatut } from './heures'
+import { debutStatut, duree, heure, jourCourt, jourLong, phraseStatut } from './heures'
 import type { Ligne } from './pointage-api'
 
 const at = (h: number, m: number) => Date.UTC(2026, 8, 15, h - 2, m) // Paris = UTC+2 in September
@@ -16,9 +16,10 @@ describe('heure', () => {
   })
 })
 
-describe('jourLong', () => {
+describe('jourLong / jourCourt', () => {
   it('names the day', () => {
     expect(jourLong('20260914')).toBe('lundi 14 septembre')
+    expect(jourCourt('20260914')).toBe('lun. 14/09')
   })
 })
 

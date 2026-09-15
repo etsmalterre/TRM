@@ -27,6 +27,13 @@ export function jourLong(jour: string): string {
   return DATE.format(Date.UTC(+jour.slice(0, 4), +jour.slice(4, 6) - 1, +jour.slice(6, 8), 12))
 }
 
+const JOUR_COURT = new Intl.DateTimeFormat('fr-FR', { timeZone: PARIS, weekday: 'short', day: '2-digit', month: '2-digit' })
+
+/** A `YYYYMMDD` day as « lun. 14/09 » — an arrival that is not today's. */
+export function jourCourt(jour: string): string {
+  return JOUR_COURT.format(Date.UTC(+jour.slice(0, 4), +jour.slice(4, 6) - 1, +jour.slice(6, 8), 12))
+}
+
 /** Hours of « temps hors prod » as the office says them: « 1 h 30 », « 45 min », « 0 ». */
 export function duree(h: number): string {
   const min = Math.round(h * 60)

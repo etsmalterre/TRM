@@ -32,15 +32,20 @@ export interface Ligne {
   finMs: number | null
 }
 
-export interface LigneJour extends Ligne {
+/** A row of the « En poste » table (legacy TABLE_Pointage): an open line. */
+export interface LigneEnPoste extends Ligne {
   salarie: SalarieRef
-  pauseMin: number
+  /** Minutes of the pauses already finished (a running one does not count). */
+  cumulPauseMin: number
+  /** A shift left open too long — Admin Pointage has to close it. */
+  nonFermee: boolean
 }
 
-export interface Jour {
+export interface EnPoste {
+  /** Today, `YYYYMMDD` (Paris). */
   jour: string
   maintenantMs: number
-  lignes: LigneJour[]
+  lignes: LigneEnPoste[]
 }
 
 export interface ActionOfferte {
@@ -94,7 +99,7 @@ export const enrolerPointeuse = (code: string) =>
 
 export const fetchSalaries = () => apiFetch<SalarieGrille[]>('/pointage/salaries')
 
-export const fetchJour = () => apiFetch<Jour>('/pointage/jour')
+export const fetchEnPoste = () => apiFetch<EnPoste>('/pointage/en-poste')
 
 export const fetchEtat = (id: number) => apiFetch<EtatSalarie>(`/pointage/salaries/${id}/etat`)
 

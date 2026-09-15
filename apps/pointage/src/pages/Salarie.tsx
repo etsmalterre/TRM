@@ -83,7 +83,7 @@ export function Salarie() {
       qc.setQueryData(cle, r.etat)
       setSucces({ libelle: a.libelle, instantMs: r.resultat.instantMs })
       void qc.invalidateQueries({ queryKey: ['pointage', 'salaries'] })
-      void qc.invalidateQueries({ queryKey: ['pointage', 'jour'] })
+      void qc.invalidateQueries({ queryKey: ['pointage', 'en-poste'] })
     },
     onError: () => {
       void qc.invalidateQueries({ queryKey: cle })

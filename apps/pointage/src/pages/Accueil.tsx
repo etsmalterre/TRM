@@ -1,4 +1,4 @@
-// The wall screen: the clock, the faces, and today's lines.
+// The wall screen: the clock, the faces, and who is in right now.
 //
 // Legacy FEN_Pointage showed the clock and TABLE_Pointage, with a « Pointage »
 // button leading to FEN_Choix_salarié (a button per salarié). With seven
@@ -6,16 +6,21 @@
 // that tap: touching your face IS pointing (§45.4 — identification is a gate,
 // and the photo is the check).
 //
-// Landscape, arm's length: faces on the left (the action), the day table on the
-// right (what the legacy table showed: arrival, pauses, departure).
+// The table is TABLE_Pointage's own content (API /en-poste, query given by
+// Vincent): every OPEN line — arrival, pauses, minutes of finished pauses —
+// so it reads « who is at work or on a break », not « the day's history ».
+// A shift forgotten on a previous day stays in it, as in the legacy, flagged
+// amber: it is what Admin Pointage has to close.
+//
+// Landscape, arm's length: faces on the left (the action), the table on the right.
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Loader2 } from 'lucide-react'
-import { fetchJour, fetchSalaries, type LigneJour, type SalarieGrille, type Statut } from '@/lib/pointage-api'
+import { fetchEnPoste, fetchSalaries, type LigneEnPoste, type SalarieGrille, type Statut } from '@/lib/pointage-api'
 import { Horloge } from '@/components/Horloge'
 import { SalariePhoto } from '@/components/SalariePhoto'
 import { useAppareil } from '@/contexts/AppareilContext'
-import { heure } from '@/lib/heures'
+import { heure, jourCourt } from '@/lib/heures'
 import { cn } from '@/lib/utils'
 
 const STATUT: Record<Statut, { label: string; anneau: string; pastille: string }> = {
@@ -24,11 +29,14 @@ const STATUT: Record<Statut, { label: string; anneau: string; pastille: string }
   hors_poste: { label: '', anneau: 'ring-transparent', pastille: '' },
 }
 
+/** Salarié · Arrivée · Pauses · Cumul — header and rows share it. */
+const COLONNES = 'grid grid-cols-[minmax(0,1.5fr)_5rem_minmax(0,1.4fr)_4rem] gap-3'
+
 export function Accueil() {
   const navigate = useNavigate()
   const { appareil } = useAppareil()
   const salaries = useQuery({ queryKey: ['pointage', 'salaries'], queryFn: fetchSalaries })
-  const jour = useQuery({ queryKey: ['pointage', 'jour'], queryFn: fetchJour })
+  const enPoste = useQuery({ queryKey: ['pointage', 'en-poste'], queryFn: fetchEnPoste })
 
   return (
     <div className="h-full flex flex-col">
@@ -72,28 +80,29 @@ export function Accueil() {
 
         <section className="flex-[2] min-w-0 flex flex-col rounded-xl border border-border bg-white shadow-sm overflow-hidden">
           <div className="flex-shrink-0 px-4 py-2.5 bg-sand border-b border-border flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide text-accent">Aujourd’hui</span>
-            {jour.data && (
-              <span className="text-xs text-muted-foreground tabular-nums">{jour.data.lignes.length} pointages</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-accent">En poste</span>
+            {enPoste.data && (
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {enPoste.data.lignes.length} {enPoste.data.lignes.length > 1 ? 'salariés' : 'salarié'}
+              </span>
             )}
           </div>
-          <div className="flex-shrink-0 grid grid-cols-[minmax(0,1.5fr)_4rem_minmax(0,1.6fr)_4rem] gap-3 px-4 py-2 border-b border-border text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className={cn(COLONNES, 'flex-shrink-0 px-4 py-2 border-b border-border text-[11px] font-semibold uppercase tracking-wide text-muted-foreground')}>
             <span>Salarié</span>
             <span>Arrivée</span>
             <span>Pauses</span>
-            <span>Départ</span>
+            <span>Cumul</span>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto scrollbar-transparent">
-            {jour.isError && <Injoignable />}
-            {jour.data && jour.data.lignes.length === 0 && (
-              <p className="p-6 text-center text-muted-foreground italic">Personne n’a encore pointé aujourd’hui.</p>
+            {enPoste.isError && <Injoignable />}
+            {enPoste.data && enPoste.data.lignes.length === 0 && (
+              <p className="p-6 text-center text-muted-foreground italic">Personne n’est en poste.</p>
             )}
-            {/* Newest first: the line a salarié looks for is the one he just made. */}
-            {[...(jour.data?.lignes ?? [])]
-              .sort((a, b) => (b.debutMs ?? 0) - (a.debutMs ?? 0) || b.id - a.id)
-              .map((l) => (
-                <LigneDuJour key={l.id} l={l} />
-              ))}
+            {/* Newest arrival first: the line a salarié looks for is the one he just opened. */}
+            {enPoste.data &&
+              [...enPoste.data.lignes]
+                .sort((a, b) => (b.debutMs ?? 0) - (a.debutMs ?? 0) || b.id - a.id)
+                .map((l) => <LigneTable key={l.id} l={l} jour={enPoste.data.jour} />)}
           </div>
         </section>
       </main>
@@ -122,18 +131,35 @@ function Visage({ s, onPick }: { s: SalarieGrille; onPick: () => void }) {
   )
 }
 
-function LigneDuJour({ l }: { l: LigneJour }) {
+function LigneTable({ l, jour }: { l: LigneEnPoste; jour: string }) {
   const pauses: Array<[number | null, number | null]> = [
     [l.debutPause1Ms, l.finPause1Ms],
     [l.debutPause2Ms, l.finPause2Ms],
   ]
   return (
-    <div className="grid grid-cols-[minmax(0,1.5fr)_4rem_minmax(0,1.6fr)_4rem] gap-3 items-center px-4 py-2 border-b border-border/60 text-sm tabular-nums">
+    <div
+      className={cn(
+        COLONNES,
+        'items-center px-4 py-2 border-b border-border/60 text-sm tabular-nums',
+        l.nonFermee && 'bg-amber-50',
+      )}
+    >
       <span className="flex items-center gap-2 min-w-0">
         <SalariePhoto salarie={l.salarie} size={32} />
-        <span className="truncate font-medium text-foreground">{l.salarie.prenom}</span>
+        <span className="min-w-0 leading-tight">
+          <span className="block truncate font-medium text-foreground">{l.salarie.prenom}</span>
+          <span className="block truncate text-[11px] text-muted-foreground">{l.salarie.nom}</span>
+        </span>
       </span>
-      <span>{heure(l.debutMs)}</span>
+      <span className="leading-tight">
+        {l.jour !== jour && (
+          <span className={cn('block text-[11px]', l.nonFermee ? 'font-semibold text-amber-700' : 'text-muted-foreground')}>
+            {jourCourt(l.jour)}
+          </span>
+        )}
+        {heure(l.debutMs)}
+        {l.nonFermee && <span className="block text-[11px] font-semibold text-amber-700">non fermé</span>}
+      </span>
       <span className="text-xs leading-snug">
         {pauses
           .filter(([d]) => d !== null)
@@ -143,9 +169,7 @@ function LigneDuJour({ l }: { l: LigneJour }) {
             </span>
           ))}
       </span>
-      <span className={cn(l.finMs === null && 'text-xs font-semibold text-success')}>
-        {l.finMs === null ? 'en poste' : heure(l.finMs)}
-      </span>
+      <span className="text-muted-foreground">{l.cumulPauseMin} min</span>
     </div>
   )
 }
