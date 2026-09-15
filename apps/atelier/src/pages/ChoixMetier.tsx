@@ -136,6 +136,18 @@ export function ChoixMetier() {
             gesture bar instead of sitting under it. */}
         <div style={{ height: 'env(safe-area-inset-bottom)' }} />
       </main>
+
+      {/* The build's version, pinned to the bottom-right corner and kept out of
+          the way: 10px, muted, `pointer-events-none` so a thumb reaching for the
+          last tile never lands on it, and lifted above the gesture bar. It sits
+          inside the list's own `p-3` bottom padding, so at the end of the scroll
+          it clears the last tile. */}
+      <p
+        className="fixed right-2 text-[10px] leading-none text-muted-foreground/70 tabular-nums pointer-events-none select-none"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 2px)' }}
+      >
+        Version {__APP_VERSION__}
+      </p>
     </div>
   )
 }

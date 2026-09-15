@@ -366,7 +366,11 @@ dans son propre cookie. Conception : plan §3.2–3.4 ; décision de Vincent du 
   Réutilise `lib/production-trm.ts` (`selectMachines`, `selectBonnetiers`, `loadOf`,
   `parseDtMs`) — améliorer ce fichier, ne jamais en forker une copie.
 - **Version propre** (`apps/atelier/package.json`, démarrée à 0.0.1), **pas** celle de la
-  racine comme `apps/web` : les deux bundles se déploient indépendamment.
+  racine comme `apps/web` : les deux bundles se déploient indépendamment. **Affichée depuis
+  le 2026-09-15** (demande de Vincent), discrètement, « Version X » comme le menu profil de
+  l'ERP : sous la ligne du téléphone de l'Accueil, et épinglée en bas à droite de l'écran
+  Métiers (`pointer-events-none`, dans le `p-3` de la liste). Rendue, elle est désormais
+  vérifiée dans le bundle servi par `deploy-web.mjs`.
 - **Service worker `injectManifest`** (`src/sw.ts`), pas le `generateSW` d'`apps/web` :
   c'est le seul endroit où un handler `push` peut vivre, et basculer après coup toucherait
   le chemin de mise à jour déjà corrigé une fois (`lib/sw-refresh.ts`). Éteint en dev.

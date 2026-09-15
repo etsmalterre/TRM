@@ -120,6 +120,11 @@ export function Accueil() {
             Enrôler ce téléphone
           </button>
         )}
+        {/* The atelier's OWN version (apps/atelier/package.json, never the ERP's
+            root number), fainter than the phone line: it answers « which build
+            is this phone running? » when a fix is meant to have landed, and
+            nothing else. Same wording as the ERP's profile menu. */}
+        <p className="mt-2 text-[10px] leading-none text-white/35 tabular-nums">Version {__APP_VERSION__}</p>
       </div>
 
       {enroler && <EnrolementSheet onClose={() => setEnroler(false)} />}
