@@ -58,8 +58,11 @@ le poste d'un métier sans OF n'est plus un état vide.
   `lib/of-queue-trm.ts` — `est_termine = 1`, re-rang, activation du suivant s'il a
   « Activation auto » : la même voie que le bouton de l'ERP). Jusqu'au 2026-09-07 elle
   reproduisait l'`AutoActivation()` legacy, qui ne bascule qu'`est_actif` (LIVA #1128).
-- ⚠️ **Aucun téléphone ne peut écrire aujourd'hui** : le compte-poste n'existe pas et
-  personne ne détient `saisie_atelier` (fermé par défaut). Voir « Identité » plus bas.
+- **Un téléphone n'écrit que s'il est enrôlé** (2026-09-15, § « Enrôlement des
+  téléphones » plus bas) et si son compte d'enrôlement détient `saisie_atelier` (fermé par
+  défaut). À faire sur la prod après le déploiement : enrôler les deux téléphones de
+  régleur sous les comptes de Nicolas (11) et Mickaël (21), les téléphones partagés sous
+  `Regleur` (14), et accorder `saisie_atelier` à ces trois comptes.
 - Un seul écran secondaire reste : Information (la checklist de nettoyage, littéraux
   récupérés verbatim). Consigne, Historique et Fils OF sont portés (voir « L'OF actif »).
 - L'hôte de prod (nginx sur `10.10.20.4` + entrée Caddy sur `10.10.20.5`).
@@ -189,17 +192,14 @@ non lancé), chacune un écran clé par le métier comme le reste.
 
 ## Le côté régleur (2026-09-08)
 
-**Décision du 2026-09-08 : le côté régleur se développe avec le bascule dev de l'Accueil
-(« dev · voir la grille régleur ») ; la couche de sécurité (enrôlement
-d'appareil, charge du cookie avec `deviceId`, refus des comptes privilégiés au login) se
-construit au moment de déployer.** ⚠️ **Depuis le 2026-09-14 le bascule est LIVRÉ en prod**
-(il était compilé hors prod, `import.meta.env.DEV`) : Vincent veut voir les écrans régleur
-sur `atelier.intra.etsmalterre.com` pendant qu'ils se construisent. Il reste discret (lien
-gris sous la grille) et sans danger tant que l'API tient la règle ci-dessous et que
-`saisie_atelier` n'est accordé à personne — **à retirer le jour où l'enrôlement arrive**,
-jamais à promouvoir en réglage utilisateur. Le rôle vient donc de `identite.regleur` (auto-déclaré),
-et **c'est l'API qui tient la règle** : chaque écriture régleur vérifie `bonnetier.regleur = 1`
-sur l'`IDbonnetier` nommé, en plus du droit `saisie_atelier` du cookie.
+Le côté régleur s'est développé (2026-09-08) avec un bascule dev de l'Accueil (« dev · voir
+la grille régleur »), livré en prod le 2026-09-14 pour voir les écrans sur le téléphone de
+Nico. **Depuis le 2026-09-15 le bascule n'existe plus : le rôle vient du téléphone enrôlé**
+(§ « Enrôlement des téléphones » plus bas — `identite.regleur` n'est vrai que pour l'identité
+fixe d'un appareil, jamais pour un visage choisi sur la grille). **Et c'est l'API qui tient
+la règle** : chaque écriture régleur vérifie `bonnetier.regleur = 1` sur l'`IDbonnetier`
+nommé, en plus des trois contrôles de `gateSaisie` (appareil enrôlé, `saisie_atelier` sur
+son compte, appareil autorisé à parler pour ce bonnetier).
 
 ⚠️ **La spec du régleur n'est PAS `Android\dbg\Compile` (build bonnetier du 24/03/2026) mais
 `Android\gen\Compile`** : `GWDPMPS.getNomConfiguration()` y renvoie `"Appli_Regleur"`, il
@@ -294,13 +294,58 @@ l'historique des notes de l'OF**. Le legacy y arrivait par l'icône `IMG_Consign
 - Non fait : l'historique `FEN_Historique` (pièces, durées, productivité) reste non porté ;
   la consigne n'a **pas d'historique de versions** (une colonne, écrasée à chaque écriture).
 
-**Identité — le point à trancher avant la mise en service.** Le téléphone porte le cookie
-d'un **compte-poste** (le modèle du PC de visitage, `Visitage` IDutilisateur 10), et *qui*
-travaille voyage dans `IDbonnetier`, comme le legacy l'écrit. La grille de visages +
-`localStorage` n'est **pas** une authentification : c'est le modèle de confiance de
-l'atelier, et il ne garde rien. Reste donc à faire : créer ou choisir le compte-poste, lui
-accorder `saisie_atelier` dans Paramètres › Utilisateurs, et poser son cookie sur chaque
-appareil.
+## Enrôlement des téléphones — l'identité de l'app (2026-09-15)
+
+Le legacy identifiait le régleur par son téléphone (`NomAppareil()` = l'ANDROID_ID, contre
+une liste codée « Terminal Nico » / « Terminal Mickaël »). Le web ne lit aucun identifiant
+matériel : **l'identité d'un téléphone est un secret émis par le serveur**, posé une fois,
+dans son propre cookie. Conception : plan §3.2–3.4 ; décision de Vincent du 2026-09-15
+(« les téléphones régleur toujours connectés comme eux-mêmes, toujours l'interface régleur »).
+
+- **Une ligne par téléphone** (`ETM/apps/api/src/lib/appareils-atelier.ts`, store
+  `data/appareils-atelier.json`) : `IDutilisateur` (le compte sous lequel il agit — ses
+  droits TRM s'appliquent, `saisie_atelier` en tête, comme le compte-poste du PC de
+  visitage), `IDbonnetier` (**identité fixe** = téléphone de régleur, `null` = téléphone
+  partagé), `libelle` (écrit dans `evenement_piece.appareil`, là où le legacy mettait le
+  nom du terminal), `creeLe`, `creePar`, `vuLe`.
+- **Cookie `mps_appareil`** = `<id>.<secret>` ; seul `sha256(secret)` est stocké ; **révoquer
+  = supprimer la ligne**, le cookie copié meurt sans toucher `AUTH_COOKIE_SECRET`. `Secure`
+  en prod seulement (`appareilCookieOptions`). `attachUser()` le résout (`req.appareil`) et
+  ne pose `req.userId` que si aucun `mps_uid` valide n'est là.
+- **Le store n'est pas celui de `permissions-trm.ts`** : relecture si le mtime a bougé,
+  écritures sérialisées (le patron cache-au-chargement a déjà perdu 10 droits `edit_of`).
+- **Enrôlement** : Paramètres › Utilisateurs › onglet **Appareils** (`components/settings/
+  AppareilsAtelier.tsx`) — « Enrôler un téléphone » (libellé + identité : un régleur actif
+  ou « téléphone partagé »), code à **6 chiffres, 10 min, usage unique, en mémoire** (un
+  redémarrage de l'API les efface) ; sur le téléphone, « Enrôler ce téléphone » sous la
+  grille (`EnrolementSheet`) → `POST /atelier/appareils/enroler` → cookie. Frein brute force :
+  10 échecs / client / 15 min → 429. Routes admin (`requireAdmin`) : `GET /`, `POST /codes`,
+  `DELETE /codes/:code`, `PATCH /:id`, `DELETE /:id` ; téléphone : `GET /moi`, `POST /enroler`.
+  Monté **avant** `/api/atelier`.
+- **`gateSaisie` (toute écriture de `routes/atelier.ts`) refuse dans l'ordre** :
+  `appareil_non_enrole` (401 sans cookie, 403 avec un simple `mps_uid` — `POST /auth/login`
+  n'authentifie rien, un curl pouvait agir pour n'importe qui), `saisie_atelier` absent sur le
+  compte du téléphone, bonnetier inconnu, `identite_appareil` (un téléphone fixe n'écrit que
+  pour son régleur), `regleur_hors_appareil` (un téléphone partagé n'écrit jamais pour un
+  régleur — la règle du plan §3.3, en API et pas seulement en UX).
+- **Côté PWA** (`BonnetierContext`) : `GET /atelier/appareils/moi` au démarrage puis au poll
+  (une révocation ramène la grille en ≤ 10 s), réponse miroir dans `localStorage`
+  (`atelier.appareil`) pour un lancement hors ligne, `Attente` (logo seul) tant qu'un
+  téléphone neuf n'a pas de première réponse. Identité fixe → `identite` dérivée de
+  l'appareil, `fixe = true`, pas de « Quitter » (`PosteHeader`), jamais l'Accueil. Grille =
+  `?regleur=0` seulement ; une identité choisie est toujours `regleur: false` (une entrée
+  écrite par l'ancien bascule est rétrogradée à la lecture). Pied de l'Accueil : le libellé
+  du téléphone (+ « consultation seule » si son compte ne peut pas écrire), ou le lien
+  d'enrôlement.
+- **Comptes** : régleurs sous leurs comptes personnels (Nicolas 11 ↔ bonnetier 16, Mickaël
+  21 ↔ 15), téléphones partagés sous `Regleur` (14, `pc-regleur`, le compte de l'app Android
+  legacy — ajouté à `TRM_STAFF` pour cela). Le dialogue présélectionne le régleur homonyme du
+  compte.
+- ⚠️ **`scripts/check-api-routes.mjs` ne détecte pas un sous-routeur manquant** : il sonde
+  les racines de montage et `/api/atelier` répond déjà en prod. Ordre : `/etm_deploy` avant
+  `/trm_deploy`, sans exception.
+- Non fait : WebAuthn (plan §3.5, v2), renommage depuis l'UI (la route `PATCH` existe),
+  `FEN_Historique`.
 
 **Les trois pièges du portage**, tous vérifiés et tous invisibles dans le code seul :
 - **Le libellé n'est pas la chaîne stockée.** La combo dit « Fin de pièce » et écrit
@@ -346,16 +391,16 @@ appareil.
   (`data/bonnetier-utilisateur.json`, à côté de `permissions-trm.json`), **pas un
   ALTER TABLE** — la table appartient à WinDev, le `.xdd` en est l'autorité, et ~15 lignes
   à mapper ne valent pas une modification de schéma partagée difficile à annuler.
-- ⚠️ **`signUserId()` rend la même chaîne pour toujours, sur tout appareil** — donc un cookie
-  de compte privilégié serait copiable et irrévocable. La charge doit porter un `deviceId`
-  avant qu'un compte régleur existe. `cookieOptions()` est aussi `secure: false` : à épingler
-  sur `Secure` pour ce hôte le jour où le cookie porte un privilège.
+- ⚠️ **`signUserId()` rend la même chaîne pour toujours, sur tout appareil** — c'est pourquoi
+  le téléphone ne porte PAS `mps_uid` mais son propre cookie révocable (§ « Enrôlement des
+  téléphones »). Ne jamais faire dépendre une écriture atelier d'un simple `mps_uid`.
 - ⚠️ **`atelier.intra.etsmalterre.com` a son PROPRE bocal à cookies** : `res.cookie()` ne pose pas de
   `domain`, donc la session de `trm.intra.etsmalterre.com` ne suit pas. Bonne isolation, mais l'app porte
   son propre chemin d'identification depuis le premier jour.
 - **L'identité bonnetier n'est PAS une authentification** : grille de visages +
   `localStorage`, exactement le modèle de confiance du legacy (`SauveParamètre`) et du poste
-  de visitage (§45.4). Le garde-fou réel viendra de l'enrôlement d'appareil côté régleur.
+  de visitage (§45.4). Le garde-fou réel est l'enrôlement du téléphone (§ ci-dessus) : la
+  grille n'offre que des bonnetiers, et l'API n'accepte un régleur que depuis son appareil.
 - ⚠️ **`#root` est verrouillé à `100dvh` + `overflow: hidden` (`index.css`) : chaque écran
   porte SON conteneur de défilement** (`flex-1 min-h-0 overflow-y-auto`). L'Accueil ne
   l'avait pas : sur le téléphone de Nicolas (≈ 360×720) le 5ᵉ visage était coupé et rien

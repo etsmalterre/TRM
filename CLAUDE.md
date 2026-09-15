@@ -110,8 +110,19 @@ sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réuti
 `lib/production-trm.ts`. Conception : `~/.claude/plans/atelier-malterre.md`.
 **Dossier complet : `claude_doc/atelier-pwa.md`** — à lire avant tout travail dessus.
 
-- ⚠️ **Pas d'annulation** (le legacy en a une) ; **aucun téléphone ne peut écrire** tant
-  que le compte-poste n'existe pas et que personne ne détient `saisie_atelier`.
+- ⚠️ **Pas d'annulation** (le legacy en a une).
+- **Les téléphones sont ENRÔLÉS (2026-09-15)** : un téléphone n'écrit que s'il porte son
+  cookie `mps_appareil`, émis une fois contre un code à 6 chiffres (10 min, usage unique)
+  généré dans Paramètres › Utilisateurs › **Appareils** ; store `data/appareils-atelier.json`
+  (API `lib/appareils-atelier.ts`, routes `/api/atelier/appareils/*`), révocation = suppression
+  de la ligne. **Un téléphone de régleur porte une identité fixe** (`IDbonnetier`) : l'app
+  s'ouvre sur lui, écrans régleur, pas de grille, pas de « Quitter », et l'API refuse toute
+  écriture au nom d'un autre ; **un téléphone partagé** (compte-poste `Regleur`, id 14)
+  propose la grille des **bonnetiers seuls** et ne peut jamais écrire au nom d'un régleur.
+  Le droit `saisie_atelier` reste requis, **sur le compte d'enrôlement**. ⚠️ Un cookie
+  `mps_uid` seul est refusé partout (`gateSaisie`) — `POST /auth/login` n'authentifie rien.
+  Le bascule dev « voir la grille régleur » est **retiré**. ⚠️ `check-api-routes.mjs` ne voit
+  pas un sous-routeur manquant (`/atelier` répond déjà en prod) : `/etm_deploy` d'abord.
 - ⚠️ **Le libellé n'est pas la chaîne stockée** (« Fin de pièce » écrit `Fin du tricotage`),
   et **la liste des actions est recalculée au serveur** : `apps/atelier/src/lib/actions.ts`
   et `routes/atelier.ts` se changent ensemble, l'API faisant foi.
@@ -135,17 +146,17 @@ sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   (`injectRegister: null`), vérifie toutes les 60 s, recharge sur `controllerchange` une
   fois les écritures en vol terminées. ⚠️ Le premier déploiement qui le porte demande un
   rechargement manuel des téléphones. Dossier § « Rafraîchissement ».
-- ⚠️ `signUserId()` rend la même chaîne pour toujours (cookie copiable) ; à traiter avant
-  qu'un compte régleur existe. `atelier.intra.etsmalterre.com` a son propre bocal à cookies.
+- `atelier.intra.etsmalterre.com` a son propre bocal à cookies ; le cookie du téléphone est
+  `Secure` en prod seulement (`appareilCookieOptions`), pour qu'un téléphone du LAN puisse
+  taper un serveur de dev en HTTP.
 - Le legacy Android n'est pas PCS-compressé : `C:\Mes Projets\MPS\Android\dbg\Compile\`
   est la spec **bonnetier** (instantané du 24/03/2026) et ⚠️ **`Android\gen\Compile\` est
   le build RÉGLEUR** (`Appli_Regleur`, 25/05/2026, avec `FEN_Reglage_Machine` et
   `FEN_Historique`) — les blocs `<COMPILE SI Appli_Regleur>` du build bonnetier sont vides.
 - **Côté régleur (2026-09-08)** : liste avec état / alerte (`?regleur=1`), fiche de réglage
-  + « Lancer OF », consigne écrite depuis le téléphone, fil `message_of`. Le rôle vient du
-  bascule « dev · voir la grille régleur » de l'Accueil **jusqu'à la couche de sécurité**
-  — ⚠️ **livré en prod depuis le 2026-09-14** (plus compilé hors prod), à retirer le jour de
-  l'enrôlement ; l'API vérifie `bonnetier.regleur = 1`. Historique non porté. **Depuis le
+  + « Lancer OF », consigne écrite depuis le téléphone, fil `message_of`. **Le rôle vient du
+  téléphone enrôlé** (identité fixe, ci-dessus) depuis le 2026-09-15 — le bascule dev de
+  l'Accueil n'existe plus ; l'API vérifie `bonnetier.regleur = 1`. Historique non porté. **Depuis le
   2026-09-15 la consigne se modifie / supprime depuis la fiche de réglage** (`ConsigneSheet`,
   supprimer = PUT vide, mutation unique `lib/consigne.ts`) et l'écran Consigne a un onglet
   « Notes » (`obs_ref_ecru` lu sur `/of-trm/:id/observations-ref`, lecture seule). Dossier

@@ -30,8 +30,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Loader2, AlertCircle, Shield, Check, Mail, Save,
   Image as ImageIcon, PenLine, Trash2, User as UserIcon, ChevronDown,
-  Monitor,
+  Monitor, Smartphone,
 } from 'lucide-react'
+import { AppareilsTab } from '@/components/settings/AppareilsAtelier'
 import { apiFetch, API_URL } from '@/lib/api'
 import { useUser } from '@/contexts/UserContext'
 import { usePermissions } from '@/contexts/PermissionsContext'
@@ -110,10 +111,14 @@ interface UserProfileRow {
 // herself inside the poste, against `bonnetier`, not by logging in. It has to be
 // listed here or no admin can reach its rights, and `saisie_visitage` — closed
 // by default — could never be granted to the machine that needs it.
-// `Regleur` (14) and `eloise` (16) are the two other legacy station accounts;
-// add them the day a TRM screen is meant for them.
+// `Regleur` (14, roleHint pc-regleur) is the legacy Android app's station
+// account: since 2026-09-15 it is the account the SHARED atelier phones are
+// enrolled under (Appareils tab) — a régleur's own phone goes under his
+// personal account. `eloise` (16) is the last legacy station account; add it
+// the day a TRM screen is meant for it.
 const TRM_STAFF = new Set([
   'visitage|',
+  'regleur|',
   'vincent|malterre',
   'nicolas|antonino',
   'mickael|grivelet',
@@ -461,6 +466,7 @@ const MAIN_TABS = [
   { key: 'profil', label: 'Profil', icon: UserIcon },
   { key: 'ecrans', label: 'Écrans', icon: Monitor },
   { key: 'permissions', label: 'Permissions', icon: Shield },
+  { key: 'appareils', label: 'Appareils', icon: Smartphone },
 ] as const
 type MainTab = (typeof MAIN_TABS)[number]['key']
 
@@ -591,6 +597,15 @@ function DetailBody({
               />
             ))}
           </>
+        )}
+
+        {activeTab === 'appareils' && (
+          <AppareilsTab
+            userId={user.IDutilisateur}
+            userName={displayName(user)}
+            peutSaisir={isVin || grantedSet.has('saisie_atelier')}
+            onOuvrirPermissions={() => setActiveTab('permissions')}
+          />
         )}
       </div>
     </div>

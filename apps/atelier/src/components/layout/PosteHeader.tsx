@@ -34,7 +34,7 @@ export function PosteHeader({
   /** Optional second line under the bar (the OF context band). */
   children?: ReactNode
 }) {
-  const { identite, quitter } = useIdentite()
+  const { identite, quitter, fixe } = useIdentite()
   const [confirmQuit, setConfirmQuit] = useState(false)
 
   return (
@@ -71,19 +71,31 @@ export function PosteHeader({
             picked it on the Accueil, and a 10px first name under a 36px photo
             was a squint on the shop floor (2026-09-14). The name stays in the
             accessible label and the quit sheet. */}
-        <button
-          type="button"
-          onClick={() => setConfirmQuit(true)}
-          title={identite ? `${identite.prenom} · Quitter votre poste` : 'Quitter votre poste'}
-          aria-label={identite ? `${identite.prenom} · Quitter votre poste` : 'Quitter votre poste'}
-          disabled={!identite}
-          className={cn(
-            'w-16 flex-shrink-0 flex items-center justify-center',
-            'active:bg-white/10 transition-colors disabled:opacity-40',
-          )}
-        >
-          <BonnetierPhoto id={identite?.id ?? 0} nom={identite?.prenom ?? ''} size={40} />
-        </button>
+        {fixe && identite ? (
+          // An enrolled régleur's phone: the face is the phone's own identity,
+          // there is no post to leave. Same cell, nothing to press.
+          <div
+            className="w-16 flex-shrink-0 flex items-center justify-center"
+            title={`${identite.prenom} · téléphone enrôlé`}
+            aria-label={`${identite.prenom} · téléphone enrôlé`}
+          >
+            <BonnetierPhoto id={identite.id} nom={identite.prenom} size={40} />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmQuit(true)}
+            title={identite ? `${identite.prenom} · Quitter votre poste` : 'Quitter votre poste'}
+            aria-label={identite ? `${identite.prenom} · Quitter votre poste` : 'Quitter votre poste'}
+            disabled={!identite}
+            className={cn(
+              'w-16 flex-shrink-0 flex items-center justify-center',
+              'active:bg-white/10 transition-colors disabled:opacity-40',
+            )}
+          >
+            <BonnetierPhoto id={identite?.id ?? 0} nom={identite?.prenom ?? ''} size={40} />
+          </button>
+        )}
       </div>
       {children}
 

@@ -378,3 +378,34 @@ export interface FilsOf {
 }
 
 export const fetchFilsOf = (ofId: number) => apiFetch<FilsOf>(`/atelier/of/${ofId}/fils`)
+
+// ── The phone itself ───────────────────────────────────────────────────────
+// Enrolment (routes/appareils-atelier.ts): a phone carries its own cookie,
+// issued once against a code generated in Paramètres › Utilisateurs.
+
+export interface Appareil {
+  id: number
+  libelle: string
+  IDutilisateur: number
+  /** A fixed identity — this is a régleur's own phone. null = shared phone,
+   *  whoever holds it picks their face. */
+  bonnetier: Bonnetier | null
+  /** Whether the phone's account may write (`saisie_atelier`). */
+  saisie: boolean
+}
+
+/** null = not enrolled (or revoked); anything else throws. */
+export const fetchAppareil = async (): Promise<Appareil | null> => {
+  try {
+    return await apiFetch<Appareil>('/atelier/appareils/moi')
+  } catch (e) {
+    if ((e as { status?: number }).status === 401) return null
+    throw e
+  }
+}
+
+export const enrolerAppareil = (code: string) =>
+  apiFetch<Appareil>('/atelier/appareils/enroler', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  })

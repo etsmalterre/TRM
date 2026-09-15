@@ -43,11 +43,27 @@ installerMiseAJour(queryClient)
 
 /** §45.4 — identification is a gate, not a field. Nothing in the app renders
  *  until someone has said who they are, so no screen can produce work
- *  attributed to nobody. */
+ *  attributed to nobody. An enrolled régleur's phone answers by itself
+ *  (BonnetierContext); a brand-new phone waits for the server's first word
+ *  rather than flashing the grid and then swapping it for the régleur list. */
 function IdentiteGate({ children }: { children: React.ReactNode }) {
-  const { identite } = useIdentite()
+  const { identite, appareil } = useIdentite()
+  if (appareil === undefined) return <Attente />
   if (!identite) return <Accueil />
   return <>{children}</>
+}
+
+/** The Accueil's ground and mark, without its faces: what a new phone shows
+ *  for the second it takes the server to say whether it is enrolled. */
+function Attente() {
+  return (
+    <div className="h-full bg-gradient-brand text-white flex flex-col">
+      <div className="flex-shrink-0" style={{ height: 'env(safe-area-inset-top)' }} />
+      <header className="pt-6 pb-5 px-6 flex justify-center flex-shrink-0">
+        <img src="/logo-full.png" alt="Malterre" className="h-12 w-auto" />
+      </header>
+    </div>
+  )
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
