@@ -89,8 +89,15 @@ prod, `--replace` pour reconstruire). Détails pilote : `ETM/claude_doc/hfsql_od
 cd apps/pointage && VITE_API_URL=http://localhost:808N/api pnpm exec vite --port 5178
 ```
 
-Enrôler le navigateur : générer un code « Pointeuse » dans l'ERP (Paramètres › Utilisateurs ›
-Appareils), puis « Enrôler cette pointeuse » sur `localhost:5178`.
+**Pas d'enrôlement en dev** (décision de Vincent, 2026-09-15) : sur une API hors production
+dont la base `pointage` est sur `localhost`, tout navigateur est la pointeuse
+(`ETM/apps/api/src/lib/pointage-dev.ts`, testé) — `/appareil/moi` répond « Pointeuse de dev ».
+Double garde : `NODE_ENV !== 'production'` **et** serveur HFSQL local, donc impossible en prod
+même sans `NODE_ENV`, et coupé pour une API locale branchée sur la prod. Pour travailler sur
+l'enrôlement lui-même : `POINTAGE_DEV_ENROLEMENT=1` dans `apps/api/.env.development`, puis
+générer un code « Pointeuse » dans l'ERP et « Enrôler cette pointeuse » sur `localhost:5178`.
+⚠️ Écart assumé avec l'atelier (« pas de contournement côté API ») : la pointeuse n'a pas
+d'identité à usurper.
 
 ## Reste à faire
 
