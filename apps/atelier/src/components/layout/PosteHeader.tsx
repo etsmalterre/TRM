@@ -80,7 +80,7 @@ export function PosteHeader({
             title={`${identite.prenom} · téléphone enrôlé`}
             aria-label={`${identite.prenom} · téléphone enrôlé`}
           >
-            <BonnetierPhoto id={identite.id} nom={identite.prenom} size={40} />
+            <BonnetierPhoto id={identite.id} nom={identite.prenom} size={46} />
           </div>
         ) : (
           <button
@@ -94,7 +94,7 @@ export function PosteHeader({
               'active:bg-white/10 transition-colors disabled:opacity-40',
             )}
           >
-            <BonnetierPhoto id={identite?.id ?? 0} nom={identite?.prenom ?? ''} size={40} />
+            <BonnetierPhoto id={identite?.id ?? 0} nom={identite?.prenom ?? ''} size={46} />
           </button>
         )}
       </div>
