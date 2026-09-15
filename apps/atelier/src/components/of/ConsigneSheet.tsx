@@ -57,7 +57,9 @@ export function ConsigneSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div>
-          <h2 className="text-xl font-heading font-bold tracking-tight">
+          <h2 className="text-xl font-heading font-bold tracking-tight flex items-center gap-2">
+            {/* The consigne's mark, everywhere it is named (2026-09-15). */}
+            <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
             {initiale.trim() ? 'Modifier la consigne' : 'Ajouter une consigne'}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">

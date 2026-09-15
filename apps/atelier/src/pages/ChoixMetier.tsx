@@ -35,10 +35,10 @@
 //    the finished-but-still-active ones there);
 //  - tapping a métier whose OF has not started opens the réglage sheet, not
 //    the poste — the legacy's own routing, eligibility check included.
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useMemo } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, AlertCircle, ChevronRight, Wrench, Pause, Play, CircleDashed, ArrowRight } from 'lucide-react'
+import { Loader2, AlertCircle, ChevronRight, Wrench, Pause, Play, ArrowRight } from 'lucide-react'
 import { fetchMachines, type Machine } from '@/lib/atelier-api'
 import { depuis } from '@/lib/depuis'
 import { PosteHeader } from '@/components/layout/PosteHeader'
@@ -48,12 +48,18 @@ import { useIdentite } from '@/contexts/BonnetierContext'
 import { cn } from '@/lib/utils'
 import { teinteArrets } from '@/lib/teinte-arrets'
 import { vibrer } from '@/lib/vibration'
+import { estInactif, lireVue } from '@/lib/vue-metiers'
 
 export function ChoixMetier() {
   const navigate = useNavigate()
   const { identite } = useIdentite()
   const regleur = identite?.regleur ?? false
-  const [voirActives, setVoirActives] = useState(true)
+  // The tab is in the URL, not in state, so a back arrow returns to it
+  // (lib/vue-metiers.ts). `replace`: switching tabs is not a history step.
+  const [params, setParams] = useSearchParams()
+  const voirActives = lireVue(params) === 'actifs'
+  const setVoirActives = (actifs: boolean) =>
+    setParams(actifs ? {} : { vue: 'inactifs' }, { replace: true })
 
   const { data, isLoading, isError } = useQuery({
     // The role is part of the key: the régleur list carries extra fields the
@@ -70,7 +76,7 @@ export function ChoixMetier() {
     const all = data ?? []
     return {
       actives: all.filter((m) => m.actif),
-      inactives: regleur ? all.filter((m) => !m.of) : all.filter((m) => !m.actif),
+      inactives: all.filter((m) => estInactif(m, regleur)),
     }
   }, [data, regleur])
 
@@ -153,13 +159,13 @@ export function ChoixMetier() {
   )
 }
 
-/** The three legacy tile icons (reglage1 / pause1 / play1), as glyphs — plus
- *  the idle one this port adds, so a régleur's glyph column never goes blank. */
+/** The three legacy tile icons (reglage1 / pause1 / play1), as glyphs. An idle
+ *  métier gets none: the dashed circle it used to carry said nothing the muted
+ *  tile does not (Vincent, 2026-09-15). */
 const ETATS = {
   reglage: { Icon: Wrench, titre: 'En réglage — OF non lancé', classe: 'text-warning' },
   pause: { Icon: Pause, titre: 'OF interrompu', classe: 'text-primary' },
   marche: { Icon: Play, titre: 'En marche', classe: 'text-success' },
-  repos: { Icon: CircleDashed, titre: 'Aucun OF en cours', classe: 'text-muted-foreground' },
 } as const
 
 const pct = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 1 })
@@ -227,7 +233,7 @@ function MetierTile({ m, regleur, onOpen }: { m: Machine; regleur: boolean; onOp
         )}
       </span>
 
-      {r ? <EtatGlyphe etat={r.etat} /> : regleur && !of ? <EtatGlyphe etat="repos" /> : <span />}
+      {r ? <EtatGlyphe etat={r.etat} /> : <span />}
       <ChevronRight className="h-6 w-6 text-muted-foreground" />
 
       {figures && (

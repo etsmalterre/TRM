@@ -94,15 +94,27 @@ export function Consigne() {
   const demande = (location.state as { onglet?: unknown } | null)?.onglet
   const ongletDemande = ONGLETS.find((o) => o === demande) ?? null
   const [onglet, setOnglet] = useState<Onglet | null>(null)
-  useEffect(() => {
-    if (onglet !== null || !of) return
-    setOnglet(ongletDemande ?? (regleur || of.consigne ? 'consigne' : 'messages'))
-  }, [of, regleur, onglet, ongletDemande])
 
   const titre = machine?.label ?? '—'
   const chargement = machinesQ.isLoading || (ofId > 0 && ofQ.isLoading)
   const nbMessages = messagesQ.data?.length ?? of?.nb_messages ?? 0
   const nbNotes = notesQ.data?.length ?? 0
+  // Messages are what one shift leaves the next on a RUNNING OF: on an OF not
+  // yet launched there is no one to leave them for, and none of the 113 rows
+  // of the March snapshot predates its OF's launch. The ERP can still post one
+  // on a queued OF, so the tab only hides while there is none (2026-09-15).
+  const avecMessages = !!of && (of.demarre || nbMessages > 0)
+
+  useEffect(() => {
+    if (!of) return
+    if (onglet === 'messages' && !avecMessages) {
+      setOnglet('consigne')
+      return
+    }
+    if (onglet !== null) return
+    const choisi = ongletDemande ?? (regleur || of.consigne ? 'consigne' : 'messages')
+    setOnglet(choisi === 'messages' && !avecMessages ? 'consigne' : choisi)
+  }, [of, regleur, onglet, ongletDemande, avecMessages])
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -139,14 +151,22 @@ export function Consigne() {
 
           <div className="flex-shrink-0 p-2 mt-1 bg-zinc-200/50 border-y border-border">
             <div className="flex gap-1 rounded-lg bg-background p-1">
-              <Segment label="Consigne" active={onglet === 'consigne'} onClick={() => setOnglet('consigne')} />
-              <Segment label="Notes" count={nbNotes} active={onglet === 'notes'} onClick={() => setOnglet('notes')} />
               <Segment
-                label="Messages"
-                count={nbMessages}
-                active={onglet === 'messages'}
-                onClick={() => setOnglet('messages')}
+                label="Consigne"
+                icone={<AlertTriangle className="h-4 w-4" />}
+                ton="destructive"
+                active={onglet === 'consigne'}
+                onClick={() => setOnglet('consigne')}
               />
+              <Segment label="Notes" count={nbNotes} active={onglet === 'notes'} onClick={() => setOnglet('notes')} />
+              {avecMessages && (
+                <Segment
+                  label="Messages"
+                  count={nbMessages}
+                  active={onglet === 'messages'}
+                  onClick={() => setOnglet('messages')}
+                />
+              )}
             </div>
           </div>
 
@@ -229,7 +249,14 @@ function EditeurConsigne({ ofId, initiale, IDbonnetier }: { ofId: number; initia
 
   return (
     <div className="flex-1 min-h-0 flex flex-col p-3 gap-2.5">
-      <label className="text-[10px] uppercase tracking-wide text-muted-foreground px-0.5" htmlFor="consigne">
+      {/* Named like the callout it becomes (red triangle + red label), while
+          the field itself stays plain: a red field reads as a validation error
+          (§46.2). */}
+      <label
+        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-destructive px-0.5"
+        htmlFor="consigne"
+      >
+        <AlertTriangle className="h-4 w-4" />
         Consigne pour cet OF
       </label>
       <textarea

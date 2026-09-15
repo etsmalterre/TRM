@@ -8,6 +8,12 @@
 //
 // One component for every confirmation of the app (enregistrer, lancer l'OF,
 // supprimer un message, quitter le poste), so the gesture is learnt once.
+//
+// `alternative` adds a second, outlined choice between the yes and Annuler —
+// the poste's « Fin de pièce » on a « finir le fil » OF, whose other answer is
+// « c'est la dernière pièce ». It must never commit by itself: an alternative
+// leads to its own confirmation, so a thumb reaching for Annuler that lands
+// one button short costs a sheet, not a write.
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -17,6 +23,7 @@ export function ConfirmSheet({
   oui,
   icone,
   variante = 'gold',
+  alternative,
   onCancel,
   onConfirm,
 }: {
@@ -27,6 +34,7 @@ export function ConfirmSheet({
   icone?: ReactNode
   /** gold = a commit (§45.3), primary = a plain yes, destructive = a delete. */
   variante?: 'gold' | 'primary' | 'destructive'
+  alternative?: { label: ReactNode; icone?: ReactNode; onClick: () => void }
   onCancel: () => void
   onConfirm: () => void
 }) {
@@ -54,6 +62,16 @@ export function ConfirmSheet({
             {icone}
             {oui}
           </button>
+          {alternative && (
+            <button
+              type="button"
+              onClick={alternative.onClick}
+              className="w-full h-16 rounded-xl border-2 border-primary/40 bg-background text-primary text-lg font-semibold flex items-center justify-center gap-2 active:bg-muted"
+            >
+              {alternative.icone}
+              {alternative.label}
+            </button>
+          )}
           <button
             type="button"
             onClick={onCancel}

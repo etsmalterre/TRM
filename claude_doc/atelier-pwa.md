@@ -23,9 +23,18 @@ le poste d'un métier sans OF n'est plus un état vide.
 - **La tuile inactive garde les trois fentes de la tuile active** (`MetierTile`) : l'article
   du dernier OF (réf · coloris, en gris) là où va la barre d'avancement, et en dessous les
   pastilles « Terminé il y a 3 j » (neutre) et « → réf · coloris » (bleu accent) pour l'OF
-  à suivre ; glyphe « au repos » (cercle pointillé) dans la colonne d'état du régleur. Une
+  à suivre ; **aucun glyphe d'état** — le cercle pointillé « au repos » (tuile et en-tête du
+  poste) a été retiré le 2026-09-15, « inutile » selon Vincent : ne pas le remettre. Une
   première version à petites étiquettes majuscules empilées a été jugée « laide et pas
   harmonieuse » (2026-09-15) — ne pas y revenir. Les chiffres restent sur le poste.
+- **L'onglet vit dans l'URL** (`/?vue=inactifs`, `lib/vue-metiers.ts`, 2026-09-15) : la
+  flèche retour du poste revenait toujours sur Actifs (`useState` remis à zéro par
+  `navigate('/')`). Le retour du poste va sur l'onglet où le métier se trouve **maintenant**
+  (`cheminListe`) ; les autres écrans reviennent par `navigate(-1)`, qui garde l'URL. La
+  règle Actifs / Inactifs (`estInactif`) n'a qu'une copie.
+- **Les pastilles de pièces portent le rouleau tombé métier** (`components/icons/TmRollIcon.tsx`,
+  miroir de celui de l'ERP, masque CSS sur `public/icons/tm.png`, précaché par
+  `includeAssets: ['icons/*.png']`) — plus l'icône « Layers » de lucide.
 - **Le poste d'un métier sans OF** (`components/atelier/MetierAuRepos.tsx`) : en-tête §5
   « Aucun OF en cours », puis deux cartes à bandeau sable (`Entete`, la grammaire de la fiche
   de réglage) : « À suivre » (l'OF en tête de file, que l'ERP active par « Passer en cours »
@@ -97,11 +106,12 @@ demi-minute.
   - `EditeurConsigne` (Consigne) ne réarme le champ sur une nouvelle valeur serveur que
     si le brouillon est **intact** (`initialePrecedente` ref) ; un brouillon touché reste,
     et se lit « modifié » contre le texte plus récent.
-  - `SaisieBand` laisse tomber une action choisie que l'OF rafraîchi **ne propose plus**
-    (et ferme la feuille de confirmation) avec la raison en ligne, plutôt que de l'envoyer
-    pour que le serveur la refuse. `actions` est mémoïsé sur l'objet OF, que React Query
-    garde stable tant que la charge utile ne change pas : la garde ne tire que sur un vrai
-    changement.
+  - `SaisieBand` ferme une feuille ouverte (confirmation, fin de pièce, défaut) dont l'action
+    **n'est plus proposée** par l'OF rafraîchi, ou dont l'OF a changé (la feuille retient
+    l'`ofId` sur lequel elle a été ouverte), avec la raison en ligne, plutôt que de
+    l'envoyer pour que le serveur la refuse. `actions` est mémoïsé sur l'objet OF, que
+    React Query garde stable tant que la charge utile ne change pas : la garde ne tire que
+    sur un vrai changement.
 - Le Poste résout son OF **par la liste des métiers** : quand l'ERP termine l'OF et active
   le suivant, l'`ofId` change au poll suivant et l'écran bascule seul sur le nouvel OF.
 - Non fait : l'ERP (`apps/web`) reste à 5 min de `staleTime` ; Production › OF et Visitage
@@ -171,6 +181,68 @@ une information :
   desktop et iOS, testé (`vibration.test.ts`).
 - Le refus « l'OF a évolué depuis un autre poste » de `SaisieBand` ne vibre pas : il vient
   du poll, pas d'une écriture.
+
+## La bande d'action du poste — deux rangées, sans défilement (2026-09-15)
+
+Demande de Vincent (capture du poste 2A, OF 3424) : la bande d'action prenait ~430 px — un
+en-tête « Action », une colonne de cinq choix de 56 px, puis « Valider » (64 px) et la
+confirmation — et le poste défilait. Les actions sont de trois natures, la bande le dit
+maintenant en deux rangées (`components/atelier/SaisieBand.tsx`, ~130 px) :
+
+```
+[ 🖌 Nettoyage 1/2 ] [ ⚑ Fin de pièce ] [⏸]   routine · routine · régleur seulement
+[ ⚠ Signaler un défaut               ]        qualité → DefautSheet
+```
+
+- **Une tuile ouvre directement sa confirmation** : plus de sélection puis « Valider ». Deux
+  taps au lieu de trois, jamais un seul — le « Voulez-vous vraiment enregistrer » du legacy
+  reste, il n'y a pas d'annulation sur le téléphone.
+- **Les tuiles gardent leur place.** Nettoyage reste affiché une fois les nettoyages de la
+  pièce faits (grisé, « 2/2 ✓ ») au lieu de disparaître et de glisser Fin de pièce sous le
+  pouce ; il ne sort que sur un OF qui n'en demande aucun (`nb_nettoyages_requis = 0`).
+  « Terminer OF » prend la place de Fin de pièce sur la dernière pièce (liseré or).
+- ⚠️ **« Dernière pièce » n'est pas une Fin de pièce douce : l'API ferme la pièce ET TERMINE
+  L'OF** (même branche que Terminer OF, `terminerOf()`). Sur un OF « finir le fil » elle est
+  la seconde réponse de la feuille Fin de pièce (« C'est la dernière pièce », bouton
+  contouré — prop `alternative` de `ConfirmSheet`), qui ouvre **sa propre** confirmation
+  « l'OF N sera terminé ». Une alternative de `ConfirmSheet` ne doit jamais écrire seule.
+- **Pause / lecture** = la paire régleur Interrompre / Relancer OF en un bouton carré de
+  64 px **habillé comme les tuiles** (carte blanche, bordure, ombre), portant **le glyphe
+  d'état de la liste des métiers** (`ETATS` de `ChoixMetier.tsx`) dans un disque teinté :
+  ⏸ bleu (`primary`), ▶ vert (`success`) — l'état où le tap mène, dans la couleur que la
+  liste affichera ensuite (demandes de Vincent, 2026-09-15 ; un disque gris nu se lisait
+  comme désactivé à côté des tuiles).
+- **Défaut** ouvre `components/atelier/DefautSheet.tsx` (types en grille de deux, tailles
+  pour les types cm, « Enregistrer le défaut » or). **La feuille EST la confirmation** —
+  écart au legacy décidé avec Vincent ; elle reste ouverte pendant l'écriture et un refus
+  s'y affiche, type choisi conservé. Les lookups restent chargés par la bande, pour que la
+  feuille s'ouvre sur ses puces.
+- La liste des actions offertes ne change pas : `lib/actions.ts` et l'API décident, la
+  bande ne fait que les ranger. Aucun changement d'API.
+- **« Dernière action » est un pied ancré** (bande 5, `Poste.tsx`) : hors de la zone qui
+  défile, dans le **navy du bandeau** (`bg-gradient-brand`), libellé or, visage à liseré or,
+  « il y a … » (`lib/depuis.ts`) au-dessus de la date exacte ; il porte
+  `safe-area-inset-bottom`. Sur le fond blanc cassé de l'écran, l'ancienne bande se lisait
+  comme du contenu de plus (retour de Vincent, 2026-09-15).
+- **La fiche de réglage porte le coin d'icônes du poste** (Consigne · Fils,
+  `components/atelier/BoutonIcone.tsx`, sorti de `Poste.tsx`) — **sans Historique** : la
+  fiche est toujours un OF pas encore lancé, sans pièce ni rouleau (Vincent, 2026-09-15) ; la pastille
+  « À lancer » est **retirée** (la clé à molette et « Lancer OF » en pied le disent déjà),
+  la pastille de l'icône Consigne compte **notes + messages** (un OF à notes permanentes le
+  dit dès le coin), et la rangée « Notes » en pied de fiche est retirée — l'écran Consigne
+  porte l'onglet Notes. Fils et Historique résolvent l'OF par le métier, donc marchent sur un OF non lancé.
+- **Pas d'onglet « Messages » sur un OF pas encore lancé** (écran Consigne, 2026-09-15) :
+  les messages sont ce qu'une équipe laisse à la suivante sur un OF qui tourne. Sondé sur
+  l'instantané de mars : 113 `message_of`, **aucun** sur un OF jamais lancé ni daté avant le
+  `demarrage_prod` de son OF, aucun du bureau. ⚠️ L'ERP (`POST /of-trm/:id/observations`)
+  peut pourtant en poster un sur un OF en file : l'onglet ne se cache **que** si l'OF n'est
+  pas démarré **et** n'a aucun message.
+- **La consigne se reconnaît partout au triangle rouge** (demande de Vincent, 2026-09-15) :
+  segment « Consigne » de l'écran Consigne (`Segment ton="destructive"` — rouge plein une
+  fois choisi, triangle rouge sinon), libellé de l'éditeur, titre de `ConsigneSheet`.
+  ⚠️ **Le champ
+  de saisie reste neutre** (§46.2) : on marque ce qui NOMME la consigne, jamais la zone où
+  on la tape, qui se lirait comme une erreur de validation.
 
 ## L'OF actif — Consigne · Historique · Fils (2026-09-15)
 
@@ -260,7 +332,7 @@ Ce que le build régleur ajoute, et ce qui en est porté :
 | Choix Métier : icône d'état (réglage / pause / marche), fréquence d'arrêt, % 2nd choix, **alerte** ; Inactifs = métiers **sans OF** | oui | `GET /atelier/machines?regleur=1`, `lib/atelier-regleur-trm.ts` (pur, testé), `ChoixMetier.tsx` |
 | Choix Métier : taper un OF non lancé → contrôle d'éligibilité → `FEN_Reglage_Machine` | oui | route `/metier/:id/reglage`, `GET /atelier/of/:id/reglage`, `ReglageMachine.tsx` |
 | `FEN_Reglage_Machine` : repères par tour (LFA précédente / LFA / repère), réglages, fils, consigne, **« Lancer OF »** | oui — le lancement passe par l'événement `Lancement OF` existant (une seule voie d'écriture) | idem |
-| `FEN_Consigne` plan 3 : le régleur **écrit** `ordre_fabrication.observations` | oui — **et depuis la fiche de réglage** (2026-09-15 : Modifier / Supprimer / Ajouter, `ConsigneSheet`) | `PUT /atelier/of/:id/consigne`, `Consigne.tsx`, `ReglageMachine.tsx` |
+| `FEN_Consigne` plan 3 : le régleur **écrit** `ordre_fabrication.observations` | oui — **et depuis la fiche de réglage** (2026-09-15 : Modifier / Supprimer, `ConsigneSheet` ; une neuve par l'icône Consigne) | `PUT /atelier/of/:id/consigne`, `Consigne.tsx`, `ReglageMachine.tsx` |
 | `FEN_Consigne` plan 2 : fil `message_of` (les deux rôles), suppression de **ses** messages | oui | `GET/POST/DELETE /atelier/of/:id/messages[/:msgId]` |
 | Icône Historique → `FEN_Historique` (pièces, durée, productivité vs durée mini ; événements d'une pièce ; rouleaux visités) | oui (2026-09-15, aux deux rôles) | `GET /atelier/of/:id/historique`, `/pieces/:pieceId/evenements`, `Historique.tsx` — voir « L'OF actif » |
 | `MAJ_auto` (version par configuration), `notif_token` / push | non (sans objet / à venir) | — |
@@ -314,8 +386,9 @@ l'historique des notes de l'OF**. Le legacy y arrivait par l'icône `IMG_Consign
 `FEN_Reglage_Machine` (→ `FEN_Consigne` plan 3, puis retour).
 
 - **Le callout §46 reste le seul rendu de la consigne** ; sous lui, pour un régleur sur un OF
-  non terminé, deux boutons de 44 px « Modifier » / « Supprimer » (ou le fantôme « + Ajouter
-  une consigne » quand il n'y en a pas). L'éditeur est un **bottom sheet** (`components/of/
+  non terminé, deux boutons de 44 px « Modifier » / « Supprimer ». Le fantôme « + Ajouter
+  une consigne » d'un OF sans consigne est **retiré le 2026-09-15** (demande de Vincent) :
+  une consigne neuve s'écrit par l'icône Consigne du coin de la fiche. L'éditeur est un **bottom sheet** (`components/of/
   ConsigneSheet.tsx`) — champ neutre, commit or de 64 px, échec en ligne. **Supprimer =
   écrire la chaîne vide** derrière un `ConfirmSheet` destructif : c'est le même
   `PUT /atelier/of/:id/consigne`, pas une route de plus. La mutation et ses invalidations

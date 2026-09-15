@@ -12,7 +12,8 @@
 // top, the figures as pills underneath. Read-only, both roles; no legacy
 // window shows this (FEN_Historique is the per-piece history of one OF).
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, AlertCircle, CircleDashed, Scale, Layers } from 'lucide-react'
+import { Loader2, AlertCircle, Scale } from 'lucide-react'
+import { TmRollIcon } from '@/components/icons/TmRollIcon'
 import { fetchDerniersOf, type Machine, type DernierOfMetier } from '@/lib/atelier-api'
 import { depuis } from '@/lib/depuis'
 import { Card } from '@/components/ui/card'
@@ -37,9 +38,6 @@ export function MetierAuRepos({ machine }: { machine: Machine }) {
       {/* Band 2 — what the métier resolved to: nothing running. */}
       <div className="px-3 pt-3">
         <div className="flex items-center gap-2.5">
-          <div className="icon-box-gold h-10 w-10 flex items-center justify-center flex-shrink-0">
-            <CircleDashed className="h-5 w-5" />
-          </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-heading font-bold tracking-tight leading-none">
               Aucun OF en cours
@@ -65,7 +63,7 @@ export function MetierAuRepos({ machine }: { machine: Machine }) {
               article={article(prochain)}
               pastilles={
                 <Pastille accent>
-                  <Layers className="h-3 w-3" />
+                  <TmRollIcon className="h-3.5 w-3.5" />
                   {prochain.finir_fil ? `~${prochain.nb_pieces} · Finir le fil` : pieces(prochain.nb_pieces)}
                 </Pastille>
               }
@@ -160,7 +158,7 @@ function Figures({ of }: { of: DernierOfMetier }) {
   return (
     <>
       <Pastille>
-        <Layers className="h-3 w-3" />
+        <TmRollIcon className="h-3.5 w-3.5" />
         {of.produites} / {of.finir_fil ? '~' : ''}{of.nb_pieces}
       </Pastille>
       <Pastille>

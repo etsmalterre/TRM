@@ -8,7 +8,7 @@
 // defaut_qualite and the ordre_fabrication timestamps, from an enrolled phone
 // (enrolment is the right to write). There is NO undo yet — the legacy has one
 // (IMG_Annuler on the last action) and this does not.
-import { useMemo, type ReactNode } from 'react'
+import { useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -16,7 +16,6 @@ import {
   AlertCircle,
   Gauge,
   ClipboardList,
-  Clock,
   MessageSquareText,
   Wrench,
   History,
@@ -24,10 +23,13 @@ import {
 import { BobineIcon } from '@/components/icons/BobineIcon'
 import { fetchMachines, fetchOf, progression } from '@/lib/atelier-api'
 import { actionsDisponibles } from '@/lib/actions'
+import { depuis } from '@/lib/depuis'
+import { cheminListe } from '@/lib/vue-metiers'
 import { PosteHeader } from '@/components/layout/PosteHeader'
 import { ConsigneCallout } from '@/components/of/ConsigneCallout'
 import { SaisieBand } from '@/components/atelier/SaisieBand'
 import { BonnetierPhoto } from '@/components/atelier/BonnetierPhoto'
+import { BoutonIcone } from '@/components/atelier/BoutonIcone'
 import { Lien } from '@/components/atelier/Lien'
 import { MetierAuRepos } from '@/components/atelier/MetierAuRepos'
 import { useIdentite } from '@/contexts/BonnetierContext'
@@ -71,7 +73,8 @@ export function Poste() {
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Band 1 — the poste bar. */}
-      <PosteHeader titre={titre} onBack={() => navigate('/')} />
+      {/* Back to the list on the tab this métier sits on (lib/vue-metiers.ts). */}
+      <PosteHeader titre={titre} onBack={() => navigate(cheminListe(machine, regleur))} />
 
       {chargement && (
         <div className="flex-1 flex items-center justify-center">
@@ -202,79 +205,59 @@ export function Poste() {
 
           {/* Band 4 — the input band, and the only place this app writes. */}
           <SaisieBand of={of} actions={actions} metier={titre} />
-
-          {/* Band 5 — the trace: what happened last on this piece. */}
-          <div className="px-3 pb-3">
-            <div className="border-t border-border/60 pt-2.5">
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">
-                Dernière action
-              </div>
-              {of.derniere_action ? (
-                <div className="flex items-center gap-2.5">
-                  <BonnetierPhoto
-                    id={of.derniere_action.IDbonnetier}
-                    nom={of.derniere_action.evenement}
-                    size={36}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold truncate">
-                      {of.derniere_action.evenement}
-                    </div>
-                    {of.derniere_action.detail && (
-                      <div className="text-xs text-muted-foreground truncate">
-                        {of.derniere_action.detail}
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground tabular-nums flex-shrink-0 flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {formatQuand(of.derniere_action.date_ms)}
-                  </span>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">
-                  Rien encore sur cette pièce.
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div style={{ height: 'env(safe-area-inset-bottom)' }} />
         </div>
       )}
-    </div>
-  )
-}
 
-// A bare-icon navigation button of band 2: 44 px (a thumb target at the
-// station), the Lien card's look and gold badge. The label only lives in
-// title / aria-label — the régleur learns the icon.
-function BoutonIcone({
-  onClick,
-  label,
-  badge,
-  children,
-}: {
-  onClick: () => void
-  label: string
-  badge?: number
-  children: ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      className="relative h-11 w-11 rounded-xl border border-border bg-card shadow-sm text-primary flex items-center justify-center active:bg-muted transition-colors"
-    >
-      {children}
-      {badge !== undefined && (
-        <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-gold text-gold-foreground text-[10px] font-bold flex items-center justify-center tabular-nums">
-          {badge}
-        </span>
+      {/* Band 5 — the trace: what happened last on this piece. Anchored under
+          the scroll area as app chrome, in the header's navy, so the poste is
+          framed top and bottom and the trace never scrolls away or floats
+          mid-screen (Vincent, 2026-09-15: the off-white band read as more
+          content). It owns the bottom safe-area inset. */}
+      {of && (
+        <footer
+          className="flex-shrink-0 bg-gradient-brand text-white shadow-[0_-6px_16px_-8px_rgba(0,0,0,0.35)]"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <div className="px-4 py-3 flex items-center gap-3">
+            {of.derniere_action ? (
+              <>
+                <BonnetierPhoto
+                  id={of.derniere_action.IDbonnetier}
+                  nom={of.derniere_action.evenement}
+                  size={44}
+                  className="border-gold"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-gold">
+                    Dernière action
+                  </div>
+                  <div className="text-base font-semibold truncate leading-tight">
+                    {of.derniere_action.evenement}
+                  </div>
+                  {of.derniere_action.detail && (
+                    <div className="text-xs text-white/70 truncate">{of.derniere_action.detail}</div>
+                  )}
+                </div>
+                <div
+                  className="text-right flex-shrink-0 tabular-nums"
+                  title={formatQuand(of.derniere_action.date_ms)}
+                >
+                  <div className="text-sm font-semibold">{depuis(of.derniere_action.date_ms)}</div>
+                  <div className="text-[11px] text-white/60">{formatQuand(of.derniere_action.date_ms)}</div>
+                </div>
+              </>
+            ) : (
+              <div className="min-w-0">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-gold">
+                  Dernière action
+                </div>
+                <div className="text-sm text-white/70 italic">Rien encore sur cette pièce.</div>
+              </div>
+            )}
+          </div>
+        </footer>
       )}
-    </button>
+    </div>
   )
 }
 

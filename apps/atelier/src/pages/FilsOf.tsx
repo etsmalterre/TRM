@@ -164,7 +164,7 @@ export function FilsOf() {
                       {affiche.composition.map((c) => (
                         <li key={c.IDcomposition_ecru} className="px-3 py-2.5">
                           <div className="text-sm font-medium">
-                            <span className="tabular-nums font-bold">{c.pourcentage} %</span>
+                            <span className="tabular-nums font-bold">{pct.format(c.pourcentage)} %</span>
                             <span className="text-muted-foreground"> · </span>
                             {c.fil}
                           </div>
@@ -232,6 +232,9 @@ function EtatVide({ titre, detail }: { titre: string; detail: string }) {
 }
 
 const kg = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+// `composition_ecru.pourcentage` is a 4-byte HFSQL real: 76.7 comes back as
+// 76.69999694824219. One decimal is all a composition ever carries.
+const pct = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 })
 function formatKg(v: number): string {
   return `${kg.format(v)} Kg`
 }

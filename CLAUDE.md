@@ -130,6 +130,11 @@ depuis un téléphone enrôlé. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   et **la liste des actions est recalculée au serveur** : `apps/atelier/src/lib/actions.ts`
   et `routes/atelier.ts` se changent ensemble, l'API faisant foi.
 - ⚠️ Le libellé d'un métier est `machine.emplacement`, l'**inverse** d'Atelier › Maintenance.
+- **Bande d'action du poste en deux rangées** (2026-09-15, `SaisieBand.tsx`) : tuiles
+  Nettoyage · Fin de pièce (+ ⏸/▶ régleur au style du glyphe d'état de la liste), puis
+  « Signaler un défaut » → `DefautSheet` (sa propre confirmation). ⚠️ **« Dernière pièce »
+  TERMINE L'OF** côté API : seconde réponse de la feuille Fin de pièce, jamais sans sa
+  propre confirmation. Dossier § « La bande d'action du poste ».
 - **L'OF actif porte Consigne · Historique · Fils** (2026-09-15, ports de `FEN_Consigne`,
   `FEN_Historique`, `FEN_Fils_OF`) : ⚠️ « Pièce N° i » est une **position** à rebours, pas
   `numero` ; la productivité est **la formule du legacy** (`lib/historique-atelier-trm.ts`,

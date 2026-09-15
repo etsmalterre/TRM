@@ -17,8 +17,8 @@
 //
 // The consigne is the régleur's to write here (2026-09-15): the legacy sheet
 // carries an IMG_Consigne that opens FEN_Consigne plan 3 and comes back; here
-// the callout is followed by « Modifier » / « Supprimer » (or « Ajouter une
-// consigne » when there is none) and the editor is a bottom sheet over this
+// the callout is followed by « Modifier » / « Supprimer » (a new consigne is
+// written from the corner's Consigne icon) and the editor is a bottom sheet over this
 // screen, so the régleur never leaves the sheet they are setting the machine
 // from. The write is the one PUT of lib/consigne.ts — deleting is saving the
 // empty string, behind its own confirmation.
@@ -46,9 +46,10 @@ import {
   ChevronRight,
   Pencil,
   Trash2,
-  Plus,
-  NotebookText,
+  MessageSquareText,
 } from 'lucide-react'
+import { BobineIcon } from '@/components/icons/BobineIcon'
+import { BoutonIcone } from '@/components/atelier/BoutonIcone'
 import { fetchMachines, fetchMessages, fetchNotesRef, fetchReglage, posterEvenement } from '@/lib/atelier-api'
 import { messagePourErreur } from '@/lib/erreurs'
 import { useEcrireConsigne, messagePourErreurConsigne } from '@/lib/consigne'
@@ -56,7 +57,6 @@ import { PosteHeader } from '@/components/layout/PosteHeader'
 import { ConsigneCallout } from '@/components/of/ConsigneCallout'
 import { ConsigneSheet } from '@/components/of/ConsigneSheet'
 import { ConfirmSheet } from '@/components/atelier/ConfirmSheet'
-import { Lien } from '@/components/atelier/Lien'
 import { Entete } from '@/components/atelier/Entete'
 import { useIdentite } from '@/contexts/BonnetierContext'
 import { Card } from '@/components/ui/card'
@@ -144,7 +144,6 @@ export function ReglageMachine() {
           `${nbNotes ?? 0} note${(nbNotes ?? 0) > 1 ? 's' : ''}`,
           `${nbMessages ?? 0} message${(nbMessages ?? 0) > 1 ? 's' : ''}`,
         ].join(' · ')
-  const totalHistorique = (nbNotes ?? 0) + (nbMessages ?? 0)
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -187,15 +186,32 @@ export function ReglageMachine() {
                   {sheet.reference}
                   {sheet.coloris ? ` · ${sheet.coloris}` : ''}
                 </p>
+                {/* No launch-state label (2026-09-15): the wrench box and the
+                    « Lancer OF » commit at the foot already say it. */}
               </div>
-              <span
-                className={cn(
-                  'text-xs font-semibold uppercase tracking-wide rounded-full px-2.5 h-7 flex items-center flex-shrink-0',
-                  sheet.demarre ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning-foreground',
-                )}
-              >
-                {sheet.demarre ? 'Lancé' : 'À lancer'}
-              </span>
+              {/* The poste's corner: Consigne · Fils (2026-09-15). The
+                  Consigne screen carries the Notes tab, so
+                  the « Notes » row this sheet used to end with is gone. */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <BoutonIcone
+                  onClick={() => navigate(`/metier/${idMachine}/consigne`)}
+                  label={`Consigne, notes et messages · ${detailHistorique}`}
+                  // Notes of the reference + messages: both live behind this
+                  // icon, and an OF with standing notes must say so from the
+                  // corner (2026-09-15).
+                  badge={(nbNotes ?? 0) + (nbMessages ?? 0) > 0 ? (nbNotes ?? 0) + (nbMessages ?? 0) : undefined}
+                >
+                  <MessageSquareText className="h-5 w-5" />
+                </BoutonIcone>
+                <BoutonIcone
+                  onClick={() => navigate(`/metier/${idMachine}/fils`)}
+                  label="Fils · lots et emplacements"
+                >
+                  <BobineIcon className="h-5 w-5" />
+                </BoutonIcone>
+                {/* No Historique here: the réglage sheet is an OF that has not
+                    run yet, so it has no pieces and no rolls (2026-09-15). */}
+              </div>
             </div>
             <div className="mt-2 h-px w-24 bg-gradient-to-r from-gold to-transparent" />
           </div>
@@ -220,8 +236,11 @@ export function ReglageMachine() {
                 callout stays the one component; only the strip under it is
                 new. Nothing when there is none and the phone cannot write. */}
             <ConsigneCallout texte={sheet.consigne} />
+            {/* No « Ajouter une consigne » here (2026-09-15): the corner's
+                Consigne icon opens the editor, and an empty placeholder row
+                cost a band on every OF that has none. */}
             {peutEcrireConsigne &&
-              (sheet.consigne.trim() ? (
+              !!sheet.consigne.trim() && (
                 <div className="grid grid-cols-2 gap-2 -mt-0.5">
                   <ActionConsigne
                     icone={<Pencil className="h-4 w-4" />}
@@ -242,19 +261,7 @@ export function ReglageMachine() {
                     }}
                   />
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setErreurConsigne(null)
-                    setEditerConsigne(true)
-                  }}
-                  className="w-full h-11 rounded-xl border border-dashed border-border text-sm font-medium text-muted-foreground flex items-center justify-center gap-1.5 active:bg-muted"
-                >
-                  <Plus className="h-4 w-4" />
-                  Ajouter une consigne
-                </button>
-              ))}
+              )}
             {erreurConsigne && (
               <p className="flex items-start gap-2 text-sm text-destructive">
                 <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
@@ -320,20 +327,6 @@ export function ReglageMachine() {
                 </ul>
               )}
             </Card>
-
-            {/* Everything written about this OF — the legacy's IMG_Consigne
-                glyph, as one station-scale row. Not « Historique »: that word is
-                the poste's pieces-and-rolls screen (legacy FEN_Historique), and
-                one label opening two different screens is a trap. */}
-            <div className="grid">
-              <Lien
-                onClick={() => navigate(`/metier/${idMachine}/consigne`, { state: { onglet: 'notes' } })}
-                icone={<NotebookText className="h-5 w-5" />}
-                label="Notes"
-                detail={detailHistorique}
-                badge={totalHistorique > 0 ? totalHistorique : undefined}
-              />
-            </div>
 
             {/* The commit — or, once launched, the way to the poste. */}
             {sheet.demarre ? (

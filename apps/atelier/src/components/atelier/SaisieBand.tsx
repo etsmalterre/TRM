@@ -1,32 +1,50 @@
-// Band 4 of the poste (§45.2) — the one band that flexes, and the only place
-// in this app that writes.
+// Band 4 of the poste (§45.2) — the only place in this app that writes.
 //
-// Legacy: FEN_Action_Machine's COMBO_Action + GR_Defaut + BTN_Valider. Three
-// deliberate departures from that window, all form-factor:
+// Legacy: FEN_Action_Machine's COMBO_Action + GR_Defaut + BTN_Valider.
 //
-//  1. The action list is a column of tap targets, not a dropdown. A combo on a
-//     phone opens a native picker over the whole screen, which hides the OF
-//     context the operator is checking the action against — and a gloved
-//     fingertip is ~20mm, so the choices have to be at least that tall anyway.
-//  2. The commit button is full-width at the FOOT of the band, not pinned
-//     top-right as §45.3 prescribes. §45.3 is written for a desk station read
-//     at arm's length; on a phone held one-handed the bottom of the screen is
-//     the only place a thumb reaches reliably, and the eye already ends there
-//     after the last choice. Same rules otherwise: gold, an icon, a spinner
-//     while pending, a `title` naming the exact reason it is disabled, and
-//     failures rendered INLINE as text — never a toast, which at a machine is
-//     missed, and a missed failure means the bonnetier believes they recorded
-//     something they did not.
-//  3. The size picker only appears for a cm-type defect, which is the legacy's
-//     own rule (`si COMBO_Défaut.Select() dans (1,3,4,5)`) expressed through
-//     the served `unite` rather than through combo positions.
+// Redesigned 2026-09-15 (Vincent: « no scrolling on this screen »). The legacy
+// shape — pick an action, pick a defect, press Valider, confirm — cost a band
+// header, a five-row column of choices and a 64 px Valider, ~430 px of a phone.
+// The actions fall into three kinds, and the band now says so in two rows:
 //
-// The legacy's confirmation ("Voulez-vous vraiment enregistrer" + métier +
-// action) is kept: these actions are consequential, several are effectively
-// irreversible from the phone today, and the bonnetiers already expect it.
-import { useEffect, useMemo, useState } from 'react'
+//   [ Nettoyage 1/2 ] [ Fin de pièce ] [⏸]   routine · routine · régleur only
+//   [ Signaler un défaut              ]       quality
+//
+//  - A tile opens its confirmation directly: two taps, never one. The legacy's
+//    « Voulez-vous vraiment enregistrer » stays — there is no undo on the phone.
+//  - Tiles hold their SLOT. Nettoyage stays in place once the piece's cleanings
+//    are done (disabled, « 2/2 ✓ ») rather than vanishing and sliding Fin de
+//    pièce under the thumb; it only drops out on an OF that requires none.
+//    « Terminer OF » takes Fin de pièce's slot on the last piece, as the legacy
+//    swaps the combo entry.
+//  - « Dernière pièce » (« finir le fil » OFs only) is the other answer of the
+//    Fin de pièce sheet, not a third tile. ⚠️ It is NOT a milder Fin de pièce:
+//    the API closes the piece AND TERMINATES THE OF (same branch as Terminer
+//    OF), so it gets its own « l'OF sera terminé » confirmation.
+//  - Pause / play is the régleur's Interrompre / Relancer OF pair as one square
+//    button carrying the métier list's state glyph: blue ⏸, green ▶ while the
+//    OF stands interrupted.
+//  - Défaut opens DefautSheet, which is its own confirmation.
+//
+// Failures render INLINE as text, never a toast (§45.3): at a machine a toast is
+// missed, and a missed failure means the bonnetier believes they recorded
+// something they did not. The phone buzzes on the server's answer (main.tsx).
+//
+// Which actions exist is still decided by lib/actions.ts, mirrored by the API —
+// this band only lays them out.
+import { useEffect, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Loader2, AlertTriangle } from 'lucide-react'
+import {
+  AlertTriangle,
+  Brush,
+  Check,
+  CheckCheck,
+  Flag,
+  Loader2,
+  Pause,
+  Play,
+  ShieldAlert,
+} from 'lucide-react'
 import {
   fetchLookupsDefauts,
   posterEvenement,
@@ -36,8 +54,26 @@ import {
 import type { ActionAtelier } from '@/lib/actions'
 import { useIdentite } from '@/contexts/BonnetierContext'
 import { ConfirmSheet } from '@/components/atelier/ConfirmSheet'
+import { DefautSheet } from '@/components/atelier/DefautSheet'
 import { messagePourErreur } from '@/lib/erreurs'
 import { cn } from '@/lib/utils'
+
+/** What is open over the band. `ofId` pins the sheet to the OF it was opened
+ *  on, so a poll that swaps the OF underneath can never redirect a write. */
+type Feuille =
+  | { kind: 'confirmer'; action: ActionAtelier; ofId: number }
+  | { kind: 'fin'; ofId: number }
+  | { kind: 'defaut'; ofId: number }
+
+const ICONES: Partial<Record<ActionAtelier, ReactNode>> = {
+  'Lancement OF': <Play className="h-5 w-5" />,
+  Nettoyage: <Brush className="h-5 w-5" />,
+  'Fin de pièce': <Flag className="h-5 w-5" />,
+  'Terminer OF': <CheckCheck className="h-5 w-5" />,
+  'Dernière pièce': <CheckCheck className="h-5 w-5" />,
+  'Interrompre OF': <Pause className="h-5 w-5" />,
+  'Relancer OF': <Play className="h-5 w-5" />,
+}
 
 export function SaisieBand({
   of,
@@ -51,12 +87,11 @@ export function SaisieBand({
   const { identite } = useIdentite()
   const qc = useQueryClient()
 
-  const [choisie, setChoisie] = useState<ActionAtelier | null>(null)
-  const [typeDefaut, setTypeDefaut] = useState<string | null>(null)
-  const [taille, setTaille] = useState<number | null>(null)
-  const [confirmer, setConfirmer] = useState(false)
+  const [feuille, setFeuille] = useState<Feuille | null>(null)
   const [erreur, setErreur] = useState<string | null>(null)
 
+  // Fetched with the band rather than on opening the sheet, so the sheet opens
+  // on its chips instead of a spinner.
   const lookups = useQuery({
     queryKey: ['atelier', 'lookups', 'defauts'],
     queryFn: fetchLookupsDefauts,
@@ -65,34 +100,25 @@ export function SaisieBand({
     refetchInterval: false,
   })
 
-  // The OF is polled (lib/rafraichissement.ts), so the offered actions can
-  // change under a choice: another phone recorded the fin de pièce, the ERP
-  // terminated the OF, the next one activated. A choice the fresh OF no longer
-  // offers is dropped — and the confirmation sheet with it — with the reason
-  // inline, rather than sent for the server to refuse. `actions` is memoised
-  // on the OF object and React Query keeps that object stable while the
-  // payload is unchanged, so this only fires on a real change.
+  // The OF is polled (lib/rafraichissement.ts), so what is offered can change
+  // under an open sheet: another phone recorded the fin de pièce, the ERP
+  // terminated the OF, the next one activated. The sheet is closed with the
+  // reason inline rather than sent for the server to refuse. `actions` is
+  // memoised on the OF object, which React Query keeps stable while the payload
+  // is unchanged, so this only fires on a real change.
   useEffect(() => {
-    if (choisie && !actions.includes(choisie)) {
-      setChoisie(null)
-      setTypeDefaut(null)
-      setTaille(null)
-      setConfirmer(false)
+    if (!feuille) return
+    const requise: ActionAtelier =
+      feuille.kind === 'confirmer' ? feuille.action : feuille.kind === 'fin' ? 'Dernière pièce' : 'Défaut'
+    if (feuille.ofId !== of.IDordre_fabrication || !actions.includes(requise)) {
+      setFeuille(null)
       setErreur("L'OF a évolué depuis un autre poste : l'action choisie n'est plus proposée.")
     }
-  }, [actions, choisie])
-
-  const uniteDuType = useMemo(() => {
-    if (!typeDefaut) return null
-    return lookups.data?.types.find((t) => t.type === typeDefaut)?.unite ?? null
-  }, [typeDefaut, lookups.data])
+  }, [actions, feuille, of.IDordre_fabrication])
 
   const mut = useMutation({
     mutationFn: (body: SaisiePayload) => posterEvenement(of.IDordre_fabrication, body),
     onSuccess: () => {
-      setChoisie(null)
-      setTypeDefaut(null)
-      setTaille(null)
       setErreur(null)
       // The métier list carries each OF's progression, so it is stale too.
       qc.invalidateQueries({ queryKey: ['atelier', 'of', of.IDordre_fabrication] })
@@ -103,138 +129,213 @@ export function SaisieBand({
     },
   })
 
-  // One branch per precondition, so the disabled button always says why (§45.3).
-  const empeche = ((): string | null => {
-    if (!identite) return "Personne n'est identifié sur ce poste."
-    if (!choisie) return 'Choisissez une action.'
-    if (choisie === 'Défaut') {
-      if (!typeDefaut) return 'Choisissez le type de défaut.'
-      if (uniteDuType === 'cm' && taille === null) return 'Choisissez la taille du défaut.'
-    }
-    if (mut.isPending) return 'Enregistrement en cours…'
-    return null
-  })()
+  // Why nothing in the band can be pressed right now — the title of every
+  // disabled tile (§45.3).
+  const bloque = !identite
+    ? "Personne n'est identifié sur ce poste."
+    : mut.isPending
+      ? 'Enregistrement en cours…'
+      : null
 
-  function valider() {
-    if (empeche || !identite || !choisie) return
+  function enregistrer(action: ActionAtelier, defaut?: SaisiePayload['defaut']) {
+    if (!identite) return
     setErreur(null)
-    mut.mutate({
-      action: choisie,
-      IDbonnetier: identite.id,
-      defaut:
-        choisie === 'Défaut' && typeDefaut
-          ? { type: typeDefaut, ...(taille !== null ? { taille } : {}) }
-          : undefined,
-    })
+    mut.mutate(
+      { action, IDbonnetier: identite.id, defaut },
+      // Only the défaut sheet stays open during the write, so a refusal lands
+      // inside it with the chosen type still selected.
+      { onSuccess: () => setFeuille(null) },
+    )
   }
 
-  return (
-    <div className="px-3 pb-3">
-      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-        <div className="px-3 py-2 bg-sand border-b border-border">
-          <span className="text-xs font-semibold uppercase tracking-wide text-accent">Action</span>
-        </div>
+  function ouvrir(f: Feuille) {
+    setErreur(null)
+    setFeuille(f)
+  }
 
-        <ul className="p-2 space-y-1.5">
-          {actions.map((a) => (
-            <li key={a}>
+  const ofId = of.IDordre_fabrication
+  const enCours = mut.isPending ? (mut.variables?.action as ActionAtelier | undefined) : undefined
+  const a = (x: ActionAtelier) => actions.includes(x)
+
+  const lancement = a('Lancement OF')
+  const fin: ActionAtelier | null = a('Terminer OF') ? 'Terminer OF' : a('Fin de pièce') ? 'Fin de pièce' : null
+  const pause: ActionAtelier | null = a('Relancer OF') ? 'Relancer OF' : a('Interrompre OF') ? 'Interrompre OF' : null
+  const avecNettoyage = of.nb_nettoyages_requis > 0
+  const nettoyagesFaits = Math.min(of.nb_nettoyages_faits, of.nb_nettoyages_requis)
+
+  return (
+    <div className="px-3 pb-3 space-y-2">
+      {lancement ? (
+        <button
+          type="button"
+          disabled={bloque !== null}
+          title={bloque ?? `Enregistrer « Lancement OF » sur ${metier}`}
+          onClick={() => ouvrir({ kind: 'confirmer', action: 'Lancement OF', ofId })}
+          className="w-full h-16 rounded-xl bg-gold text-gold-foreground text-lg font-semibold flex items-center justify-center gap-2 shadow active:opacity-90 disabled:opacity-40 disabled:shadow-none"
+        >
+          {enCours === 'Lancement OF' ? <Loader2 className="h-5 w-5 animate-spin" /> : ICONES['Lancement OF']}
+          Lancement OF
+        </button>
+      ) : (
+        <>
+          {/* Row 1 — the routine pair, and the régleur's pause / play. */}
+          <div className="flex gap-2">
+            {avecNettoyage && (
+              <Tuile
+                icone={ICONES.Nettoyage}
+                label="Nettoyage"
+                sous={
+                  a('Nettoyage') ? (
+                    `${nettoyagesFaits}/${of.nb_nettoyages_requis}`
+                  ) : (
+                    <span className="inline-flex items-center gap-0.5">
+                      {nettoyagesFaits}/{of.nb_nettoyages_requis}
+                      <Check className="h-3 w-3" />
+                    </span>
+                  )
+                }
+                enCours={enCours === 'Nettoyage'}
+                disabled={bloque !== null || !a('Nettoyage')}
+                title={
+                  bloque ??
+                  (a('Nettoyage')
+                    ? `Enregistrer « Nettoyage » sur ${metier}`
+                    : 'Les nettoyages de cette pièce sont faits.')
+                }
+                onClick={() => ouvrir({ kind: 'confirmer', action: 'Nettoyage', ofId })}
+              />
+            )}
+            {fin && (
+              <Tuile
+                icone={ICONES[fin]}
+                label={fin}
+                sous={fin === 'Terminer OF' ? 'dernière pièce' : a('Dernière pièce') ? 'ou dernière' : undefined}
+                accent={fin === 'Terminer OF'}
+                enCours={enCours === fin || enCours === 'Dernière pièce'}
+                disabled={bloque !== null}
+                title={bloque ?? `Enregistrer « ${fin} » sur ${metier}`}
+                onClick={() =>
+                  ouvrir(
+                    fin === 'Fin de pièce' && a('Dernière pièce')
+                      ? { kind: 'fin', ofId }
+                      : { kind: 'confirmer', action: fin, ofId },
+                  )
+                }
+              />
+            )}
+            {/* Dressed like the tiles beside it (white card, border, shadow),
+                carrying the métier list's state glyph (ChoixMetier ETATS: round
+                bg-secondary disc) — the glyph of the state the tap LEADS TO, in
+                that state's colour: blue ⏸ to interrupt, green ▶ to resume. A
+                bare grey disc read as disabled next to the tiles (2026-09-15). */}
+            {pause && (
               <button
                 type="button"
-                onClick={() => {
-                  setChoisie(a === choisie ? null : a)
-                  setErreur(null)
-                  if (a !== 'Défaut') {
-                    setTypeDefaut(null)
-                    setTaille(null)
-                  }
-                }}
-                aria-pressed={a === choisie}
-                className={cn(
-                  'w-full h-14 px-3 rounded-lg border text-left text-lg font-medium',
-                  'flex items-center justify-between transition-colors',
-                  a === choisie
-                    ? 'border-gold bg-gold-light/60 text-foreground'
-                    : 'border-border bg-background active:bg-muted',
-                )}
+                disabled={bloque !== null}
+                onClick={() => ouvrir({ kind: 'confirmer', action: pause, ofId })}
+                title={bloque ?? (pause === 'Relancer OF' ? "L'OF est interrompu — Relancer OF" : 'Interrompre OF')}
+                aria-label={pause}
+                className="h-16 w-16 flex-shrink-0 rounded-xl border border-border bg-card shadow-sm flex items-center justify-center transition-colors active:bg-muted disabled:opacity-40"
               >
-                {a}
-                {a === choisie && <Check className="h-5 w-5 text-accent" />}
+                <span
+                  className={cn(
+                    'h-11 w-11 rounded-full flex items-center justify-center',
+                    pause === 'Relancer OF' ? 'bg-success/15 text-success' : 'bg-primary/10 text-primary',
+                  )}
+                >
+                  {enCours === pause ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : pause === 'Relancer OF' ? (
+                    <Play className="h-6 w-6 fill-current" />
+                  ) : (
+                    <Pause className="h-6 w-6 fill-current" />
+                  )}
+                </span>
               </button>
-            </li>
-          ))}
-        </ul>
-
-        {choisie === 'Défaut' && (
-          <div className="px-2 pb-2 space-y-2">
-            <Groupe titre="Type de défaut">
-              {lookups.isLoading && <Loader2 className="h-5 w-5 animate-spin text-accent" />}
-              {lookups.data?.types.map((t) => (
-                <Chip
-                  key={t.type}
-                  label={t.type}
-                  actif={t.type === typeDefaut}
-                  onClick={() => {
-                    setTypeDefaut(t.type === typeDefaut ? null : t.type)
-                    setTaille(null)
-                  }}
-                />
-              ))}
-            </Groupe>
-
-            {/* Only cm-types carry a size — the legacy's own rule. */}
-            {uniteDuType === 'cm' && (
-              <Groupe titre="Taille">
-                {lookups.data?.tailles.map((t, i) => (
-                  <Chip
-                    key={t.label}
-                    label={t.label}
-                    actif={taille === i + 1}
-                    onClick={() => setTaille(taille === i + 1 ? null : i + 1)}
-                  />
-                ))}
-              </Groupe>
             )}
           </div>
-        )}
 
-        <div className="p-2 pt-0">
-          {erreur && (
-            <p className="mb-2 flex items-start gap-2 text-sm text-destructive px-1">
-              <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-              <span>{erreur}</span>
-            </p>
+          {/* Row 2 — quality. */}
+          {a('Défaut') && (
+            <button
+              type="button"
+              disabled={bloque !== null}
+              title={bloque ?? `Signaler un défaut sur ${metier}`}
+              onClick={() => ouvrir({ kind: 'defaut', ofId })}
+              className="w-full h-14 rounded-xl border border-border bg-card shadow-sm text-lg font-semibold flex items-center justify-center gap-2 active:bg-muted disabled:opacity-40"
+            >
+              {enCours === 'Défaut' ? (
+                <Loader2 className="h-5 w-5 animate-spin text-destructive" />
+              ) : (
+                <ShieldAlert className="h-5 w-5 text-destructive" />
+              )}
+              Signaler un défaut
+            </button>
           )}
-          <button
-            type="button"
-            onClick={() => setConfirmer(true)}
-            disabled={empeche !== null}
-            title={empeche ?? `Enregistrer « ${choisie} » sur ${metier}`}
-            className={cn(
-              'w-full h-16 rounded-xl text-lg font-semibold flex items-center justify-center gap-2',
-              'bg-gold text-gold-foreground shadow active:opacity-90',
-              'disabled:opacity-40 disabled:shadow-none',
-            )}
-          >
-            {mut.isPending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Check className="h-5 w-5" />
-            )}
-            Valider
-          </button>
-        </div>
-      </div>
+        </>
+      )}
 
-      {confirmer && choisie && (
+      {erreur && feuille?.kind !== 'defaut' && (
+        <p className="flex items-start gap-2 text-sm text-destructive px-1">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <span>{erreur}</span>
+        </p>
+      )}
+
+      {feuille?.kind === 'confirmer' && (
         <ConfirmSheet
           titre={<>Voulez-vous vraiment enregistrer&nbsp;?</>}
-          detail={`${metier} — ${choisie}`}
-          oui="Oui, enregistrer"
-          icone={<Check className="h-5 w-5" />}
-          onCancel={() => setConfirmer(false)}
+          detail={
+            feuille.action === 'Dernière pièce' || feuille.action === 'Terminer OF'
+              ? `${metier} — ${feuille.action} · l'OF ${ofId} sera terminé`
+              : `${metier} — ${feuille.action}`
+          }
+          oui={
+            feuille.action === 'Dernière pièce' || feuille.action === 'Terminer OF'
+              ? "Oui, terminer l'OF"
+              : 'Oui, enregistrer'
+          }
+          icone={ICONES[feuille.action] ?? <Check className="h-5 w-5" />}
+          onCancel={() => setFeuille(null)}
           onConfirm={() => {
-            setConfirmer(false)
-            valider()
+            const action = feuille.action
+            setFeuille(null)
+            enregistrer(action)
+          }}
+        />
+      )}
+
+      {feuille?.kind === 'fin' && (
+        <ConfirmSheet
+          titre={<>Voulez-vous vraiment enregistrer&nbsp;?</>}
+          detail={`${metier} — Fin de pièce`}
+          oui="Oui, fin de pièce"
+          icone={ICONES['Fin de pièce']}
+          alternative={{
+            label: "C'est la dernière pièce",
+            icone: ICONES['Dernière pièce'],
+            onClick: () => setFeuille({ kind: 'confirmer', action: 'Dernière pièce', ofId }),
+          }}
+          onCancel={() => setFeuille(null)}
+          onConfirm={() => {
+            setFeuille(null)
+            enregistrer('Fin de pièce')
+          }}
+        />
+      )}
+
+      {feuille?.kind === 'defaut' && (
+        <DefautSheet
+          metier={metier}
+          piece={of.piece_en_cours.numero_affiche}
+          lookups={lookups.data}
+          enCours={mut.isPending}
+          bloque={identite ? null : "Personne n'est identifié sur ce poste."}
+          erreur={erreur}
+          onEnregistrer={(d) => enregistrer('Défaut', d)}
+          onClose={() => {
+            setFeuille(null)
+            setErreur(null)
           }}
         />
       )}
@@ -242,32 +343,45 @@ export function SaisieBand({
   )
 }
 
-function Groupe({ titre, children }: { titre: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg bg-secondary p-2">
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5 px-0.5">
-        {titre}
-      </div>
-      <div className="flex flex-wrap gap-1.5">{children}</div>
-    </div>
-  )
-}
-
-function Chip({ label, actif, onClick }: { label: string; actif: boolean; onClick: () => void }) {
+// A routine action: 64 px tall (a gloved thumb), half the row. The optional
+// second line carries the state the operator checks before tapping.
+function Tuile({
+  icone,
+  label,
+  sous,
+  accent = false,
+  enCours,
+  disabled,
+  title,
+  onClick,
+}: {
+  icone: ReactNode
+  label: string
+  sous?: ReactNode
+  accent?: boolean
+  enCours: boolean
+  disabled: boolean
+  title: string
+  onClick: () => void
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-pressed={actif}
+      disabled={disabled}
+      title={title}
       className={cn(
-        'h-11 px-3 rounded-lg border text-base font-medium transition-colors',
-        actif
-          ? 'border-gold bg-gold text-gold-foreground'
-          : 'border-border bg-card active:bg-muted',
+        'flex-1 min-w-0 h-16 px-2 rounded-xl border shadow-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-40',
+        accent ? 'border-gold bg-gold-light/60 active:bg-gold-light' : 'border-border bg-card active:bg-muted',
       )}
     >
-      {label}
+      <span className="text-primary flex-shrink-0">
+        {enCours ? <Loader2 className="h-5 w-5 animate-spin" /> : icone}
+      </span>
+      <span className="min-w-0 text-left leading-tight">
+        <span className="block text-base font-semibold truncate">{label}</span>
+        {sous && <span className="block text-xs text-muted-foreground tabular-nums">{sous}</span>}
+      </span>
     </button>
   )
 }
-
