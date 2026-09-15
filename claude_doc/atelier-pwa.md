@@ -10,7 +10,7 @@ hôte **`atelier.intra.etsmalterre.com`**, parc Android. Dossier de conception :
 
 **État au 2026-08-27** : Accueil (grille de visages) → Choix Métier (Actifs / Inactifs) →
 Poste, **saisie comprise**. Les huit actions du legacy s'enregistrent (`POST
-/api/atelier/of/:id/evenement`), sous le droit `saisie_atelier`.
+/api/atelier/of/:id/evenement`), depuis un téléphone enrôlé.
 
 ## Les métiers inactifs — dernier OF, à suivre, historique (2026-09-15)
 
@@ -59,10 +59,11 @@ le poste d'un métier sans OF n'est plus un état vide.
   « Activation auto » : la même voie que le bouton de l'ERP). Jusqu'au 2026-09-07 elle
   reproduisait l'`AutoActivation()` legacy, qui ne bascule qu'`est_actif` (LIVA #1128).
 - **Un téléphone n'écrit que s'il est enrôlé** (2026-09-15, § « Enrôlement des
-  téléphones » plus bas) et si son compte d'enrôlement détient `saisie_atelier` (fermé par
-  défaut). À faire sur la prod après le déploiement : enrôler les deux téléphones de
-  régleur sous les comptes de Nicolas (11) et Mickaël (21), les téléphones partagés sous
-  `Regleur` (14), et accorder `saisie_atelier` à ces trois comptes.
+  téléphones » plus bas), et **l'enrôlement suffit** : le droit `saisie_atelier` a été
+  retiré le même jour (décision de Vincent — seul un admin émet un code, personne n'enrôle
+  un téléphone pour qu'il reste en lecture). À faire sur la prod : enrôler les deux
+  téléphones de régleur sous les comptes de Nicolas (11) et Mickaël (21), les téléphones
+  partagés sous `Regleur` (14).
 - Un seul écran secondaire reste : Information (la checklist de nettoyage, littéraux
   récupérés verbatim). Consigne, Historique et Fils OF sont portés (voir « L'OF actif »).
 - L'hôte de prod (nginx sur `10.10.20.4` + entrée Caddy sur `10.10.20.5`).
@@ -198,8 +199,8 @@ Nico. **Depuis le 2026-09-15 le bascule n'existe plus : le rôle vient du télé
 (§ « Enrôlement des téléphones » plus bas — `identite.regleur` n'est vrai que pour l'identité
 fixe d'un appareil, jamais pour un visage choisi sur la grille). **Et c'est l'API qui tient
 la règle** : chaque écriture régleur vérifie `bonnetier.regleur = 1` sur l'`IDbonnetier`
-nommé, en plus des trois contrôles de `gateSaisie` (appareil enrôlé, `saisie_atelier` sur
-son compte, appareil autorisé à parler pour ce bonnetier).
+nommé, en plus des contrôles de `gateSaisie` (appareil enrôlé, appareil autorisé à parler
+pour ce bonnetier).
 
 ⚠️ **La spec du régleur n'est PAS `Android\dbg\Compile` (build bonnetier du 24/03/2026) mais
 `Android\gen\Compile`** : `GWDPMPS.getNomConfiguration()` y renvoie `"Appli_Regleur"`, il
@@ -303,9 +304,9 @@ dans son propre cookie. Conception : plan §3.2–3.4 ; décision de Vincent du 
 (« les téléphones régleur toujours connectés comme eux-mêmes, toujours l'interface régleur »).
 
 - **Une ligne par téléphone** (`ETM/apps/api/src/lib/appareils-atelier.ts`, store
-  `data/appareils-atelier.json`) : `IDutilisateur` (le compte sous lequel il agit — ses
-  droits TRM s'appliquent, `saisie_atelier` en tête, comme le compte-poste du PC de
-  visitage), `IDbonnetier` (**identité fixe** = téléphone de régleur, `null` = téléphone
+  `data/appareils-atelier.json`) : `IDutilisateur` (le compte sous lequel il agit ; être
+  enrôlé suffit pour écrire, aucun droit à accorder sur ce compte), `IDbonnetier`
+  (**identité fixe** = téléphone de régleur, `null` = téléphone
   partagé), `libelle` (écrit dans `evenement_piece.appareil`, là où le legacy mettait le
   nom du terminal), `creeLe`, `creePar`, `vuLe`.
 - **Cookie `mps_appareil`** = `<id>.<secret>` ; seul `sha256(secret)` est stocké ; **révoquer
@@ -324,8 +325,8 @@ dans son propre cookie. Conception : plan §3.2–3.4 ; décision de Vincent du 
   Monté **avant** `/api/atelier`.
 - **`gateSaisie` (toute écriture de `routes/atelier.ts`) refuse dans l'ordre** :
   `appareil_non_enrole` (401 sans cookie, 403 avec un simple `mps_uid` — `POST /auth/login`
-  n'authentifie rien, un curl pouvait agir pour n'importe qui), `saisie_atelier` absent sur le
-  compte du téléphone, bonnetier inconnu, `identite_appareil` (un téléphone fixe n'écrit que
+  n'authentifie rien, un curl pouvait agir pour n'importe qui), bonnetier inconnu,
+  `identite_appareil` (un téléphone fixe n'écrit que
   pour son régleur), `regleur_hors_appareil` (un téléphone partagé n'écrit jamais pour un
   régleur — la règle du plan §3.3, en API et pas seulement en UX).
 - **Côté PWA** (`BonnetierContext`) : `GET /atelier/appareils/moi` au démarrage puis au poll

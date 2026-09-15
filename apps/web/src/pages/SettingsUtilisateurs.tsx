@@ -603,8 +603,6 @@ function DetailBody({
           <AppareilsTab
             userId={user.IDutilisateur}
             userName={displayName(user)}
-            peutSaisir={isVin || grantedSet.has('saisie_atelier')}
-            onOuvrirPermissions={() => setActiveTab('permissions')}
           />
         )}
       </div>

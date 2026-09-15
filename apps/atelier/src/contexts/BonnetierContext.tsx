@@ -86,7 +86,6 @@ function lireAppareil(): Appareil | null | undefined {
       libelle: String(p.libelle ?? ''),
       IDutilisateur: Number(p.IDutilisateur ?? 0),
       bonnetier: p.bonnetier ?? null,
-      saisie: Boolean(p.saisie),
     }
   } catch {
     return undefined

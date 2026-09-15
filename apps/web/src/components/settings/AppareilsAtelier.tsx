@@ -8,14 +8,16 @@
 //   - a RÉGLEUR's own phone — fixed identity: the app opens as him, régleur
 //     screens, no face grid, and the API only lets it write for him;
 //   - a SHARED phone — the face grid of the bonnetiers, whoever holds it.
-// The phone acts as THIS account: its `saisie_atelier` grant (Permissions
-// tab) is what lets the phone write. Revoking a phone here kills its cookie.
+// The phone acts as THIS account, and being enrolled is what lets it record
+// production — there is no separate right to grant (2026-09-15: an admin issues
+// every code, so nobody enrols a read-only phone). Revoking a phone here kills
+// its cookie, and its writes with it.
 //
 // Cards follow the Profil tab's (EmailEditor: zinc header band, white body).
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Smartphone, Plus, Trash2, Loader2, AlertCircle, KeyRound, X, Shield, UserCheck, Users,
+  Smartphone, Plus, Trash2, Loader2, AlertCircle, KeyRound, X, UserCheck, Users,
 } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -111,14 +113,9 @@ function useMaintenant(actif: boolean): number {
 export function AppareilsTab({
   userId,
   userName,
-  peutSaisir,
-  onOuvrirPermissions,
 }: {
   userId: number
   userName: string
-  /** The account holds `saisie_atelier` (or is the admin). */
-  peutSaisir: boolean
-  onOuvrirPermissions: () => void
 }) {
   const queryClient = useQueryClient()
   const [enrolerOpen, setEnrolerOpen] = useState(false)
@@ -158,21 +155,6 @@ export function AppareilsTab({
 
   return (
     <>
-      {!peutSaisir && (
-        <div className="flex items-start gap-3 p-3 rounded-lg border border-amber-500/40 bg-amber-500/[0.08]">
-          <AlertCircle className="h-4 w-4 text-amber-700 flex-shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-primary">Ce compte ne peut pas saisir au poste</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Sans le droit « Saisir au poste de l’atelier », ses téléphones consultent mais n’enregistrent rien.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={onOuvrirPermissions}>
-            <Shield className="h-3.5 w-3.5 mr-1.5" />
-            Permissions
-          </Button>
-        </div>
-      )}
 
       <div className="rounded-lg border border-border/60 bg-white shadow-sm">
         <div className="px-4 py-2 border-b border-border/60 bg-zinc-100/80 rounded-t-lg flex items-center gap-2">

@@ -5,8 +5,8 @@
 // rather than desk scale, but the same band stack.
 //
 // The commit path is live: band 4 writes evenement_piece, piece_production,
-// defaut_qualite and the ordre_fabrication timestamps, behind the
-// `saisie_atelier` right. There is NO undo yet — the legacy has one
+// defaut_qualite and the ordre_fabrication timestamps, from an enrolled phone
+// (enrolment is the right to write). There is NO undo yet — the legacy has one
 // (IMG_Annuler on the last action) and this does not.
 import { useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'

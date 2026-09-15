@@ -390,8 +390,6 @@ export interface Appareil {
   /** A fixed identity — this is a régleur's own phone. null = shared phone,
    *  whoever holds it picks their face. */
   bonnetier: Bonnetier | null
-  /** Whether the phone's account may write (`saisie_atelier`). */
-  saisie: boolean
 }
 
 /** null = not enrolled (or revoked); anything else throws. */

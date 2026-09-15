@@ -100,16 +100,15 @@ export function Accueil() {
       </main>
 
       {/* The phone's own line. Enrolled: its label, so a phone found on a
-          bench can be told apart from the next one — and « consultation
-          seule » when its account cannot write, said here rather than on the
-          first « Fin de pièce ». Not enrolled: the one way in, deliberately
-          discreet — it is an admin's gesture, done once. */}
+          bench can be told apart from the next one. An enrolled phone always
+          records, so there is no « consultation seule » state any more
+          (2026-09-15). Not enrolled: the one way in, deliberately discreet —
+          it is an admin's gesture, done once. */}
       <div className="flex-shrink-0 px-5 pb-6 text-center">
         {appareil ? (
           <p className="text-xs text-white/50 flex items-center justify-center gap-1.5">
             <Smartphone className="h-3.5 w-3.5" />
             {appareil.libelle}
-            {!appareil.saisie && <span> · consultation seule</span>}
           </p>
         ) : (
           <button

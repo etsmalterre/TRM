@@ -106,7 +106,7 @@ Migration de l'app Android legacy des bonnetiers/régleurs : **deuxième app du 
 hôte **`atelier.intra.etsmalterre.com`** (en ligne depuis le 2026-08-28), port dev **5176**, version
 propre (`apps/atelier/package.json`). Accueil (grille de visages) → Choix Métier → Poste
 avec saisie : les huit actions du legacy s'enregistrent via `POST /api/atelier/of/:id/evenement`
-sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réutilise
+depuis un téléphone enrôlé. API `ETM/apps/api/src/routes/atelier.ts`, réutilise
 `lib/production-trm.ts`. Conception : `~/.claude/plans/atelier-malterre.md`.
 **Dossier complet : `claude_doc/atelier-pwa.md`** — à lire avant tout travail dessus.
 
@@ -119,7 +119,8 @@ sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   s'ouvre sur lui, écrans régleur, pas de grille, pas de « Quitter », et l'API refuse toute
   écriture au nom d'un autre ; **un téléphone partagé** (compte-poste `Regleur`, id 14)
   propose la grille des **bonnetiers seuls** et ne peut jamais écrire au nom d'un régleur.
-  Le droit `saisie_atelier` reste requis, **sur le compte d'enrôlement**. ⚠️ Un cookie
+  **L'enrôlement vaut droit d'écrire** : le droit `saisie_atelier` est retiré (2026-09-15 —
+  seul un admin émet un code, personne n'enrôle un téléphone en lecture seule). ⚠️ Un cookie
   `mps_uid` seul est refusé partout (`gateSaisie`) — `POST /auth/login` n'authentifie rien.
   Le bascule dev « voir la grille régleur » est **retiré**. ⚠️ `check-api-routes.mjs` ne voit
   pas un sous-routeur manquant (`/atelier` répond déjà en prod) : `/etm_deploy` d'abord.
