@@ -518,6 +518,22 @@ dans son propre cookie. Conception : plan §3.2–3.4 ; décision de Vincent du 
   l'espace à zéro sous `@media (display-mode: fullscreen)` et le garde dans un onglet ou en
   `standalone`. Écart assumé : un téléphone à caméra poinçonnée dans l'écran aurait le titre
   sous l'objectif — le parc actuel a la caméra dans la bordure.
+- ⚠️ **Installer sur un Android Go (Ulefone Armor X12) : changer d'écran d'accueil d'abord**
+  (2026-09-15). L'Armor X12 tourne sous Android 13 **Go** (`ro.config.low_ram=true`) avec
+  le launcher `Launcher3QuickStepGo`, qui **n'accepte aucune icône épinglée** : rien ne
+  répond à `CONFIRM_PIN_SHORTCUT` (`adb shell cmd package query-activities --brief -a
+  android.content.pm.action.CONFIRM_PIN_SHORTCUT` → « No activities found »). Chrome retire
+  alors « Installer l'application » **et** « Ajouter à l'écran d'accueil » de son menu, Edge
+  grise « Ajouter au téléphone » — alors que le site est installable (Chrome bureau tire
+  `beforeinstallprompt`). **Remède vérifié** : installer **Lawnchair** (`app.lawnchair.play`)
+  depuis le Play Store, le mettre en écran d'accueil par défaut, relancer Chrome → « Installer
+  et créer un raccourci » → vraie WebAPK (`org.chromium.webapk.*`, `displayMode fullscreen`),
+  ouverte plein écran. Le parc est en navigation à trois boutons (`navigation_mode=0`), un
+  launcher tiers n'y casse rien. ⚠️ **Pas de TWA / APK « app Chrome »** : Chrome vérifie
+  `assetlinks.json` via `digitalassetlinks.googleapis.com`, et `atelier.intra.etsmalterre.com`
+  résout en public vers l'IP privée `10.10.20.5` — Google répond « DNS name not found », la
+  TWA garderait la barre d'adresse. La WebAPK partage le bocal à cookies de Chrome : un
+  téléphone enrôlé dans Chrome l'est aussi dans l'app.
 - **Service worker `injectManifest`** (`src/sw.ts`), pas le `generateSW` d'`apps/web` :
   c'est le seul endroit où un handler `push` peut vivre, et basculer après coup toucherait
   le chemin de mise à jour déjà corrigé une fois (`lib/sw-refresh.ts`). Éteint en dev.
