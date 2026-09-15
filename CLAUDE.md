@@ -147,6 +147,10 @@ depuis un téléphone enrôlé. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   (`injectRegister: null`), vérifie toutes les 60 s, recharge sur `controllerchange` une
   fois les écritures en vol terminées. ⚠️ Le premier déploiement qui le porte demande un
   rechargement manuel des téléphones. Dossier § « Rafraîchissement ».
+- **Vibration** (`lib/vibration.ts`, 2026-09-15) : `confirme` / `refuse` sur **la réponse
+  du serveur**, tirés pour toute mutation par le `MutationCache` de `main.tsx` — ⚠️ jamais
+  au tap d'une écriture (pas d'annulation) ; `tick` léger sur un visage ou un métier (le
+  legacy vibrait 100 ms partout). Dossier § « Vibration ».
 - **Plein écran** (`display: 'fullscreen'`, 2026-09-15) : pas de barre d'état du téléphone.
   ⚠️ Un changement de manifeste n'atteint un téléphone installé qu'au rafraîchissement de sa
   WebAPK (jusqu'à un jour) — réinstaller. Rien en `fixed` par-dessus la liste : la version

@@ -1,11 +1,12 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { router } from './router'
 import { BonnetierProvider, useIdentite } from './contexts/BonnetierContext'
 import { POLL_MS } from './lib/rafraichissement'
 import { installerMiseAJour } from './lib/mise-a-jour'
+import { vibrer } from './lib/vibration'
 import { Accueil } from './pages/Accueil'
 import './index.css'
 
@@ -18,6 +19,15 @@ if (import.meta.env.DEV && worktreeLabel) {
 }
 
 const queryClient = new QueryClient({
+  // Every mutation of this app is a write the server confirms or refuses, and
+  // the phone buzzes on THAT answer, never on the tap (lib/vibration.ts). Here
+  // rather than in each screen so no write can forget it — the cache-level
+  // callbacks also fire when the screen that sent the write has unmounted
+  // (« Lancer OF » navigates away on success).
+  mutationCache: new MutationCache({
+    onSuccess: () => vibrer('confirme'),
+    onError: () => vibrer('refuse'),
+  }),
   defaultOptions: {
     queries: {
       // Every screen shows the state of machines that change under the

@@ -21,6 +21,7 @@ import { EnrolementSheet } from '@/components/atelier/EnrolementSheet'
 import { useIdentite } from '@/contexts/BonnetierContext'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { vibrer } from '@/lib/vibration'
 
 export function Accueil() {
   const { choisir, appareil } = useIdentite()
@@ -85,14 +86,16 @@ export function Accueil() {
               <FaceTile
                 key={b.IDbonnetier}
                 b={b}
-                onPick={() =>
+                onPick={() => {
+                  // The legacy buzzed on a face; a light tick keeps the habit.
+                  vibrer('tick')
                   choisir({
                     id: b.IDbonnetier,
                     prenom: b.prenom,
                     nom: b.nom,
                     regleur: false,
                   })
-                }
+                }}
               />
             ))}
           </ul>

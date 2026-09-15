@@ -141,6 +141,37 @@ navigue pas), et quand le nouveau worker finissait par s'installer et prendre la
 - La tablette TRS (`apps/trs`) a exactement le même trou (script injecté, jamais fermée)
   et n'est pas traitée ici.
 
+## Vibration — le téléphone confirme sous le doigt (`lib/vibration.ts`, 2026-09-15)
+
+Le legacy Android vibrait **100 ms sur presque chaque tap** (`vibrationDeclenche(100)`,
+34 appels dans `Android\dbg\Compile\` : visage, métier, retour, icônes fil / info…) : une
+vibration identique partout, qui ne disait rien d'autre que « touché ». Les opérateurs ont
+l'habitude, et l'atelier s'y prête (bruit, gants, regard sur la machine) ; une app muette
+donne l'impression qu'un tap n'est pas passé. On garde l'habitude, mais la vibration porte
+une information :
+
+| Moment | Motif |
+|---|---|
+| Le serveur confirme une écriture (saisie, consigne, message, Lancer OF, enrôlement) | `confirme` — une impulsion courte et ferme (60 ms) |
+| Une écriture est refusée ou n'arrive pas (réseau, non enrôlé, 409) | `refuse` — deux impulsions rapides (50·70·50) |
+| Choisir un visage (Accueil) ou un métier (Choix Métier) | `tick` — très léger (12 ms) |
+| Défiler, segments, onglets, retour | rien |
+
+- ⚠️ **Une écriture vibre à la réponse du serveur, jamais au tap** : sinon le téléphone dit
+  « fait » pour une écriture qui échoue ensuite, et l'app n'a pas d'annulation. `confirme` /
+  `refuse` ne sont appelés **par aucun écran** : le `MutationCache` du `QueryClient`
+  (`main.tsx`) les tire pour **toute** mutation, donc une nouvelle écriture vibre sans
+  qu'on y pense — et même si son écran s'est démonté (« Lancer OF » navigue au succès).
+  Seul `tick` s'appelle depuis un gestionnaire de clic. Toute mutation de l'app est une
+  écriture serveur ; une future mutation qui ne doit pas vibrer devra le dire.
+- Limites du web (Chrome Android, PWA installée comprise) : durée et rythme seulement, pas
+  d'intensité ; il faut que la page ait déjà reçu un tap (une réponse serveur après le tap
+  compte, un poll sur un téléphone que personne n'a touché non — la cloche régleur ne peut
+  pas vibrer, ce serait du push) ; un téléphone réglé sans vibration reste muet. No-op sur
+  desktop et iOS, testé (`vibration.test.ts`).
+- Le refus « l'OF a évolué depuis un autre poste » de `SaisieBand` ne vibre pas : il vient
+  du poll, pas d'une écriture.
+
 ## L'OF actif — Consigne · Historique · Fils (2026-09-15)
 
 Demande de Vincent du 2026-09-15, photos du téléphone Android de Nicolas à l'appui : sur un

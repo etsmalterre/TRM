@@ -47,6 +47,7 @@ import { Pastille } from '@/components/atelier/Pastille'
 import { useIdentite } from '@/contexts/BonnetierContext'
 import { cn } from '@/lib/utils'
 import { teinteArrets } from '@/lib/teinte-arrets'
+import { vibrer } from '@/lib/vibration'
 
 export function ChoixMetier() {
   const navigate = useNavigate()
@@ -76,6 +77,8 @@ export function ChoixMetier() {
   const liste = voirActives ? actives : inactives
 
   function ouvrir(m: Machine) {
+    // The legacy buzzed on a métier; a light tick keeps the habit.
+    vibrer('tick')
     // Legacy (Appli_Regleur): « si pas DateValide(demarrage_prod) alors
     // OuvreFenêtreMobile(FEN_Reglage_Machine) » — after the eligibility check,
     // which the réglage screen itself renders here.
