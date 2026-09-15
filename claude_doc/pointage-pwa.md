@@ -19,7 +19,7 @@ prod, `--replace` pour reconstruire). Détails pilote : `ETM/claude_doc/hfsql_od
 
 | Table | Rôle |
 |---|---|
-| `lst_salarie` | la grille (`is_deleted = 0` : 7 salariés en septembre 2026) ; `id_mps` → `mps.bonnetier` (photo, journal TRS) |
+| `lst_salarie` | la grille (`is_deleted = 0` : 7 salariés en septembre 2026) ; `id_mps` → `mps.bonnetier` (photo, journal TRS). Lier un salarié : `scripts/link-salarie-bonnetier.ts --salarie N --bonnetier M [--write]` (MARIE BOURSIER 46 → 30 fait sur dev et prod le 2026-09-15) |
 | `lst_horaire` | **la vérité** : une ligne par poste, six heures en **epoch secondes UTC**, 0 = vide ; seule table d'Admin Pointage |
 | `lst_pointage` | jumelle DATETIME (heure de Paris, NULL = vide), lue par TricoBot |
 | `mps.pointage` | journal `en_poste` 1/0 lu par les TRS, écrit seulement si `id_mps > 0` |
@@ -114,7 +114,6 @@ d'identité à usurper.
 
 ## Reste à faire
 
-Hôte `pointage.intra.etsmalterre.com` (DNS Unbound + Caddy + nginx), déploiement, lien
-BOURSIER (`lst_salarie` 46 → bonnetier 30, dry-run puis `--write`), réparation de
+Hôte `pointage.intra.etsmalterre.com` (DNS Unbound + Caddy + nginx), déploiement, réparation de
 l'historique `lst_pointage` depuis `lst_horaire`, sonde de parité, formule du Cumul,
 rollout en parallèle de l'ancienne pointeuse puis bascule.
