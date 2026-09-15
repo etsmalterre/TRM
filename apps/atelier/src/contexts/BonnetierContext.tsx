@@ -64,8 +64,10 @@ function lireIdentite(): Identite | null {
       prenom: String(p.prenom ?? ''),
       nom: String(p.nom ?? ''),
       // A régleur no longer comes from the grid; an entry written by the
-      // pre-enrolment build (the dev switch) is demoted, never trusted.
-      regleur: false,
+      // pre-enrolment build (the old switch) is demoted, never trusted.
+      // Exception: the dev server's « Régleur login » (Accueil) — compiled
+      // out of production builds, where `import.meta.env.DEV` is false.
+      regleur: import.meta.env.DEV && p.regleur === true,
     }
   } catch {
     return null
@@ -136,7 +138,8 @@ export function BonnetierProvider({ children }: { children: ReactNode }) {
   }, [appareil, choisie])
 
   const choisir = useCallback((i: Identite) => {
-    const safe = { ...i, regleur: false }
+    // Only the dev server may pick a régleur face (see lireIdentite).
+    const safe = { ...i, regleur: import.meta.env.DEV && i.regleur }
     setChoisie(safe)
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(safe))

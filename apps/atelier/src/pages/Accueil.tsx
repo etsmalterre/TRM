@@ -14,10 +14,11 @@
 // app's charter. Full-bleed on purpose: it is the one screen with no machine
 // context, it reads as the lock screen, and there is nothing else to do here.
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, AlertCircle, Smartphone } from 'lucide-react'
+import { Loader2, AlertCircle, Smartphone, Wrench } from 'lucide-react'
 import { fetchBonnetiers, type Bonnetier } from '@/lib/atelier-api'
 import { BonnetierPhoto } from '@/components/atelier/BonnetierPhoto'
 import { EnrolementSheet } from '@/components/atelier/EnrolementSheet'
+import { RegleurDevSheet } from '@/components/atelier/RegleurDevSheet'
 import { useIdentite } from '@/contexts/BonnetierContext'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -26,6 +27,7 @@ import { vibrer } from '@/lib/vibration'
 export function Accueil() {
   const { choisir, appareil } = useIdentite()
   const [enroler, setEnroler] = useState(false)
+  const [regleurDev, setRegleurDev] = useState(false)
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['atelier', 'bonnetiers', false],
@@ -127,9 +129,22 @@ export function Accueil() {
             is this phone running? » when a fix is meant to have landed, and
             nothing else. Same wording as the ERP's profile menu. */}
         <p className="mt-2 text-[10px] leading-none text-white/35 tabular-nums">Version {__APP_VERSION__}</p>
+        {/* Dev server only — compiled out of production builds. See
+            RegleurDevSheet for why, and for what it does NOT unlock. */}
+        {import.meta.env.DEV && (
+          <button
+            type="button"
+            onClick={() => setRegleurDev(true)}
+            className="mt-4 inline-flex items-center gap-1.5 h-9 px-3 rounded-full border border-dashed border-gold/60 text-xs text-gold active:bg-white/10"
+          >
+            <Wrench className="h-3.5 w-3.5" />
+            dev · Régleur login
+          </button>
+        )}
       </div>
 
       {enroler && <EnrolementSheet onClose={() => setEnroler(false)} />}
+      {import.meta.env.DEV && regleurDev && <RegleurDevSheet onClose={() => setRegleurDev(false)} />}
     </div>
   )
 }

@@ -122,7 +122,9 @@ depuis un téléphone enrôlé. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   **L'enrôlement vaut droit d'écrire** : le droit `saisie_atelier` est retiré (2026-09-15 —
   seul un admin émet un code, personne n'enrôle un téléphone en lecture seule). ⚠️ Un cookie
   `mps_uid` seul est refusé partout (`gateSaisie`) — `POST /auth/login` n'authentifie rien.
-  Le bascule dev « voir la grille régleur » est **retiré**. ⚠️ `check-api-routes.mjs` ne voit
+  Le bascule prod « voir la grille régleur » est **retiré** ; seul le **serveur de dev** offre
+  « dev · Régleur login » (`RegleurDevSheet`, `import.meta.env.DEV`, absent du bundle prod) —
+  navigation seule, l'API refuse toujours ses écritures. ⚠️ `check-api-routes.mjs` ne voit
   pas un sous-routeur manquant (`/atelier` répond déjà en prod) : `/etm_deploy` d'abord.
 - ⚠️ **Le libellé n'est pas la chaîne stockée** (« Fin de pièce » écrit `Fin du tricotage`),
   et **la liste des actions est recalculée au serveur** : `apps/atelier/src/lib/actions.ts`
@@ -164,8 +166,8 @@ depuis un téléphone enrôlé. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   `FEN_Historique`) — les blocs `<COMPILE SI Appli_Regleur>` du build bonnetier sont vides.
 - **Côté régleur (2026-09-08)** : liste avec état / alerte (`?regleur=1`), fiche de réglage
   + « Lancer OF », consigne écrite depuis le téléphone, fil `message_of`. **Le rôle vient du
-  téléphone enrôlé** (identité fixe, ci-dessus) depuis le 2026-09-15 — le bascule dev de
-  l'Accueil n'existe plus ; l'API vérifie `bonnetier.regleur = 1`. Historique non porté. **Depuis le
+  téléphone enrôlé** (identité fixe, ci-dessus) depuis le 2026-09-15 — hors « Régleur login »
+  du serveur de dev ; l'API vérifie `bonnetier.regleur = 1`. Historique non porté. **Depuis le
   2026-09-15 la consigne se modifie / supprime depuis la fiche de réglage** (`ConsigneSheet`,
   supprimer = PUT vide, mutation unique `lib/consigne.ts`) et l'écran Consigne a un onglet
   « Notes » (`obs_ref_ecru` lu sur `/of-trm/:id/observations-ref`, lecture seule). Dossier

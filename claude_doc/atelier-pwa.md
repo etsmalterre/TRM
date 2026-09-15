@@ -376,6 +376,13 @@ dans son propre cookie. Conception : plan §3.2–3.4 ; décision de Vincent du 
 - ⚠️ **`scripts/check-api-routes.mjs` ne détecte pas un sous-routeur manquant** : il sonde
   les racines de montage et `/api/atelier` répond déjà en prod. Ordre : `/etm_deploy` avant
   `/trm_deploy`, sans exception.
+- **« dev · Régleur login » (2026-09-15, serveur de dev seulement)** : bouton en pied de
+  l'Accueil → `components/atelier/RegleurDevSheet.tsx` (liste `?regleur=1`) → identité choisie
+  avec `regleur: true`, non fixe (« Quitter » ramène à la grille). `BonnetierContext` n'accepte
+  et ne relit `regleur: true` que sous `import.meta.env.DEV` : le bouton et la feuille sont
+  absents du bundle prod (vérifié par grep de `dist/`). ⚠️ **Navigation seule** — `gateSaisie`
+  refuse toujours les écritures (`appareil_non_enrole`) ; pour écrire en dev, enrôler le
+  navigateur comme un téléphone de régleur. Pas de contournement côté API.
 - Non fait : WebAuthn (plan §3.5, v2), renommage depuis l'UI (la route `PATCH` existe),
   `FEN_Historique`.
 
