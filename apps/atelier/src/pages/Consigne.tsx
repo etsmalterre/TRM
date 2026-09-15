@@ -1,4 +1,4 @@
-// Consigne & messages — legacy FEN_Consigne.
+// Consigne, notes & messages — legacy FEN_Consigne, plus the ERP's Obs. tab.
 //
 // One window, three plans in the legacy:
 //   plan 1  the consigne, read      (bonnetier build, when one exists)
@@ -7,7 +7,15 @@
 //                                    to ordre_fabrication.observations)
 // behind one switch (INT_Option). The bonnetier lands on the consigne when
 // there is one and on the messages otherwise; the régleur always lands on the
-// editor. Same here, as a two-segment control.
+// editor. Same here, as a segmented control — and a caller can ask for a tab
+// (`state.onglet`, the réglage sheet's « Historique » lands on the notes).
+//
+// A THIRD segment (2026-09-15), « Notes »: the standing notes of the OF's
+// reference (`obs_ref_ecru`), which the legacy phone never showed and the ERP
+// stacks with the messages in its Obs. tab as « Commentaires historiques ».
+// Read-only here — they are written at the desk — but they are precisely what
+// a régleur wants under their thumb at the machine. With the messages next
+// door, this screen is everything anyone has written about this OF.
 //
 // The consigne is the same object everywhere (§46): red callout when read,
 // plain field when written — an input dressed as an alert reads as a
@@ -19,21 +27,24 @@
 // Messages are what a bonnetier leaves for the next shift on this OF. The
 // server, not the button, decides whose message can be deleted.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, AlertCircle, AlertTriangle, Send, Trash2, Save, Check } from 'lucide-react'
 import {
   fetchMachines,
   fetchOf,
   fetchMessages,
+  fetchNotesRef,
   posterMessage,
   supprimerMessage,
-  ecrireConsigne,
   type MessageOf,
+  type NoteRef,
 } from '@/lib/atelier-api'
 import { messagePourErreur } from '@/lib/erreurs'
+import { useEcrireConsigne, messagePourErreurConsigne } from '@/lib/consigne'
 import { PosteHeader } from '@/components/layout/PosteHeader'
 import { ConsigneCallout } from '@/components/of/ConsigneCallout'
+import { NoteRefCarte } from '@/components/of/NoteRefCarte'
 import { ConfirmSheet } from '@/components/atelier/ConfirmSheet'
 import { BonnetierPhoto } from '@/components/atelier/BonnetierPhoto'
 import { Segment } from '@/components/atelier/Segment'
@@ -41,11 +52,14 @@ import { useIdentite } from '@/contexts/BonnetierContext'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
-type Onglet = 'consigne' | 'messages'
+type Onglet = 'consigne' | 'notes' | 'messages'
+
+const ONGLETS: readonly Onglet[] = ['consigne', 'notes', 'messages']
 
 export function Consigne() {
   const { machineId } = useParams<{ machineId: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const qc = useQueryClient()
   const { identite } = useIdentite()
   const idMachine = Number(machineId) || 0
@@ -68,18 +82,27 @@ export function Consigne() {
     queryFn: () => fetchMessages(ofId),
     enabled: ofId > 0,
   })
+  const notesQ = useQuery({
+    queryKey: ['atelier', 'notes', ofId],
+    queryFn: () => fetchNotesRef(ofId),
+    enabled: ofId > 0,
+  })
   const of = ofQ.data
 
-  // Landing tab, decided once the OF is known (the legacy's INT_Option init).
+  // Landing tab, decided once the OF is known (the legacy's INT_Option init)
+  // — unless the caller named one.
+  const demande = (location.state as { onglet?: unknown } | null)?.onglet
+  const ongletDemande = ONGLETS.find((o) => o === demande) ?? null
   const [onglet, setOnglet] = useState<Onglet | null>(null)
   useEffect(() => {
     if (onglet !== null || !of) return
-    setOnglet(regleur || of.consigne ? 'consigne' : 'messages')
-  }, [of, regleur, onglet])
+    setOnglet(ongletDemande ?? (regleur || of.consigne ? 'consigne' : 'messages'))
+  }, [of, regleur, onglet, ongletDemande])
 
   const titre = machine?.label ?? '—'
   const chargement = machinesQ.isLoading || (ofId > 0 && ofQ.isLoading)
   const nbMessages = messagesQ.data?.length ?? of?.nb_messages ?? 0
+  const nbNotes = notesQ.data?.length ?? 0
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -117,6 +140,7 @@ export function Consigne() {
           <div className="flex-shrink-0 p-2 mt-1 bg-zinc-200/50 border-y border-border">
             <div className="flex gap-1 rounded-lg bg-background p-1">
               <Segment label="Consigne" active={onglet === 'consigne'} onClick={() => setOnglet('consigne')} />
+              <Segment label="Notes" count={nbNotes} active={onglet === 'notes'} onClick={() => setOnglet('notes')} />
               <Segment
                 label="Messages"
                 count={nbMessages}
@@ -138,6 +162,15 @@ export function Consigne() {
                 )}
               </div>
             ))}
+
+          {onglet === 'notes' && (
+            <NotesReference
+              notes={notesQ.data ?? []}
+              chargement={notesQ.isLoading}
+              erreurChargement={notesQ.isError}
+              reference={of.reference}
+            />
+          )}
 
           {onglet === 'messages' && (
             <FilMessages
@@ -162,7 +195,6 @@ export function Consigne() {
 /** Plan 3 — the régleur writes the consigne. A plain field (§46.2), a gold
  *  commit, the failure inline (§45.3). */
 function EditeurConsigne({ ofId, initiale, IDbonnetier }: { ofId: number; initiale: string; IDbonnetier: number }) {
-  const qc = useQueryClient()
   const [texte, setTexte] = useState(initiale)
   const [erreur, setErreur] = useState<string | null>(null)
   const [enregistre, setEnregistre] = useState(false)
@@ -177,24 +209,23 @@ function EditeurConsigne({ ofId, initiale, IDbonnetier }: { ofId: number; initia
     initialePrecedente.current = initiale
   }, [initiale])
 
-  const mut = useMutation({
-    mutationFn: () => ecrireConsigne(ofId, { IDbonnetier, consigne: texte }),
-    onSuccess: (r) => {
-      setErreur(null)
-      setEnregistre(true)
-      setTexte(r.consigne)
-      qc.invalidateQueries({ queryKey: ['atelier', 'of', ofId] })
-      qc.invalidateQueries({ queryKey: ['atelier', 'machines'] })
-      qc.invalidateQueries({ queryKey: ['atelier', 'reglage', ofId] })
-    },
-    onError: (e: Error & { status?: number }) => {
-      setEnregistre(false)
-      setErreur(e.status === 403 ? 'Seul un régleur peut écrire la consigne.' : messagePourErreur(e))
-    },
-  })
+  const mut = useEcrireConsigne(ofId, IDbonnetier)
 
   const modifie = texte.trim() !== initiale.trim()
   const empeche = mut.isPending ? 'Enregistrement en cours…' : !modifie ? 'Rien à enregistrer.' : null
+
+  const enregistrer = () =>
+    mut.mutate(texte, {
+      onSuccess: (r) => {
+        setErreur(null)
+        setEnregistre(true)
+        setTexte(r.consigne)
+      },
+      onError: (e) => {
+        setEnregistre(false)
+        setErreur(messagePourErreurConsigne(e as Error & { status?: number }))
+      },
+    })
 
   return (
     <div className="flex-1 min-h-0 flex flex-col p-3 gap-2.5">
@@ -229,7 +260,7 @@ function EditeurConsigne({ ofId, initiale, IDbonnetier }: { ofId: number; initia
           type="button"
           disabled={!!empeche}
           title={empeche ?? 'Enregistrer la consigne'}
-          onClick={() => mut.mutate()}
+          onClick={enregistrer}
           className="w-full h-16 rounded-xl bg-gold text-gold-foreground text-lg font-semibold flex items-center justify-center gap-2 active:opacity-90 disabled:opacity-40"
         >
           {mut.isPending ? (
@@ -242,6 +273,48 @@ function EditeurConsigne({ ofId, initiale, IDbonnetier }: { ofId: number; initia
           {enregistre && !modifie ? 'Enregistrée' : 'Enregistrer'}
         </button>
       </div>
+      <div style={{ height: 'env(safe-area-inset-bottom)' }} />
+    </div>
+  )
+}
+
+/** The reference's standing notes, newest first as the ERP lists them.
+ *  Read-only: the legacy phone had no such screen, and the notes are written
+ *  at the desk (Production › OF, Tombé Métier › Références). */
+function NotesReference({
+  notes,
+  chargement,
+  erreurChargement,
+  reference,
+}: {
+  notes: NoteRef[]
+  chargement: boolean
+  erreurChargement: boolean
+  reference: string
+}) {
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto scrollbar-transparent p-3 space-y-2.5">
+      {chargement && (
+        <div className="flex justify-center pt-6">
+          <Loader2 className="h-6 w-6 animate-spin text-accent" />
+        </div>
+      )}
+      {erreurChargement && (
+        <p className="pt-6 text-center text-sm text-destructive">Impossible de charger les notes.</p>
+      )}
+      {!chargement && !erreurChargement && notes.length === 0 && (
+        <p className="pt-10 text-center text-sm text-muted-foreground italic">
+          Aucune note sur {reference ? `la référence ${reference}` : 'cette référence'} pour ce métier et ce coloris.
+        </p>
+      )}
+      {notes.map((n) => (
+        <NoteRefCarte key={n.id} note={n} />
+      ))}
+      {notes.length > 0 && (
+        <p className="pt-1 text-center text-xs text-muted-foreground">
+          Notes de la référence, écrites depuis l'ERP. Elles suivent la référence, pas l'OF.
+        </p>
+      )}
       <div style={{ height: 'env(safe-area-inset-bottom)' }} />
     </div>
   )

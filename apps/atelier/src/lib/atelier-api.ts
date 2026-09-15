@@ -95,6 +95,27 @@ export interface MessageOf {
   date_ms: number | null
 }
 
+/** A standing note of the OF's écru reference (`obs_ref_ecru`), scoped per
+ *  métier and per coloris — the ERP's « Commentaires historiques ». Served by
+ *  the ERP's own route (`routes/of-trm.ts`, read open, no TRM screen right):
+ *  the filter is the legacy `FI_Gestion_OF` predicate — this OF's reference,
+ *  its métier or « Toutes », its coloris or « Tout coloris » — and there is no
+ *  point in a second reader for the same question. */
+export interface NoteRef {
+  id: number
+  /** HFSQL DATE, `YYYYMMDD` — see `lib/dates.ts`. */
+  date: string | null
+  observation: string
+  IDmachine: number
+  IDcolori_ecru: number
+  /** Resolved label — « Toutes » when IDmachine is the 0 wildcard. */
+  machine: string
+  /** Resolved label — « Tout coloris » when IDcolori_ecru is the 0 wildcard. */
+  coloris: string
+  cible_machine: boolean
+  cible_coloris: boolean
+}
+
 export interface DerniereAction {
   evenement: string
   detail: string
@@ -178,6 +199,8 @@ export const fetchMachines = (regleur = false) =>
 export const fetchOf = (id: number) => apiFetch<OfContexte>(`/atelier/of/${id}`)
 
 export const fetchReglage = (ofId: number) => apiFetch<ReglageMachine>(`/atelier/of/${ofId}/reglage`)
+
+export const fetchNotesRef = (ofId: number) => apiFetch<NoteRef[]>(`/of-trm/${ofId}/observations-ref`)
 
 export const fetchMessages = (ofId: number) => apiFetch<MessageOf[]>(`/atelier/of/${ofId}/messages`)
 

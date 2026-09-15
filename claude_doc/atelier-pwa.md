@@ -127,7 +127,7 @@ Ce que le build régleur ajoute, et ce qui en est porté :
 | Choix Métier : icône d'état (réglage / pause / marche), fréquence d'arrêt, % 2nd choix, **alerte** ; Inactives = métiers **sans OF** | oui | `GET /atelier/machines?regleur=1`, `lib/atelier-regleur-trm.ts` (pur, testé), `ChoixMetier.tsx` |
 | Choix Métier : taper un OF non lancé → contrôle d'éligibilité → `FEN_Reglage_Machine` | oui | route `/metier/:id/reglage`, `GET /atelier/of/:id/reglage`, `ReglageMachine.tsx` |
 | `FEN_Reglage_Machine` : repères par tour (LFA précédente / LFA / repère), réglages, fils, consigne, **« Lancer OF »** | oui — le lancement passe par l'événement `Lancement OF` existant (une seule voie d'écriture) | idem |
-| `FEN_Consigne` plan 3 : le régleur **écrit** `ordre_fabrication.observations` | oui | `PUT /atelier/of/:id/consigne`, `Consigne.tsx` |
+| `FEN_Consigne` plan 3 : le régleur **écrit** `ordre_fabrication.observations` | oui — **et depuis la fiche de réglage** (2026-09-15 : Modifier / Supprimer / Ajouter, `ConsigneSheet`) | `PUT /atelier/of/:id/consigne`, `Consigne.tsx`, `ReglageMachine.tsx` |
 | `FEN_Consigne` plan 2 : fil `message_of` (les deux rôles), suppression de **ses** messages | oui | `GET/POST/DELETE /atelier/of/:id/messages[/:msgId]` |
 | Icône Historique → `FEN_Historique` (pièces, durée, productivité vs durée mini ; événements d'une pièce ; rouleaux visités) | **non porté** | — |
 | `MAJ_auto` (version par configuration), `notif_token` / push | non (sans objet / à venir) | — |
@@ -172,6 +172,38 @@ nombre. La consigne s'enregistre sur « Enregistrer », pas à chaque frappe com
 métier décidant l'OF comme le poste. Le poste porte une rangée « Consigne · n messages »
 (badge or) et, pour un régleur sur un OF non lancé, « Réglage ». `ConfirmSheet`,
 `Segment` et `lib/erreurs.ts` sont désormais partagés entre les écrans.
+
+### La consigne se tient depuis la fiche de réglage + l'onglet « Notes » (2026-09-15)
+
+Demande de Vincent sur la fiche de réglage (OF 3395 sur 1F) : le régleur doit pouvoir
+**voir, modifier ou supprimer la consigne sans quitter la fiche**, et avoir **un accès à tout
+l'historique des notes de l'OF**. Le legacy y arrivait par l'icône `IMG_Consigne` de
+`FEN_Reglage_Machine` (→ `FEN_Consigne` plan 3, puis retour).
+
+- **Le callout §46 reste le seul rendu de la consigne** ; sous lui, pour un régleur sur un OF
+  non terminé, deux boutons de 44 px « Modifier » / « Supprimer » (ou le fantôme « + Ajouter
+  une consigne » quand il n'y en a pas). L'éditeur est un **bottom sheet** (`components/of/
+  ConsigneSheet.tsx`) — champ neutre, commit or de 64 px, échec en ligne. **Supprimer =
+  écrire la chaîne vide** derrière un `ConfirmSheet` destructif : c'est le même
+  `PUT /atelier/of/:id/consigne`, pas une route de plus. La mutation et ses invalidations
+  (OF, réglage, liste des métiers) vivent une fois dans **`lib/consigne.ts`**
+  (`useEcrireConsigne`), partagée avec l'éditeur plein écran de `Consigne.tsx`.
+- **« Historique »** (rangée `Lien`, compteur « n notes · n messages ») ouvre l'écran Consigne
+  sur un **troisième segment « Notes »** : les observations durables de la référence
+  (`obs_ref_ecru`, les « Commentaires historiques » de l'ERP, filtrées par le métier et le
+  coloris de l'OF), **lues sur la route de l'ERP** `GET /of-trm/:id/observations-ref`
+  (lecture ouverte, même prédicat legacy — pas de second lecteur). Lecture seule : elles
+  s'écrivent au bureau. Même habillage or que `ObsRefEcru.tsx` (`NoteRefCarte.tsx`), pour
+  la raison du 2026-08-27 (même objet, mêmes habits). Le segment « Messages » est le fil
+  `message_of` déjà porté. L'écran accepte `state.onglet` pour atterrir sur un segment.
+- `Lien` est sorti de `Poste.tsx` vers `components/atelier/Lien.tsx` ; `lib/dates.ts`
+  (`formatDateHfsql`, testé) découpe le `YYYYMMDD` HFSQL sans passer par `new Date()`.
+- ⚠️ **`index.html` porte désormais `interactive-widget=resizes-content`** : sans lui,
+  Chrome Android laisse la mise en page sous le clavier et un sheet `fixed` en bas de
+  l'écran se retrouve **derrière** le clavier pendant la frappe. Cela vaut pour toute
+  l'app (le `100dvh` de `#root` rétrécit avec le clavier).
+- Non fait : l'historique `FEN_Historique` (pièces, durées, productivité) reste non porté ;
+  la consigne n'a **pas d'historique de versions** (une colonne, écrasée à chaque écriture).
 
 **Identité — le point à trancher avant la mise en service.** Le téléphone porte le cookie
 d'un **compte-poste** (le modèle du PC de visitage, `Visitage` IDutilisateur 10), et *qui*

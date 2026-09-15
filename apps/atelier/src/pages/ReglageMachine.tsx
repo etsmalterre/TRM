@@ -15,6 +15,19 @@
 // button sits at the foot of the screen for the same one-handed reason as
 // SaisieBand's.
 //
+// The consigne is the régleur's to write here (2026-09-15): the legacy sheet
+// carries an IMG_Consigne that opens FEN_Consigne plan 3 and comes back; here
+// the callout is followed by « Modifier » / « Supprimer » (or « Ajouter une
+// consigne » when there is none) and the editor is a bottom sheet over this
+// screen, so the régleur never leaves the sheet they are setting the machine
+// from. The write is the one PUT of lib/consigne.ts — deleting is saving the
+// empty string, behind its own confirmation.
+//
+// « Historique » opens the Consigne screen on its Notes tab: the standing
+// notes of the reference (`obs_ref_ecru`, the ERP's « Commentaires
+// historiques ») and the message_of thread — everything anyone has written
+// about this OF, in one place, one tap away.
+//
 // Legacy Choix_Metier refuses to open this window when no `ref_ecru_machine`
 // sheet exists for the reference on this métier (« La référence demandée
 // n'est pas disponible sur cette machine »). Here the sheet renders that
@@ -23,12 +36,27 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, AlertCircle, Wrench, Play, Check, ChevronRight } from 'lucide-react'
-import { fetchMachines, fetchReglage, posterEvenement } from '@/lib/atelier-api'
+import {
+  Loader2,
+  AlertCircle,
+  AlertTriangle,
+  Wrench,
+  Play,
+  Check,
+  ChevronRight,
+  Pencil,
+  Trash2,
+  Plus,
+  History,
+} from 'lucide-react'
+import { fetchMachines, fetchMessages, fetchNotesRef, fetchReglage, posterEvenement } from '@/lib/atelier-api'
 import { messagePourErreur } from '@/lib/erreurs'
+import { useEcrireConsigne, messagePourErreurConsigne } from '@/lib/consigne'
 import { PosteHeader } from '@/components/layout/PosteHeader'
 import { ConsigneCallout } from '@/components/of/ConsigneCallout'
+import { ConsigneSheet } from '@/components/of/ConsigneSheet'
 import { ConfirmSheet } from '@/components/atelier/ConfirmSheet'
+import { Lien } from '@/components/atelier/Lien'
 import { useIdentite } from '@/contexts/BonnetierContext'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -55,8 +83,26 @@ export function ReglageMachine() {
   })
   const sheet = sheetQ.data
 
+  // The counts behind « Historique ». Same keys as the Consigne screen, so the
+  // tap there lands on data already in cache.
+  const notesQ = useQuery({
+    queryKey: ['atelier', 'notes', ofId],
+    queryFn: () => fetchNotesRef(ofId),
+    enabled: ofId > 0,
+  })
+  const messagesQ = useQuery({
+    queryKey: ['atelier', 'messages', ofId],
+    queryFn: () => fetchMessages(ofId),
+    enabled: ofId > 0,
+  })
+
   const [confirmer, setConfirmer] = useState(false)
   const [erreur, setErreur] = useState<string | null>(null)
+  const [editerConsigne, setEditerConsigne] = useState(false)
+  const [supprimerConsigne, setSupprimerConsigne] = useState(false)
+  const [erreurConsigne, setErreurConsigne] = useState<string | null>(null)
+
+  const ecrireConsigne = useEcrireConsigne(ofId, identite?.id ?? 0)
 
   const lancer = useMutation({
     mutationFn: () => posterEvenement(ofId, { action: 'Lancement OF', IDbonnetier: identite!.id }),
@@ -84,6 +130,20 @@ export function ReglageMachine() {
 
   const titre = machine?.label ?? '—'
   const chargement = machinesQ.isLoading || (ofId > 0 && sheetQ.isLoading)
+  // The API refuses a consigne on a finished OF (409); a bonnetier's phone
+  // reads only. The route, not this flag, is what holds the rule.
+  const peutEcrireConsigne = regleur && !!identite && !!sheet && !sheet.termine
+
+  const nbNotes = notesQ.data?.length
+  const nbMessages = messagesQ.data?.length
+  const detailHistorique =
+    nbNotes === undefined && nbMessages === undefined
+      ? 'Notes de la référence et messages'
+      : [
+          `${nbNotes ?? 0} note${(nbNotes ?? 0) > 1 ? 's' : ''}`,
+          `${nbMessages ?? 0} message${(nbMessages ?? 0) > 1 ? 's' : ''}`,
+        ].join(' · ')
+  const totalHistorique = (nbNotes ?? 0) + (nbMessages ?? 0)
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -155,7 +215,51 @@ export function ReglageMachine() {
               </Card>
             )}
 
+            {/* §46 — the consigne, and for a régleur the hands on it. The
+                callout stays the one component; only the strip under it is
+                new. Nothing when there is none and the phone cannot write. */}
             <ConsigneCallout texte={sheet.consigne} />
+            {peutEcrireConsigne &&
+              (sheet.consigne.trim() ? (
+                <div className="grid grid-cols-2 gap-2 -mt-0.5">
+                  <ActionConsigne
+                    icone={<Pencil className="h-4 w-4" />}
+                    label="Modifier"
+                    onClick={() => {
+                      setErreurConsigne(null)
+                      setEditerConsigne(true)
+                    }}
+                  />
+                  <ActionConsigne
+                    icone={<Trash2 className="h-4 w-4" />}
+                    label="Supprimer"
+                    destructive
+                    disabled={ecrireConsigne.isPending}
+                    onClick={() => {
+                      setErreurConsigne(null)
+                      setSupprimerConsigne(true)
+                    }}
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErreurConsigne(null)
+                    setEditerConsigne(true)
+                  }}
+                  className="w-full h-11 rounded-xl border border-dashed border-border text-sm font-medium text-muted-foreground flex items-center justify-center gap-1.5 active:bg-muted"
+                >
+                  <Plus className="h-4 w-4" />
+                  Ajouter une consigne
+                </button>
+              ))}
+            {erreurConsigne && (
+              <p className="flex items-start gap-2 text-sm text-destructive">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span>{erreurConsigne}</span>
+              </p>
+            )}
 
             {/* Repères — the legacy's ZR_Repere: one row per feed tour. */}
             <Card className="overflow-hidden">
@@ -216,6 +320,18 @@ export function ReglageMachine() {
               )}
             </Card>
 
+            {/* Everything written about this OF — the legacy's IMG_Consigne
+                and IMG_Historique glyphs, as one station-scale row. */}
+            <div className="grid">
+              <Lien
+                onClick={() => navigate(`/metier/${idMachine}/consigne`, { state: { onglet: 'notes' } })}
+                icone={<History className="h-5 w-5" />}
+                label="Historique"
+                detail={detailHistorique}
+                badge={totalHistorique > 0 ? totalHistorique : undefined}
+              />
+            </div>
+
             {/* The commit — or, once launched, the way to the poste. */}
             {sheet.demarre ? (
               <button
@@ -269,7 +385,64 @@ export function ReglageMachine() {
           }}
         />
       )}
+
+      {editerConsigne && sheet && identite && (
+        <ConsigneSheet
+          ofId={ofId}
+          initiale={sheet.consigne}
+          IDbonnetier={identite.id}
+          onClose={() => setEditerConsigne(false)}
+        />
+      )}
+
+      {supprimerConsigne && sheet && (
+        <ConfirmSheet
+          titre="Supprimer la consigne ?"
+          detail={sheet.consigne}
+          oui="Oui, supprimer"
+          icone={<Trash2 className="h-5 w-5" />}
+          variante="destructive"
+          onCancel={() => setSupprimerConsigne(false)}
+          onConfirm={() => {
+            setSupprimerConsigne(false)
+            ecrireConsigne.mutate('', {
+              onError: (e) => setErreurConsigne(messagePourErreurConsigne(e as Error & { status?: number })),
+            })
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+/** One of the two hands on the consigne: thumb-height, quiet — the red
+ *  callout above is the loud thing, the buttons must not compete with it. */
+function ActionConsigne({
+  icone,
+  label,
+  destructive,
+  disabled,
+  onClick,
+}: {
+  icone: React.ReactNode
+  label: string
+  destructive?: boolean
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'h-11 rounded-xl border bg-card text-sm font-semibold flex items-center justify-center gap-1.5 active:bg-muted disabled:opacity-40',
+        destructive ? 'border-destructive/30 text-destructive' : 'border-border text-foreground',
+      )}
+    >
+      {icone}
+      {label}
+    </button>
   )
 }
 

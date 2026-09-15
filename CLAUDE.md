@@ -134,7 +134,10 @@ sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   + « Lancer OF », consigne écrite depuis le téléphone, fil `message_of`. Le rôle vient du
   bascule « dev · voir la grille régleur » de l'Accueil **jusqu'à la couche de sécurité**
   — ⚠️ **livré en prod depuis le 2026-09-14** (plus compilé hors prod), à retirer le jour de
-  l'enrôlement ; l'API vérifie `bonnetier.regleur = 1`. Historique non porté. Dossier
+  l'enrôlement ; l'API vérifie `bonnetier.regleur = 1`. Historique non porté. **Depuis le
+  2026-09-15 la consigne se modifie / supprime depuis la fiche de réglage** (`ConsigneSheet`,
+  supprimer = PUT vide, mutation unique `lib/consigne.ts`) et l'écran Consigne a un onglet
+  « Notes » (`obs_ref_ecru` lu sur `/of-trm/:id/observations-ref`, lecture seule). Dossier
   § « Le côté régleur ». ⚠️ **La cloche de la liste n'est pas la fréquence horaire du
   legacy** (`FrequenceArret` divise par l'intervalle jusqu'à **minuit** — `DateSys` —, ×3,8
   à 17 h) : depuis le 2026-09-14 c'est l'« arrêts / pièce » de la tablette TRS, lecteur

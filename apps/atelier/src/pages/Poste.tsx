@@ -19,7 +19,6 @@ import {
   Clock,
   MessageSquareText,
   Wrench,
-  ChevronRight,
 } from 'lucide-react'
 import { fetchMachines, fetchOf, progression } from '@/lib/atelier-api'
 import { actionsDisponibles } from '@/lib/actions'
@@ -27,6 +26,7 @@ import { PosteHeader } from '@/components/layout/PosteHeader'
 import { ConsigneCallout } from '@/components/of/ConsigneCallout'
 import { SaisieBand } from '@/components/atelier/SaisieBand'
 import { BonnetierPhoto } from '@/components/atelier/BonnetierPhoto'
+import { Lien } from '@/components/atelier/Lien'
 import { useIdentite } from '@/contexts/BonnetierContext'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -218,44 +218,6 @@ export function Poste() {
         </div>
       )}
     </div>
-  )
-}
-
-/** A navigation row of band 3: icon, label, one line of detail, chevron. Same
- *  height as the tiles of the métier list, so a thumb finds it the same way. */
-function Lien({
-  onClick,
-  icone,
-  label,
-  detail,
-  badge,
-}: {
-  onClick: () => void
-  icone: React.ReactNode
-  label: string
-  detail: string
-  badge?: number
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="text-left rounded-xl border border-border bg-card shadow-sm p-3 flex items-center gap-2.5 active:bg-muted transition-colors min-w-0"
-    >
-      <span className="relative flex-shrink-0 h-9 w-9 rounded-full bg-secondary text-primary flex items-center justify-center">
-        {icone}
-        {badge !== undefined && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-gold text-gold-foreground text-[10px] font-bold flex items-center justify-center tabular-nums">
-            {badge}
-          </span>
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold truncate">{label}</span>
-        <span className="block text-xs text-muted-foreground truncate">{detail}</span>
-      </span>
-      <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-    </button>
   )
 }
 
