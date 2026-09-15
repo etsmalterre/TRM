@@ -67,9 +67,16 @@ never the cause of this banner.
 1. **Validate the argument.** If no feature name was given, ask for one. It must match
    `^[a-z0-9][a-z0-9-]*$` (kebab-case). Reject names with spaces/uppercase/slashes.
 
+1b. **Infer which app the feature is for from the session's working directory** — the
+   TRM monorepo ships three apps and the slot's port serves one of them. A session opened
+   under `apps/atelier` is atelier work → `--app atelier`; under `apps/trs` → `--app trs`;
+   anywhere else → the ERP (`--app web`, the default). Never ask; the cwd is the answer
+   (2026-09-15: a session sitting in `apps/atelier` got the ERP's link back and had to say so).
+   With `--app atelier` the PWA runs on `517N` and the ERP is not started at all.
+
 2. **Run the spin-up script** (hosted in ETM) from the TRM main checkout:
    ```bash
-   node C:/dev/etsmalterre/ETM/scripts/worktree/up.mjs <feature-name> --terminal [--api <port>]
+   node C:/dev/etsmalterre/ETM/scripts/worktree/up.mjs <feature-name> --terminal [--app atelier|trs] [--api <port>]
    ```
    Run from the TRM checkout, it defaults to a TRM worktree: fetches origin, allocates
    a free TRM slot, creates the worktree off `origin/master`, `pnpm install`, writes
@@ -85,8 +92,10 @@ never the cause of this banner.
    If it says the MPS API isn't reachable, start it (see the Prerequisite section) — the
    TRM web will show the « Impossible de charger la liste » banner until then.
 
-4. **Report to the user** the worktree path, the web URL (`http://localhost:517N`), the
-   slot number, and which terminal now carries the feature (the script's `wt-slot:` line).
+4. **Report to the user** the worktree path, **the link of the app the feature is for**
+   (`http://localhost:517N` — the PWA when `--app atelier` / `--app trs` was passed, say so;
+   the ERP otherwise), the slot number, and which terminal now carries the feature (the
+   script's `wt-slot:` line).
    That session has `/feature-checkpoint` (sync) and `/feature-complete` (land) available.
 
    **The session opens by itself.** `--terminal` hands the worktree to one of the six
