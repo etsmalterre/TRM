@@ -402,6 +402,11 @@ export const fetchAppareil = async (): Promise<Appareil | null> => {
   }
 }
 
+/** Whether an admin has an enrolment code pending right now — a boolean,
+ *  never the code. */
+export const fetchEnrolementEnAttente = () =>
+  apiFetch<{ enAttente: boolean }>('/atelier/appareils/enrolement-en-attente')
+
 export const enrolerAppareil = (code: string) =>
   apiFetch<Appareil>('/atelier/appareils/enroler', {
     method: 'POST',

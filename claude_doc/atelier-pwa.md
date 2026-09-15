@@ -437,7 +437,17 @@ dans son propre cookie. Conception : plan §3.2–3.4 ; décision de Vincent du 
   redémarrage de l'API les efface) ; sur le téléphone, « Enrôler ce téléphone » sous la
   grille (`EnrolementSheet`) → `POST /atelier/appareils/enroler` → cookie. Frein brute force :
   10 échecs / client / 15 min → 429. Routes admin (`requireAdmin`) : `GET /`, `POST /codes`,
-  `DELETE /codes/:code`, `PATCH /:id`, `DELETE /:id` ; téléphone : `GET /moi`, `POST /enroler`.
+  `DELETE /codes/:code`, `PATCH /:id`, `DELETE /:id` ; téléphone : `GET /moi`, `POST /enroler`,
+  `GET /enrolement-en-attente`.
+- **Le lien « Enrôler ce téléphone » n'apparaît que pendant qu'un code est en attente**
+  (2026-09-15) : `GET /enrolement-en-attente` → `{ enAttente }` (`codeEnAttente()`), public,
+  **un booléen seulement** — jamais le code, le libellé ni le régleur. L'Accueil l'interroge
+  sur le poll de 10 s tant que le téléphone n'est pas enrôlé ; tous les téléphones non enrôlés
+  voient le lien en même temps (un téléphone sans cookie n'a pas d'identité à cibler), c'est
+  le code qui choisit. ⚠️ **Échec = lien affiché** (API pas encore déployée → 404, réseau) :
+  le masquer sur une erreur fermerait la seule porte d'entrée. Une feuille ouverte reste
+  ouverte si le code expire dessous. Déploiement : `/etm_deploy` avant l'atelier, sinon le
+  lien reste visible en permanence (repli) — pas de panne.
   Monté **avant** `/api/atelier`.
 - **`gateSaisie` (toute écriture de `routes/atelier.ts`) refuse dans l'ordre** :
   `appareil_non_enrole` (401 sans cookie, 403 avec un simple `mps_uid` — `POST /auth/login`

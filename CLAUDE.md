@@ -115,7 +115,9 @@ depuis un téléphone enrôlé. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   cookie `mps_appareil`, émis une fois contre un code à 6 chiffres (10 min, usage unique)
   généré dans Paramètres › Utilisateurs › **Appareils** ; store `data/appareils-atelier.json`
   (API `lib/appareils-atelier.ts`, routes `/api/atelier/appareils/*`), révocation = suppression
-  de la ligne. **Un téléphone de régleur porte une identité fixe** (`IDbonnetier`) : l'app
+  de la ligne. Le lien « Enrôler ce téléphone » n'apparaît que **pendant qu'un code attend**
+  (`GET /atelier/appareils/enrolement-en-attente`, booléen) — ⚠️ **et sur erreur** : ne jamais
+  le masquer sur un échec, c'est la seule porte. **Un téléphone de régleur porte une identité fixe** (`IDbonnetier`) : l'app
   s'ouvre sur lui, écrans régleur, pas de grille, pas de « Quitter », et l'API refuse toute
   écriture au nom d'un autre ; **un téléphone partagé** (compte-poste `Regleur`, id 14)
   propose la grille des **bonnetiers seuls** et ne peut jamais écrire au nom d'un régleur.

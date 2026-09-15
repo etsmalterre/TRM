@@ -15,7 +15,7 @@
 // context, it reads as the lock screen, and there is nothing else to do here.
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, AlertCircle, Smartphone, Wrench } from 'lucide-react'
-import { fetchBonnetiers, type Bonnetier } from '@/lib/atelier-api'
+import { fetchBonnetiers, fetchEnrolementEnAttente, type Bonnetier } from '@/lib/atelier-api'
 import { BonnetierPhoto } from '@/components/atelier/BonnetierPhoto'
 import { EnrolementSheet } from '@/components/atelier/EnrolementSheet'
 import { RegleurDevSheet } from '@/components/atelier/RegleurDevSheet'
@@ -38,6 +38,19 @@ export function Accueil() {
     refetchInterval: false,
     staleTime: 5 * 60_000,
   })
+
+  // « Enrôler ce téléphone » is offered only while an admin has a code
+  // pending (2026-09-15): on a shared phone left on the gate, a link nobody
+  // may use is only an invitation to tap it. Rides the app's 10 s poll, and
+  // only while this phone is not enrolled. FAILS OPEN: an API that does not
+  // know the route yet (deploy order) or a network hiccup shows the link —
+  // hiding the only way in would lock the phone out.
+  const attente = useQuery({
+    queryKey: ['atelier', 'enrolement-en-attente'],
+    queryFn: fetchEnrolementEnAttente,
+    enabled: !appareil,
+  })
+  const offrirEnrolement = attente.isError || attente.data?.enAttente === true
 
   return (
     // `h-full overflow-y-auto`, not `min-h-full`: #root is locked to 100dvh
@@ -108,14 +121,16 @@ export function Accueil() {
           bench can be told apart from the next one. An enrolled phone always
           records, so there is no « consultation seule » state any more
           (2026-09-15). Not enrolled: the one way in, deliberately discreet —
-          it is an admin's gesture, done once. */}
+          it is an admin's gesture, done once — and shown only while a code
+          is pending (above). An open sheet stays open if the code expires
+          under it: its own error says so. */}
       <div className="flex-shrink-0 px-5 pb-6 text-center">
         {appareil ? (
           <p className="text-xs text-white/50 flex items-center justify-center gap-1.5">
             <Smartphone className="h-3.5 w-3.5" />
             {appareil.libelle}
           </p>
-        ) : (
+        ) : offrirEnrolement ? (
           <button
             type="button"
             onClick={() => setEnroler(true)}
@@ -123,7 +138,7 @@ export function Accueil() {
           >
             Enrôler ce téléphone
           </button>
-        )}
+        ) : null}
         {/* The atelier's OWN version (apps/atelier/package.json, never the ERP's
             root number), fainter than the phone line: it answers « which build
             is this phone running? » when a fix is meant to have landed, and
