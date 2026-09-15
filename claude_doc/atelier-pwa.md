@@ -21,8 +21,8 @@ Poste, **saisie comprise**. Les huit actions du legacy s'enregistrent (`POST
   reproduisait l'`AutoActivation()` legacy, qui ne bascule qu'`est_actif` (LIVA #1128).
 - ⚠️ **Aucun téléphone ne peut écrire aujourd'hui** : le compte-poste n'existe pas et
   personne ne détient `saisie_atelier` (fermé par défaut). Voir « Identité » plus bas.
-- Les trois écrans secondaires : Consigne (`message_of` + la consigne du régleur),
-  Fils OF, Information (la checklist de nettoyage, littéraux récupérés verbatim).
+- Un seul écran secondaire reste : Information (la checklist de nettoyage, littéraux
+  récupérés verbatim). Consigne, Historique et Fils OF sont portés (voir « L'OF actif »).
 - L'hôte de prod (nginx sur `10.10.20.4` + entrée Caddy sur `10.10.20.5`).
 
 ## Rafraîchissement — les téléphones convergent en 10 s (2026-09-15)
@@ -98,6 +98,56 @@ navigue pas), et quand le nouveau worker finissait par s'installer et prendre la
 - La tablette TRS (`apps/trs`) a exactement le même trou (script injecté, jamais fermée)
   et n'est pas traitée ici.
 
+## L'OF actif — Consigne · Historique · Fils (2026-09-15)
+
+Demande de Vincent du 2026-09-15, photos du téléphone Android de Nicolas à l'appui : sur un
+OF en cours le téléphone doit offrir tout ce que le legacy offre — écrire ou effacer la
+consigne, laisser un message sur l'OF, voir les pièces produites et les rouleaux visités,
+savoir où est le fil de cet OF, du précédent et du suivant. Le poste porte donc **trois
+rangées de liens** (Consigne · Historique · Fils, plus Réglage pour un régleur sur un OF
+non lancé), chacune un écran clé par le métier comme le reste.
+
+- **Consigne** (`Consigne.tsx`, déjà là depuis le 08/09) : le régleur écrit ou vide
+  `ordre_fabrication.observations` (vide = effacée), les deux rôles lisent et postent dans
+  le fil `message_of`, chacun supprime ses propres messages.
+- **Historique** (`Historique.tsx`, port de `FEN_Historique` du build régleur) :
+  `GET /atelier/of/:id/historique` rend les pièces (`piece_production` DESC) et les
+  rouleaux (`stock_ecru`, `num_piece_OF` DESC) ; taper une pièce déplie ses événements
+  (`GET /of/:id/pieces/:pieceId/evenements`, photo + prénom + libellé + date).
+  - ⚠️ **« Pièce N° i » est une POSITION comptée à rebours depuis le nombre de lignes**,
+    pas la colonne `numero` — c'est ce que le legacy affiche.
+  - ⚠️ **La productivité est la formule du legacy, pas celle de l'ERP** :
+    `durée mini = ref_ecru.poids / (20 tours/min × 10 / (trs_10kg_chute / nb_chutes))`,
+    `% = durée mini / durée réelle`, rouge sous 70 %, **plafonné à 120 % et rouge
+    au-dessus** (une pièce trop rapide est un horodatage faux). Pure et testée dans
+    `ETM/apps/api/src/lib/historique-atelier-trm.ts` ; la couleur lit le ratio brut,
+    pas le % arrondi (100/143 affiche 70 % rouge). Le poids est celui de `ref_ecru`
+    comme le legacy (repli sur `poids_piece` de l'OF si la fiche n'en a pas) — un
+    Android encore en service doit imprimer le même chiffre. Le `/of-trm/:id/production`
+    de l'ERP garde son approximation par `vitesse` ; l'adopter là-bas est un chantier
+    séparé. Sans fiche `ref_ecru_machine` : « — » partout, pas un mur de rouge (le
+    legacy stocke 0 min et peint tout en rouge).
+  - Écart assumé : le legacy n'offre l'Historique qu'au régleur ; ici les deux rôles le
+    voient (lecture seule, et le mur TRS montre déjà ces chiffres à tout l'atelier).
+    La jointure interne du legacy sur `bonnetier` perdait les événements sans auteur ;
+    ici ils restent, prénom vide.
+- **Fils** (`FilsOf.tsx`, port de `FEN_Fils_OF`, les deux builds) :
+  `GET /atelier/of/:id/fils` rend les lots réservés (`asso_fil_of` → `stock_fil`
+  **non terminés**, un par lot distinct : fil, lot, stock, **emplacement** en gros, fournisseur,
+  commentaire), la composition de la référence pour ce coloris (`composition_ecru`,
+  « % · fil » + commentaire ⓘ) et les ids `precedent` / `suivant` ; les trois segments
+  du legacy, un segment absent quand il n'y a pas de voisin ; un voisin affiché porte un
+  badge « OF précédent / suivant » là où le legacy peignait le titre en rouge.
+  - ⚠️ **L'OF précédent n'est pas le balayage de tout `evenement_piece` du legacy**
+    (la plus grosse table, pour un id) : c'est l'OF du métier au dernier `arret_prod`
+    parsable, TOP 20 par id — la même lecture que la fiche de réglage. Le suivant est
+    `priorite + 1` non terminé sur le métier, verbatim.
+  - ⚠️ `stock_fil.terminé` est accentué : `terminé AS termine` nommé sur Windows,
+    `SELECT *` + `pickVal(/^termin/)` sur le pont Linux (patron de `stock-fil-trm.ts`).
+    Un lot sans fournisseur est gardé (le legacy le perdait), nom vide.
+  - Les voisins ne sont calculés que pour l'OF du métier ; le téléphone relit la même
+    route avec l'id du voisin et ignore ses propres voisins, comme la fenêtre legacy.
+
 ## Le côté régleur (2026-09-08)
 
 **Décision du 2026-09-08 : le côté régleur se développe avec le bascule dev de l'Accueil
@@ -129,7 +179,7 @@ Ce que le build régleur ajoute, et ce qui en est porté :
 | `FEN_Reglage_Machine` : repères par tour (LFA précédente / LFA / repère), réglages, fils, consigne, **« Lancer OF »** | oui — le lancement passe par l'événement `Lancement OF` existant (une seule voie d'écriture) | idem |
 | `FEN_Consigne` plan 3 : le régleur **écrit** `ordre_fabrication.observations` | oui — **et depuis la fiche de réglage** (2026-09-15 : Modifier / Supprimer / Ajouter, `ConsigneSheet`) | `PUT /atelier/of/:id/consigne`, `Consigne.tsx`, `ReglageMachine.tsx` |
 | `FEN_Consigne` plan 2 : fil `message_of` (les deux rôles), suppression de **ses** messages | oui | `GET/POST/DELETE /atelier/of/:id/messages[/:msgId]` |
-| Icône Historique → `FEN_Historique` (pièces, durée, productivité vs durée mini ; événements d'une pièce ; rouleaux visités) | **non porté** | — |
+| Icône Historique → `FEN_Historique` (pièces, durée, productivité vs durée mini ; événements d'une pièce ; rouleaux visités) | oui (2026-09-15, aux deux rôles) | `GET /atelier/of/:id/historique`, `/pieces/:pieceId/evenements`, `Historique.tsx` — voir « L'OF actif » |
 | `MAJ_auto` (version par configuration), `notif_token` / push | non (sans objet / à venir) | — |
 
 Les règles du legacy, verbatim dans l'en-tête de `lib/atelier-regleur-trm.ts` :

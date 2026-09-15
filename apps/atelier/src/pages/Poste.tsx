@@ -19,6 +19,8 @@ import {
   Clock,
   MessageSquareText,
   Wrench,
+  History,
+  Cylinder,
 } from 'lucide-react'
 import { fetchMachines, fetchOf, progression } from '@/lib/atelier-api'
 import { actionsDisponibles } from '@/lib/actions'
@@ -150,8 +152,9 @@ export function Poste() {
             <ConsigneCallout texte={of.consigne} />
 
             {/* The legacy's top-bar icons (IMG_Warning → FEN_Consigne with the
-                message count; the réglage sheet for a régleur on an OF that has
-                not started), as station-scale rows rather than 24 px glyphs. */}
+                message count; FEN_Historique — pieces and rolls; FEN_Fils_OF —
+                where the yarn is; the réglage sheet for a régleur on an OF that
+                has not started), as station-scale rows rather than 24 px glyphs. */}
             <div className="grid grid-cols-2 gap-2.5">
               <Lien
                 onClick={() => navigate(`/metier/${idMachine}/consigne`)}
@@ -163,6 +166,18 @@ export function Poste() {
                     : 'Aucun message'
                 }
                 badge={of.nb_messages > 0 ? of.nb_messages : undefined}
+              />
+              <Lien
+                onClick={() => navigate(`/metier/${idMachine}/historique`)}
+                icone={<History className="h-5 w-5" />}
+                label="Historique"
+                detail="Pièces et visitage"
+              />
+              <Lien
+                onClick={() => navigate(`/metier/${idMachine}/fils`)}
+                icone={<Cylinder className="h-5 w-5" />}
+                label="Fils"
+                detail="Lots et emplacements"
               />
               {regleur && !of.demarre && (
                 <Lien

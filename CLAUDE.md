@@ -116,6 +116,11 @@ sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   et **la liste des actions est recalculée au serveur** : `apps/atelier/src/lib/actions.ts`
   et `routes/atelier.ts` se changent ensemble, l'API faisant foi.
 - ⚠️ Le libellé d'un métier est `machine.emplacement`, l'**inverse** d'Atelier › Maintenance.
+- **L'OF actif porte Consigne · Historique · Fils** (2026-09-15, ports de `FEN_Consigne`,
+  `FEN_Historique`, `FEN_Fils_OF`) : ⚠️ « Pièce N° i » est une **position** à rebours, pas
+  `numero` ; la productivité est **la formule du legacy** (`lib/historique-atelier-trm.ts`,
+  plafond 120 % rouge), pas celle de l'ERP ; l'OF précédent se lit sur `arret_prod`, jamais
+  en balayant `evenement_piece`. Dossier § « L'OF actif ».
 - **Les téléphones se synchronisent par poll** (2026-09-15) : `POLL_MS = 10 s` dans
   `lib/rafraichissement.ts`, posé en défaut du `QueryClient` (jamais en arrière-plan,
   relecture au retour au premier plan). ⚠️ **Aucun `staleTime` propre sur un écran** — il

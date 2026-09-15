@@ -237,3 +237,96 @@ export function progression(of: { produites: number; nb_pieces: number; finir_fi
     ? `${of.produites} / ~${of.nb_pieces} (Finir le fil)`
     : `${of.produites} / ${of.nb_pieces} pièces`
 }
+
+// ── Historique (legacy FEN_Historique) ─────────────────────
+
+export interface PieceHistorique {
+  IDpiece_production: number
+  /** « Pièce N° <position> » — the legacy counts DOWN from the row count, a
+   *  position in the OF, not the `numero` column. */
+  position: number
+  numero: number
+  terminee: boolean
+  debut_ms: number | null
+  fin_ms: number | null
+  /** Whole minutes between the two stamps; null while the piece is on the machine. */
+  duree_min: number | null
+  /** Theoretical-over-real percentage, capped at 120; null when unknown. */
+  pct: number | null
+  /** The legacy's RougeClair: under 70 % or over the cap. */
+  alerte: boolean
+  observations: string
+}
+
+export interface RouleauHistorique {
+  IDstock_ecru: number
+  numero: string
+  num_piece_OF: number
+  poids: number
+  second_choix: boolean
+  visiteur: string
+  observations: string
+  date_ms: number | null
+}
+
+export interface Historique {
+  IDordre_fabrication: number
+  /** Minutes one piece should take on this métier, or null without a sheet. */
+  duree_mini_min: number | null
+  pieces: PieceHistorique[]
+  rouleaux: RouleauHistorique[]
+}
+
+export interface EvenementPiece {
+  id: number
+  evenement: string
+  observation: string
+  IDbonnetier: number
+  prenom: string
+  date_ms: number | null
+}
+
+export const fetchHistorique = (ofId: number) => apiFetch<Historique>(`/atelier/of/${ofId}/historique`)
+
+export const fetchEvenementsPiece = (ofId: number, pieceId: number) =>
+  apiFetch<EvenementPiece[]>(`/atelier/of/${ofId}/pieces/${pieceId}/evenements`)
+
+// ── Fils OF (legacy FEN_Fils_OF) ───────────────────────────
+
+export interface LotFilOf {
+  IDstock_fil: number
+  /** « <référence> - <coloris> » */
+  fil: string
+  lot: string
+  stock: number
+  emplacement: string
+  fournisseur: string
+  commentaire: string
+}
+
+export interface CompositionFilOf {
+  IDcomposition_ecru: number
+  pourcentage: number
+  fil: string
+  commentaire: string
+}
+
+/** One OF's yarn, plus the ids of the OF that ran before it on the métier
+ *  and the one queued after it. Re-fetch with those ids to show them; their
+ *  own neighbours are ignored, as the legacy window does. */
+export interface FilsOf {
+  IDordre_fabrication: number
+  reference: string
+  coloris: string
+  nb_pieces: number
+  produites: number
+  finir_fil: boolean
+  demarre: boolean
+  termine: boolean
+  lots: LotFilOf[]
+  composition: CompositionFilOf[]
+  precedent: number | null
+  suivant: number | null
+}
+
+export const fetchFilsOf = (ofId: number) => apiFetch<FilsOf>(`/atelier/of/${ofId}/fils`)
