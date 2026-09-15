@@ -1,23 +1,23 @@
-// Paramètres › Utilisateurs › Appareils — the atelier phones enrolled under
-// one account.
+// Paramètres › Utilisateurs › Appareils — the devices enrolled under one account.
 //
-// A phone of the atelier PWA (atelier.intra.etsmalterre.com) is ENROLLED: the
-// admin generates a one-time code here, the phone types it once, and from then
-// on it carries its own cookie (API: routes/appareils-atelier.ts, store
-// lib/appareils-atelier.ts). Two shapes, chosen at enrolment:
-//   - a RÉGLEUR's own phone — fixed identity: the app opens as him, régleur
-//     screens, no face grid, and the API only lets it write for him;
-//   - a SHARED phone — the face grid of the bonnetiers, whoever holds it.
-// The phone acts as THIS account, and being enrolled is what lets it record
-// production — there is no separate right to grant (2026-09-15: an admin issues
-// every code, so nobody enrols a read-only phone). Revoking a phone here kills
-// its cookie, and its writes with it.
+// Two kinds, one store (API: routes/appareils-atelier.ts, lib/appareils-atelier.ts):
+//   - the atelier PHONES (atelier.intra.etsmalterre.com), in two shapes chosen
+//     at enrolment:
+//       · a RÉGLEUR's own phone — fixed identity: the app opens as him, régleur
+//         screens, no face grid, and the API only lets it write for him;
+//       · a SHARED phone — the face grid of the bonnetiers, whoever holds it;
+//   - the POINTEUSES (pointage.intra.etsmalterre.com, 2026-09-15) — the wall
+//     tablet that clocks the salariés in and out, never a fixed identity.
+// A code enrols only its own kind. The admin generates a one-time code here, the
+// device types it once, and from then on carries its own cookie. Being enrolled
+// is what lets it write — there is no separate right to grant. Revoking a device
+// here kills its cookie, and its writes with it.
 //
 // Cards follow the Profil tab's (EmailEditor: zinc header band, white body).
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Smartphone, Plus, Trash2, Loader2, AlertCircle, KeyRound, X, UserCheck, Users,
+  Smartphone, Plus, Trash2, Loader2, AlertCircle, KeyRound, X, UserCheck, Users, Clock,
 } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -31,6 +31,8 @@ import { cn } from '@/lib/utils'
 
 // ── Wire types ─────────────────────────────────────────
 
+type TypeAppareil = 'atelier' | 'pointeuse'
+
 interface BonnetierRef {
   IDbonnetier: number
   prenom: string
@@ -39,6 +41,7 @@ interface BonnetierRef {
 
 interface AppareilRow {
   id: number
+  type: TypeAppareil
   IDutilisateur: number
   IDbonnetier: number | null
   bonnetier: BonnetierRef | null
@@ -50,6 +53,7 @@ interface AppareilRow {
 
 interface CodeRow {
   code: string
+  type: TypeAppareil
   IDutilisateur: number
   libelle: string
   bonnetier: BonnetierRef | null
@@ -71,6 +75,44 @@ interface Regleur {
 
 const QUERY_KEY = ['appareils-atelier'] as const
 
+/** Everything that differs between the two kinds of device, in one place. */
+const TEXTES: Record<TypeAppareil, {
+  titre: string
+  icone: typeof Smartphone
+  enroler: string
+  aucun: string
+  aide: string
+  revoquerTitre: string
+  hote: string
+  lienSurAppareil: string
+  placeholder: string
+}> = {
+  atelier: {
+    titre: 'Téléphones de l’atelier',
+    icone: Smartphone,
+    enroler: 'Enrôler un téléphone',
+    aucun: 'Aucun téléphone enrôlé sous ce compte.',
+    aide:
+      'Un téléphone enrôlé agit sous ce compte. Un téléphone de régleur s’ouvre directement sur ses écrans ; un téléphone partagé propose la grille des bonnetiers. Révoquer un téléphone le déconnecte aussitôt : il faudra un nouveau code pour l’enrôler à nouveau.',
+    revoquerTitre: 'Révoquer le téléphone',
+    hote: 'atelier.intra.etsmalterre.com',
+    lienSurAppareil: '« Enrôler ce téléphone », sous la grille des visages',
+    placeholder: 'Téléphone Nico',
+  },
+  pointeuse: {
+    titre: 'Pointeuses',
+    icone: Clock,
+    enroler: 'Enrôler une pointeuse',
+    aucun: 'Aucune pointeuse enrôlée sous ce compte.',
+    aide:
+      'Une pointeuse enrôlée affiche les salariés du pointage et enregistre leurs arrivées, pauses et départs. Révoquer une pointeuse la déconnecte aussitôt : il faudra un nouveau code pour l’enrôler à nouveau.',
+    revoquerTitre: 'Révoquer la pointeuse',
+    hote: 'pointage.intra.etsmalterre.com',
+    lienSurAppareil: '« Enrôler cette pointeuse », sous l’horloge',
+    placeholder: 'Pointeuse atelier',
+  },
+}
+
 // ── Helpers ────────────────────────────────────────────
 
 function fmtDate(iso: string): string {
@@ -81,7 +123,7 @@ function fmtHeure(iso: string): string {
   return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 }
 
-/** « vu il y a 3 min » — coarse on purpose; the phone refreshes its own
+/** « vu il y a 3 min » — coarse on purpose; the device refreshes its own
  *  `vuLe` at most every ten minutes. */
 function depuis(iso: string | null, now: number): string {
   if (!iso) return 'jamais vu'
@@ -118,13 +160,13 @@ export function AppareilsTab({
   userName: string
 }) {
   const queryClient = useQueryClient()
-  const [enrolerOpen, setEnrolerOpen] = useState(false)
+  const [enrolerType, setEnrolerType] = useState<TypeAppareil | null>(null)
   const [revoquerCible, setRevoquerCible] = useState<AppareilRow | null>(null)
 
   const { data, isLoading, isError } = useQuery<AppareilsPayload>({
     queryKey: QUERY_KEY,
     queryFn: () => apiFetch<AppareilsPayload>('/atelier/appareils'),
-    // A phone enrolling itself is what the admin is waiting to see.
+    // A device enrolling itself is what the admin is waiting to see.
     refetchInterval: 15_000,
   })
 
@@ -153,136 +195,37 @@ export function AppareilsTab({
     onSuccess: invalidate,
   })
 
+  // Rows enrolled before the type existed come back typed 'atelier' by the API.
+  const deType = (t: TypeAppareil) => ({
+    appareils: appareils.filter((a) => (a.type ?? 'atelier') === t),
+    codes: codes.filter((c) => (c.type ?? 'atelier') === t),
+  })
+
   return (
-    <>
+    <div className="space-y-4">
+      {(['atelier', 'pointeuse'] as const).map((t) => (
+        <CarteAppareils
+          key={t}
+          type={t}
+          {...deType(t)}
+          now={now}
+          chargement={isLoading}
+          erreur={isError}
+          vide={!!data}
+          annulationEnCours={annulerCodeMut.isPending}
+          onEnroler={() => setEnrolerType(t)}
+          onAnnulerCode={(code) => annulerCodeMut.mutate(code)}
+          onRevoquer={setRevoquerCible}
+        />
+      ))}
 
-      <div className="rounded-lg border border-border/60 bg-white shadow-sm">
-        <div className="px-4 py-2 border-b border-border/60 bg-zinc-100/80 rounded-t-lg flex items-center gap-2">
-          <Smartphone className="h-3.5 w-3.5 text-accent" />
-          <p className="text-xs font-bold text-primary uppercase tracking-wide flex-1">Téléphones de l’atelier</p>
-          <Button size="sm" onClick={() => setEnrolerOpen(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Enrôler un téléphone
-          </Button>
-        </div>
-
-        <div className="p-4 space-y-3">
-          {isLoading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin text-accent" />
-              Chargement…
-            </div>
-          )}
-          {isError && (
-            <p className="text-xs text-destructive flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" />
-              Impossible de lire les téléphones enrôlés.
-            </p>
-          )}
-
-          {codes.length > 0 && (
-            <ul className="space-y-2">
-              {codes.map((c) => {
-                const reste = Math.max(0, Math.floor((Date.parse(c.expireLe) - now) / 1000))
-                const mm = String(Math.floor(reste / 60)).padStart(2, '0')
-                const ss = String(reste % 60).padStart(2, '0')
-                return (
-                  <li
-                    key={c.code}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-accent/40 bg-accent/[0.06]"
-                  >
-                    <KeyRound className="h-4 w-4 text-accent flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xl font-heading font-bold tracking-[0.3em] tabular-nums text-primary">
-                          {c.code}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          expire dans {mm}:{ss}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {c.libelle} · {c.bonnetier ? `régleur ${nomComplet(c.bonnetier)}` : 'téléphone partagé'} — en
-                        attente de saisie sur le téléphone
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      title="Annuler ce code"
-                      disabled={annulerCodeMut.isPending}
-                      onClick={() => annulerCodeMut.mutate(c.code)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-
-          {data && appareils.length === 0 && codes.length === 0 && (
-            <p className="text-sm text-muted-foreground italic">Aucun téléphone enrôlé sous ce compte.</p>
-          )}
-
-          {appareils.length > 0 && (
-            <ul className="space-y-2">
-              {appareils.map((a) => (
-                <li
-                  key={a.id}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/60 bg-white shadow-sm"
-                >
-                  <div
-                    className={cn(
-                      'h-9 w-9 rounded-md flex items-center justify-center flex-shrink-0',
-                      a.bonnetier ? 'bg-accent/15 text-accent' : 'bg-zinc-100 text-zinc-600',
-                    )}
-                  >
-                    {a.bonnetier ? <UserCheck className="h-4 w-4" /> : <Users className="h-4 w-4" />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-primary truncate">{a.libelle}</span>
-                      {a.bonnetier ? (
-                        <Badge variant="outline" className="bg-accent/15 text-amber-800 border-accent/40">
-                          Régleur · {nomComplet(a.bonnetier)}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-zinc-600">Téléphone partagé</Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Enrôlé le {fmtDate(a.creeLe)} à {fmtHeure(a.creeLe)} · {depuis(a.vuLe, now)}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    title="Révoquer ce téléphone"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => setRevoquerCible(a)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <p className="text-xs text-muted-foreground">
-            Un téléphone enrôlé agit sous ce compte. Un téléphone de régleur s’ouvre directement sur ses écrans ;
-            un téléphone partagé propose la grille des bonnetiers. Révoquer un téléphone le déconnecte
-            aussitôt : il faudra un nouveau code pour l’enrôler à nouveau.
-          </p>
-        </div>
-      </div>
-
-      {enrolerOpen && (
+      {enrolerType && (
         <EnrolerDialog
+          type={enrolerType}
           userId={userId}
           userName={userName}
           onClose={() => {
-            setEnrolerOpen(false)
+            setEnrolerType(null)
             invalidate()
           }}
         />
@@ -290,7 +233,7 @@ export function AppareilsTab({
 
       <ConfirmDialog
         open={revoquerCible !== null}
-        title="Révoquer le téléphone"
+        title={revoquerCible ? TEXTES[revoquerCible.type ?? 'atelier'].revoquerTitre : ''}
         description={
           revoquerCible
             ? `« ${revoquerCible.libelle} » ne pourra plus rien enregistrer. Il faudra un nouveau code pour l’enrôler à nouveau.`
@@ -303,25 +246,190 @@ export function AppareilsTab({
           if (revoquerCible) revoquerMut.mutate(revoquerCible.id)
         }}
       />
-    </>
+    </div>
   )
 }
 
-// ── « Enrôler un téléphone » — two steps in one dialog ─────────────────────
-// Step 1: a label and the phone's shape (a régleur's, or shared). Step 2: the
-// code, big, with what to do on the phone. The list behind refreshes on
-// close, and every 15 s meanwhile, so the phone shows up as soon as it typed
-// the code.
+function CarteAppareils({
+  type,
+  appareils,
+  codes,
+  now,
+  chargement,
+  erreur,
+  vide,
+  annulationEnCours,
+  onEnroler,
+  onAnnulerCode,
+  onRevoquer,
+}: {
+  type: TypeAppareil
+  appareils: AppareilRow[]
+  codes: CodeRow[]
+  now: number
+  chargement: boolean
+  erreur: boolean
+  /** The payload arrived — only then does an empty list mean « none ». */
+  vide: boolean
+  annulationEnCours: boolean
+  onEnroler: () => void
+  onAnnulerCode: (code: string) => void
+  onRevoquer: (a: AppareilRow) => void
+}) {
+  const tx = TEXTES[type]
+  const Icone = tx.icone
+  return (
+    <div className="rounded-lg border border-border/60 bg-white shadow-sm">
+      <div className="px-4 py-2 border-b border-border/60 bg-zinc-100/80 rounded-t-lg flex items-center gap-2">
+        <Icone className="h-3.5 w-3.5 text-accent" />
+        <p className="text-xs font-bold text-primary uppercase tracking-wide flex-1">{tx.titre}</p>
+        <Button size="sm" onClick={onEnroler}>
+          <Plus className="h-3.5 w-3.5 mr-1.5" />
+          {tx.enroler}
+        </Button>
+      </div>
+
+      <div className="p-4 space-y-3">
+        {chargement && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin text-accent" />
+            Chargement…
+          </div>
+        )}
+        {erreur && (
+          <p className="text-xs text-destructive flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            Impossible de lire les appareils enrôlés.
+          </p>
+        )}
+
+        {codes.length > 0 && (
+          <ul className="space-y-2">
+            {codes.map((c) => {
+              const reste = Math.max(0, Math.floor((Date.parse(c.expireLe) - now) / 1000))
+              const mm = String(Math.floor(reste / 60)).padStart(2, '0')
+              const ss = String(reste % 60).padStart(2, '0')
+              const forme =
+                type === 'pointeuse'
+                  ? 'pointeuse'
+                  : c.bonnetier
+                    ? `régleur ${nomComplet(c.bonnetier)}`
+                    : 'téléphone partagé'
+              return (
+                <li
+                  key={c.code}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-accent/40 bg-accent/[0.06]"
+                >
+                  <KeyRound className="h-4 w-4 text-accent flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xl font-heading font-bold tracking-[0.3em] tabular-nums text-primary">
+                        {c.code}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        expire dans {mm}:{ss}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {c.libelle} · {forme} — en attente de saisie sur {type === 'pointeuse' ? 'la tablette' : 'le téléphone'}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title="Annuler ce code"
+                    disabled={annulationEnCours}
+                    onClick={() => onAnnulerCode(c.code)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
+        {vide && appareils.length === 0 && codes.length === 0 && (
+          <p className="text-sm text-muted-foreground italic">{tx.aucun}</p>
+        )}
+
+        {appareils.length > 0 && (
+          <ul className="space-y-2">
+            {appareils.map((a) => (
+              <li
+                key={a.id}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/60 bg-white shadow-sm"
+              >
+                <div
+                  className={cn(
+                    'h-9 w-9 rounded-md flex items-center justify-center flex-shrink-0',
+                    a.bonnetier ? 'bg-accent/15 text-accent' : 'bg-zinc-100 text-zinc-600',
+                  )}
+                >
+                  {type === 'pointeuse' ? (
+                    <Clock className="h-4 w-4" />
+                  ) : a.bonnetier ? (
+                    <UserCheck className="h-4 w-4" />
+                  ) : (
+                    <Users className="h-4 w-4" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-primary truncate">{a.libelle}</span>
+                    {type === 'pointeuse' ? (
+                      <Badge variant="outline" className="text-zinc-600">Pointeuse</Badge>
+                    ) : a.bonnetier ? (
+                      <Badge variant="outline" className="bg-accent/15 text-amber-800 border-accent/40">
+                        Régleur · {nomComplet(a.bonnetier)}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-zinc-600">Téléphone partagé</Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Enrôlé le {fmtDate(a.creeLe)} à {fmtHeure(a.creeLe)} · {depuis(a.vuLe, now)}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title={tx.revoquerTitre}
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => onRevoquer(a)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <p className="text-xs text-muted-foreground">{tx.aide}</p>
+      </div>
+    </div>
+  )
+}
+
+// ── « Enrôler un téléphone / une pointeuse » — two steps in one dialog ─────
+// Step 1: a label (and, for a phone, its shape: a régleur's, or shared).
+// Step 2: the code, big, with what to do on the device. The list behind
+// refreshes on close, and every 15 s meanwhile, so the device shows up as soon
+// as it typed the code.
 
 function EnrolerDialog({
+  type,
   userId,
   userName,
   onClose,
 }: {
+  type: TypeAppareil
   userId: number
   userName: string
   onClose: () => void
 }) {
+  const tx = TEXTES[type]
+  const Icone = tx.icone
   const [libelle, setLibelle] = useState('')
   const [IDbonnetier, setIDbonnetier] = useState(0)
   const [resultat, setResultat] = useState<{ code: string; expireLe: string } | null>(null)
@@ -330,6 +438,8 @@ function EnrolerDialog({
     queryKey: ['atelier', 'bonnetiers', 'regleur'],
     queryFn: () => apiFetch<Regleur[]>('/atelier/bonnetiers?regleur=1'),
     staleTime: 5 * 60_000,
+    // A pointeuse is shared by every salarié: no identity to pick.
+    enabled: type === 'atelier',
   })
 
   // Pre-select the régleur whose name matches the account (Nicolas Antonino
@@ -351,8 +461,9 @@ function EnrolerDialog({
       apiFetch<{ code: string; expireLe: string; ttlMs: number }>('/atelier/appareils/codes', {
         method: 'POST',
         body: JSON.stringify({
+          type,
           IDutilisateur: userId,
-          IDbonnetier: IDbonnetier > 0 ? IDbonnetier : null,
+          IDbonnetier: type === 'atelier' && IDbonnetier > 0 ? IDbonnetier : null,
           libelle: libelle.trim(),
         }),
       }),
@@ -365,14 +476,15 @@ function EnrolerDialog({
     secondary: 'régleur',
   }))
   const pret = libelle.trim().length > 0 && !creerMut.isPending
+  const appareilNom = type === 'pointeuse' ? 'la tablette' : 'le téléphone'
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md" onClose={onClose}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Smartphone className="h-5 w-5 text-accent" />
-            Enrôler un téléphone
+            <Icone className="h-5 w-5 text-accent" />
+            {tx.enroler}
           </DialogTitle>
         </DialogHeader>
 
@@ -389,50 +501,54 @@ function EnrolerDialog({
             </div>
             <ol className="text-sm space-y-1.5 list-decimal pl-5">
               <li>
-                Sur le téléphone, ouvrir <span className="font-semibold">atelier.intra.etsmalterre.com</span>.
+                Sur {appareilNom}, ouvrir <span className="font-semibold">{tx.hote}</span>.
               </li>
               <li>
-                Toucher <span className="font-semibold">« Enrôler ce téléphone »</span>, sous la grille des visages.
+                Toucher <span className="font-semibold">{tx.lienSurAppareil}</span>.
               </li>
-              <li>Saisir ce code. Le téléphone apparaît ici dès qu’il est enrôlé.</li>
+              <li>Saisir ce code. {type === 'pointeuse' ? 'La pointeuse' : 'Le téléphone'} apparaît ici dès son enrôlement.</li>
             </ol>
           </div>
         ) : (
           <div className="mt-4 space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground" htmlFor="appareil-libelle">
-                Libellé du téléphone
+                {type === 'pointeuse' ? 'Libellé de la pointeuse' : 'Libellé du téléphone'}
               </label>
               <input
                 id="appareil-libelle"
                 type="text"
                 value={libelle}
                 onChange={(e) => setLibelle(e.target.value)}
-                placeholder="Téléphone Nico"
+                placeholder={tx.placeholder}
                 maxLength={50}
                 autoComplete="off"
                 autoFocus
                 className="w-full h-9 px-2.5 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring"
               />
               <p className="text-xs text-muted-foreground">
-                Ce nom est écrit sur chaque action enregistrée depuis le téléphone (colonne « appareil »).
+                {type === 'pointeuse'
+                  ? 'Ce nom distingue la tablette dans cette liste.'
+                  : 'Ce nom est écrit sur chaque action enregistrée depuis le téléphone (colonne « appareil »).'}
               </p>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground">Identité du téléphone</label>
-              <PopoverSelect
-                options={options}
-                value={IDbonnetier}
-                onChange={setIDbonnetier}
-                emptyLabel="Téléphone partagé — grille des bonnetiers"
-              />
-              <p className="text-xs text-muted-foreground">
-                {IDbonnetier > 0
-                  ? 'Le téléphone s’ouvrira directement sur les écrans du régleur, sans grille de visages, et n’enregistrera que pour lui.'
-                  : 'Le téléphone proposera la grille des bonnetiers ; celui qui le tient choisit son visage.'}
-              </p>
-            </div>
+            {type === 'atelier' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Identité du téléphone</label>
+                <PopoverSelect
+                  options={options}
+                  value={IDbonnetier}
+                  onChange={setIDbonnetier}
+                  emptyLabel="Téléphone partagé — grille des bonnetiers"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {IDbonnetier > 0
+                    ? 'Le téléphone s’ouvrira directement sur les écrans du régleur, sans grille de visages, et n’enregistrera que pour lui.'
+                    : 'Le téléphone proposera la grille des bonnetiers ; celui qui le tient choisit son visage.'}
+                </p>
+              </div>
+            )}
 
             {creerMut.isError && (
               <p className="text-xs text-destructive flex items-center gap-1">

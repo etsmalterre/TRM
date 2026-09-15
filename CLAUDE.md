@@ -99,6 +99,7 @@ warnings that would bite in the first hour) with a pointer to the dossier.
 | `claude_doc/rapports-finance.md` | Rapports › Finance (ETM screen on TRM partition) |
 | `claude_doc/tickets.md` | Ticket widget (LIVA), comptes sans email |
 | `claude_doc/dashboard-widgets.md` | Widgets finance, « Poids des pièces », « Pièces à visiter » |
+| `claude_doc/pointage-pwa.md` | `apps/pointage`, la tablette pointeuse (base `pointage`, boutons, enrôlement) |
 
 ## Atelier — la PWA mobile de l'atelier (`apps/atelier`)
 
@@ -210,6 +211,21 @@ tuile, barèmes, ⓘ, bandeau, logo, `--u`).
   importe directement `ETM/apps/api/src/lib/trs-trm.ts`.
 - En dev les chiffres sont faux (instantané de mars) : juger la parité sur la prod avec
   `scripts/probe-trs-trm.ts`.
+
+## Pointage — la tablette pointeuse (`apps/pointage`)
+
+Remplace la pointeuse WinDev : **tablette murale partagée, enrôlée**, visages → un ou deux
+boutons. **Quatrième app**, port dev **5178**, hôte prévu `pointage.intra.etsmalterre.com`
+(pas encore en ligne). API `/api/pointage` (`ETM/apps/api/src/routes/pointage.ts`).
+**Dossier : `claude_doc/pointage-pwa.md`.**
+
+- ⚠️ **Autre base HFSQL `pointage`** → `pointageDb` (`lib/hfsql-pointage.ts`), jamais le client
+  par défaut : le `mps` de dev a de vieilles copies de `lst_horaire`. Base de dev :
+  `copy-pointage-prod-to-dev.ts --write`.
+- ⚠️ **Les boutons viennent du serveur** (`lib/pointage-etat.ts`) et **un seul module écrit**
+  (`lib/pointage-ecritures.ts` : `lst_horaire` → `lst_pointage` par `debut` → `mps.pointage`).
+- ⚠️ **Cookie `mps_pointeuse`**, appareil de type `pointeuse` émis dans Paramètres ›
+  Utilisateurs › Appareils ; 5178 doit être dans le `CORS_ORIGIN` de dev.
 
 ## Production / deploy
 

@@ -85,3 +85,15 @@ apps/trs/vite.config.js.map
 apps/trs/vite.config.d.ts
 apps/trs/vite.config.d.ts.map
 apps/trs/.env.local
+
+# Same rules for the pointage tablet PWA (apps/pointage).
+apps/pointage/src/**/*.js
+apps/pointage/src/**/*.js.map
+apps/pointage/src/**/*.d.ts
+apps/pointage/src/**/*.d.ts.map
+!apps/pointage/src/vite-env.d.ts
+apps/pointage/vite.config.js
+apps/pointage/vite.config.js.map
+apps/pointage/vite.config.d.ts
+apps/pointage/vite.config.d.ts.map
+apps/pointage/.env.local
