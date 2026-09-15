@@ -121,6 +121,12 @@ sous le droit `saisie_atelier`. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   `numero` ; la productivité est **la formule du legacy** (`lib/historique-atelier-trm.ts`,
   plafond 120 % rouge), pas celle de l'ERP ; l'OF précédent se lit sur `arret_prod`, jamais
   en balayant `evenement_piece`. Dossier § « L'OF actif ».
+- **Métiers inactifs (2026-09-15)** : segments « Actifs / Inactifs » (métier est masculin,
+  ne pas remettre le féminin du legacy) ; la tuile d'un métier sans OF porte son dernier OF
+  et l'OF à suivre (`inactif` sur `GET /atelier/machines`), le poste d'un métier sans OF
+  liste ses 20 derniers OF (`GET /atelier/machines/:id/derniers-of`). ⚠️ « Dernier OF » =
+  l'id le plus haut parmi les terminés, jamais `MAX(arret_prod)`. Dossier § « Les métiers
+  inactifs ».
 - **Les téléphones se synchronisent par poll** (2026-09-15) : `POLL_MS = 10 s` dans
   `lib/rafraichissement.ts`, posé en défaut du `QueryClient` (jamais en arrière-plan,
   relecture au retour au premier plan). ⚠️ **Aucun `staleTime` propre sur un écran** — il
