@@ -231,7 +231,11 @@ function Avancement({ of }: { of: { produites: number; nb_pieces: number; finir_
         aria-valuemax={cible}
         aria-valuenow={Math.min(of.produites, cible)}
         aria-label={`${of.produites} pièces sur ${of.finir_fil ? 'environ ' : ''}${cible}`}
-        className="flex-1 min-w-0 h-2 rounded-full bg-secondary overflow-hidden"
+        // Translucent dark track, not `bg-secondary`: that 96 % grey vanished
+        // on the alert tile's pale red (`bg-destructive/5`) — the empty part
+        // of the bar was unreadable on exactly the tiles a régleur must read
+        // first (2026-09-15). A foreground tint darkens whatever it sits on.
+        className="flex-1 min-w-0 h-2 rounded-full bg-foreground/[0.12] overflow-hidden"
       >
         <span
           className={cn('block h-full rounded-full transition-[width]', atteint && !of.finir_fil ? 'bg-success' : 'bg-primary')}
