@@ -23,7 +23,7 @@
 // from. The write is the one PUT of lib/consigne.ts — deleting is saving the
 // empty string, behind its own confirmation.
 //
-// « Historique » opens the Consigne screen on its Notes tab: the standing
+// « Notes » opens the Consigne screen on its Notes tab: the standing
 // notes of the reference (`obs_ref_ecru`, the ERP's « Commentaires
 // historiques ») and the message_of thread — everything anyone has written
 // about this OF, in one place, one tap away.
@@ -47,7 +47,7 @@ import {
   Pencil,
   Trash2,
   Plus,
-  History,
+  NotebookText,
 } from 'lucide-react'
 import { fetchMachines, fetchMessages, fetchNotesRef, fetchReglage, posterEvenement } from '@/lib/atelier-api'
 import { messagePourErreur } from '@/lib/erreurs'
@@ -83,7 +83,7 @@ export function ReglageMachine() {
   })
   const sheet = sheetQ.data
 
-  // The counts behind « Historique ». Same keys as the Consigne screen, so the
+  // The counts behind « Notes ». Same keys as the Consigne screen, so the
   // tap there lands on data already in cache.
   const notesQ = useQuery({
     queryKey: ['atelier', 'notes', ofId],
@@ -321,12 +321,14 @@ export function ReglageMachine() {
             </Card>
 
             {/* Everything written about this OF — the legacy's IMG_Consigne
-                and IMG_Historique glyphs, as one station-scale row. */}
+                glyph, as one station-scale row. Not « Historique »: that word is
+                the poste's pieces-and-rolls screen (legacy FEN_Historique), and
+                one label opening two different screens is a trap. */}
             <div className="grid">
               <Lien
                 onClick={() => navigate(`/metier/${idMachine}/consigne`, { state: { onglet: 'notes' } })}
-                icone={<History className="h-5 w-5" />}
-                label="Historique"
+                icone={<NotebookText className="h-5 w-5" />}
+                label="Notes"
                 detail={detailHistorique}
                 badge={totalHistorique > 0 ? totalHistorique : undefined}
               />

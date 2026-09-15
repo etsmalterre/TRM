@@ -238,7 +238,7 @@ l'historique des notes de l'OF**. Le legacy y arrivait par l'icône `IMG_Consign
   `PUT /atelier/of/:id/consigne`, pas une route de plus. La mutation et ses invalidations
   (OF, réglage, liste des métiers) vivent une fois dans **`lib/consigne.ts`**
   (`useEcrireConsigne`), partagée avec l'éditeur plein écran de `Consigne.tsx`.
-- **« Historique »** (rangée `Lien`, compteur « n notes · n messages ») ouvre l'écran Consigne
+- **« Notes »** (rangée `Lien`, compteur « n notes · n messages » — pas « Historique », ce mot est l'écran pièces/visitage du poste) ouvre l'écran Consigne
   sur un **troisième segment « Notes »** : les observations durables de la référence
   (`obs_ref_ecru`, les « Commentaires historiques » de l'ERP, filtrées par le métier et le
   coloris de l'OF), **lues sur la route de l'ERP** `GET /of-trm/:id/observations-ref`
