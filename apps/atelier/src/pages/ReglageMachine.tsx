@@ -57,6 +57,7 @@ import { ConsigneCallout } from '@/components/of/ConsigneCallout'
 import { ConsigneSheet } from '@/components/of/ConsigneSheet'
 import { ConfirmSheet } from '@/components/atelier/ConfirmSheet'
 import { Lien } from '@/components/atelier/Lien'
+import { Entete } from '@/components/atelier/Entete'
 import { useIdentite } from '@/contexts/BonnetierContext'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -445,14 +446,6 @@ function ActionConsigne({
       {icone}
       {label}
     </button>
-  )
-}
-
-function Entete({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-3 py-2 bg-sand border-b border-border">
-      <span className="text-xs font-semibold uppercase tracking-wide text-accent">{children}</span>
-    </div>
   )
 }
 

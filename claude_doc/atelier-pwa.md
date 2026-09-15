@@ -20,16 +20,20 @@ le poste d'un métier sans OF n'est plus un état vide.
 - **Les segments disent « Actifs / Inactifs »**, pas « Actives / Inactives » comme le legacy :
   sa liste s'appelait « Machines Actives », la nôtre est titrée « Métiers », et métier est
   masculin. Ne pas réintroduire le féminin (commentaires compris).
-- **La tuile inactive** (`Repos` dans `ChoixMetier.tsx`) porte deux lignes : « Dernier OF ·
-  il y a 3 j » + réf · coloris, et « À suivre » + réf · coloris quand la file du métier a une
-  tête. Les chiffres (pièces, poids, 2ᵉ choix) restent sur le poste. Les deux rôles voient
-  la même tuile.
+- **La tuile inactive garde les trois fentes de la tuile active** (`MetierTile`) : l'article
+  du dernier OF (réf · coloris, en gris) là où va la barre d'avancement, et en dessous les
+  pastilles « Terminé il y a 3 j » (neutre) et « → réf · coloris » (bleu accent) pour l'OF
+  à suivre ; glyphe « au repos » (cercle pointillé) dans la colonne d'état du régleur. Une
+  première version à petites étiquettes majuscules empilées a été jugée « laide et pas
+  harmonieuse » (2026-09-15) — ne pas y revenir. Les chiffres restent sur le poste.
 - **Le poste d'un métier sans OF** (`components/atelier/MetierAuRepos.tsx`) : en-tête §5
-  « Aucun OF en cours », carte « À suivre » (l'OF en tête de file, que l'ERP active par
-  « Passer en cours » ou l'`auto_activation`), puis **les 20 derniers OF terminés du
-  métier** (`GET /api/atelier/machines/:id/derniers-of`, `DERNIERS_OF_MAX`) : n° OF, réf ·
-  coloris, « il y a … », pièces faites / commandées, Σ poids visité et la part 2ᵉ choix
-  quand elle existe. Lecture seule, pollée avec les défauts de l'app.
+  « Aucun OF en cours », puis deux cartes à bandeau sable (`Entete`, la grammaire de la fiche
+  de réglage) : « À suivre » (l'OF en tête de file, que l'ERP active par « Passer en cours »
+  ou l'`auto_activation`) et **les 20 derniers OF terminés du métier**
+  (`GET /api/atelier/machines/:id/derniers-of`, `DERNIERS_OF_MAX`). Chaque rangée
+  (`RangeeOf`) reprend la tuile un cran plus petit : n° d'OF en gros à gauche, réf · coloris
+  avec « il y a … » à droite, pastilles pièces faites / commandées, Σ poids visité, et 2ᵉ
+  choix en ambre quand il existe. Lecture seule, pollée avec les défauts de l'app.
 - **API** : `inactif` sur chaque ligne de `GET /machines` (`null` dès qu'un OF tourne),
   calculé par `reposDesMetiers()` en trois lectures bornées pour toute la liste (GROUP BY
   `MAX(IDordre_fabrication)` par métier, ces lignes, la file d'attente). Les choix sont
@@ -256,7 +260,7 @@ nombre. La consigne s'enregistre sur « Enregistrer », pas à chaque frappe com
 Écrans : tous clés par le **métier** (`/metier/:id/consigne`, `/metier/:id/reglage`), le
 métier décidant l'OF comme le poste. Le poste porte une rangée « Consigne · n messages »
 (badge or) et, pour un régleur sur un OF non lancé, « Réglage ». `ConfirmSheet`,
-`Segment` et `lib/erreurs.ts` sont désormais partagés entre les écrans.
+`Segment`, `Pastille`, `Entete` et `lib/erreurs.ts` sont désormais partagés entre les écrans.
 
 ### La consigne se tient depuis la fiche de réglage + l'onglet « Notes » (2026-09-15)
 

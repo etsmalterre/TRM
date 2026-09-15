@@ -11,10 +11,12 @@
 //
 // An IDLE tile is not blank (user, 2026-09-15): it carries the last OF that
 // ran on the métier — reference, coloris, how long ago it stopped — and the
-// head of its waiting queue. The régleur reads the « Inactifs » list as the
-// machines to set up next; a re-run of the same reference is a short setup, a
-// machine idle for a week is a signal, and the waiting OF is what they will
-// mount. The full history lives one tap away, on the poste's empty state.
+// head of its waiting queue, in the same three slots as an active tile (the
+// article where the progress bar goes, the figures as pills underneath). The
+// régleur reads the « Inactifs » list as the machines to set up next; a re-run
+// of the same reference is a short setup, a machine idle for a week is a
+// signal, and the waiting OF is what they will mount. The full history lives
+// one tap away, on the poste's empty state.
 //
 // Tiles are deliberately NOT colour-coded by consigne. §41 says a colour is
 // only worth spending when it discriminates, and 7 of the 9 running OFs on the
@@ -36,14 +38,15 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, AlertCircle, ChevronRight, Wrench, Pause, Play } from 'lucide-react'
-import { fetchMachines, type Machine, type MachineInactif } from '@/lib/atelier-api'
+import { Loader2, AlertCircle, ChevronRight, Wrench, Pause, Play, CircleDashed, ArrowRight } from 'lucide-react'
+import { fetchMachines, type Machine } from '@/lib/atelier-api'
 import { depuis } from '@/lib/depuis'
 import { PosteHeader } from '@/components/layout/PosteHeader'
 import { Segment } from '@/components/atelier/Segment'
+import { Pastille } from '@/components/atelier/Pastille'
 import { useIdentite } from '@/contexts/BonnetierContext'
 import { cn } from '@/lib/utils'
-import { teinteArrets, type TeinteArrets } from '@/lib/teinte-arrets'
+import { teinteArrets } from '@/lib/teinte-arrets'
 
 export function ChoixMetier() {
   const navigate = useNavigate()
@@ -126,7 +129,7 @@ export function ChoixMetier() {
         )}
 
         {liste.map((m) => (
-          <MetierTile key={m.IDmachine} m={m} onOpen={() => ouvrir(m)} />
+          <MetierTile key={m.IDmachine} m={m} regleur={regleur} onOpen={() => ouvrir(m)} />
         ))}
 
         {/* The safe-area inset as trailing padding, so the last tile clears the
@@ -137,11 +140,13 @@ export function ChoixMetier() {
   )
 }
 
-/** The three legacy tile icons (reglage1 / pause1 / play1), as glyphs. */
+/** The three legacy tile icons (reglage1 / pause1 / play1), as glyphs — plus
+ *  the idle one this port adds, so a régleur's glyph column never goes blank. */
 const ETATS = {
   reglage: { Icon: Wrench, titre: 'En réglage — OF non lancé', classe: 'text-warning' },
   pause: { Icon: Pause, titre: 'OF interrompu', classe: 'text-primary' },
   marche: { Icon: Play, titre: 'En marche', classe: 'text-success' },
+  repos: { Icon: CircleDashed, titre: 'Aucun OF en cours', classe: 'text-muted-foreground' },
 } as const
 
 const pct = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 1 })
@@ -152,7 +157,7 @@ const arrets = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 })
  *  not already said (2026-09-14). The API zeroes it without an alert anyway. */
 const SEUIL_PCT_DEFAUT = 0.01
 
-function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
+function MetierTile({ m, regleur, onOpen }: { m: Machine; regleur: boolean; onOpen: () => void }) {
   const of = m.of
   const r = m.regleur
   const alerte = !!r?.alerte
@@ -161,6 +166,10 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
   // enough for the two pills side by side — and the defect pill must always
   // sit left of the stops pill, never wrap under it (2026-09-14).
   const figures = !!of && !!r && (alerte || r.arrets_piece.moyenne !== null)
+  // The idle tile's pills: when the last OF stopped, and the one waiting.
+  const dernier = !of ? (m.inactif?.dernier_of ?? null) : null
+  const prochain = !of ? (m.inactif?.prochain_of ?? null) : null
+  const repos = !!dernier || !!prochain
   return (
     <button
       type="button"
@@ -181,7 +190,7 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
         className={cn(
           'text-4xl font-heading font-bold tracking-tight tabular-nums w-16',
           of ? 'text-foreground' : 'text-muted-foreground',
-          figures && 'row-span-2',
+          (figures || repos) && 'row-span-2',
         )}
       >
         {m.label}
@@ -193,12 +202,19 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
           // The reference, coloris and OF number live on the poste screen
           // one tap away (decision 2026-09-14).
           <Avancement of={of} />
+        ) : dernier ? (
+          // Where the bar would be: the article that ran here last. Muted
+          // like the code, so nothing on an idle tile reads as running.
+          <span className="block text-sm font-medium text-muted-foreground truncate">
+            {dernier.reference}
+            {dernier.coloris ? ` · ${dernier.coloris}` : ''}
+          </span>
         ) : (
-          <Repos inactif={m.inactif} />
+          <span className="block text-sm text-muted-foreground italic">Aucun OF en cours</span>
         )}
       </span>
 
-      {r ? <EtatGlyphe etat={r.etat} /> : <span />}
+      {r ? <EtatGlyphe etat={r.etat} /> : regleur && !of ? <EtatGlyphe etat="repos" /> : <span />}
       <ChevronRight className="h-6 w-6 text-muted-foreground" />
 
       {figures && (
@@ -222,43 +238,24 @@ function MetierTile({ m, onOpen }: { m: Machine; onOpen: () => void }) {
           )}
         </span>
       )}
-    </button>
-  )
-}
 
-/** The idle tile's middle column: the last OF that ran here and the one waiting
- *  next, each as a tiny label over one line of reference · coloris. Nothing
- *  else: the numbers (pieces, weight, second choice) belong to the history on
- *  the poste, one tap away. A métier with neither reads as it always did. */
-function Repos({ inactif }: { inactif: MachineInactif | null }) {
-  const dernier = inactif?.dernier_of ?? null
-  const prochain = inactif?.prochain_of ?? null
-  if (!dernier && !prochain) {
-    return <span className="block text-sm text-muted-foreground italic">Aucun OF en cours</span>
-  }
-  return (
-    <span className="block space-y-1">
-      {dernier && (
-        <span className="block">
-          <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
-            Dernier OF · {depuis(dernier.fin_ms)}
-          </span>
-          <span className="block text-sm font-medium truncate">
-            {dernier.reference}
-            {dernier.coloris ? ` · ${dernier.coloris}` : ''}
-          </span>
+      {repos && (
+        <span className="col-start-2 col-span-3 flex flex-wrap gap-1.5 min-w-0">
+          {dernier && (
+            <Pastille title="Fin du dernier OF sur ce métier">Terminé {depuis(dernier.fin_ms)}</Pastille>
+          )}
+          {prochain && (
+            <Pastille accent className="max-w-full" title={`OF ${prochain.IDordre_fabrication} en attente sur ce métier`}>
+              <ArrowRight className="h-3 w-3" />
+              <span className="truncate">
+                {prochain.reference}
+                {prochain.coloris ? ` · ${prochain.coloris}` : ''}
+              </span>
+            </Pastille>
+          )}
         </span>
       )}
-      {prochain && (
-        <span className="block">
-          <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">À suivre</span>
-          <span className="block text-sm truncate">
-            {prochain.reference}
-            {prochain.coloris ? ` · ${prochain.coloris}` : ''}
-          </span>
-        </span>
-      )}
-    </span>
+    </button>
   )
 }
 
@@ -303,45 +300,6 @@ function EtatGlyphe({ etat }: { etat: keyof typeof ETATS }) {
   return (
     <span title={titre} className={cn('flex-shrink-0 flex items-center justify-center h-9 w-9 rounded-full bg-secondary', classe)}>
       <Icon className="h-5 w-5" />
-    </span>
-  )
-}
-
-/** A régleur figure on the tile: red when it is the reason for the alert,
- *  plain otherwise (the legacy shows the stop figure on every tile). */
-/** Soft tints of the tablet's status colours (it paints them solid; the
- *  phone's pills are tinted like the rest of the app). `rouge` is the plain
- *  alert pill; `teinte` is the three-step ladder. */
-const TEINTE_PASTILLE: Record<TeinteArrets, string> = {
-  vert: 'bg-emerald-500/15 text-emerald-800 border-emerald-500/30',
-  ambre: 'bg-amber-500/15 text-amber-800 border-amber-500/30',
-  rouge: 'bg-destructive/10 text-destructive border-destructive/30',
-}
-
-function Pastille({
-  rouge,
-  teinte,
-  title,
-  children,
-}: {
-  rouge?: boolean
-  teinte?: TeinteArrets
-  title?: string
-  children: React.ReactNode
-}) {
-  return (
-    <span
-      title={title}
-      className={cn(
-        'inline-flex items-center rounded-full px-2 h-6 text-xs font-medium tabular-nums border whitespace-nowrap flex-shrink-0',
-        teinte
-          ? TEINTE_PASTILLE[teinte]
-          : rouge
-            ? TEINTE_PASTILLE.rouge
-            : 'bg-secondary text-muted-foreground border-border/60',
-      )}
-    >
-      {children}
     </span>
   )
 }
