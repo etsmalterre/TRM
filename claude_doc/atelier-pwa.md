@@ -178,8 +178,20 @@ Demande de Vincent du 2026-09-15, photos du téléphone Android de Nicolas à l'
 OF en cours le téléphone doit offrir tout ce que le legacy offre — écrire ou effacer la
 consigne, laisser un message sur l'OF, voir les pièces produites et les rouleaux visités,
 savoir où est le fil de cet OF, du précédent et du suivant. Le poste porte donc **trois
-rangées de liens** (Consigne · Historique · Fils, plus Réglage pour un régleur sur un OF
-non lancé), chacune un écran clé par le métier comme le reste.
+entrées** (Consigne · Fils · Historique, plus Réglage pour un régleur sur un OF non lancé),
+chacune un écran clé par le métier comme le reste.
+
+- **Depuis le 2026-09-15 (après-midi) les trois sont des boutons icône SANS libellé**, en
+  haut à droite de l'en-tête de l'OF (44 px, badge or = messages ; le libellé vit dans
+  `title` / `aria-label`) — décision de Vincent : le régleur s'en sert tous les jours et
+  apprend les icônes. La progression passe sous « réf · coloris » pour leur faire la place.
+  Ordre : Consigne (consigne, notes, messages) · Fils · Historique. **Réglage reste une
+  rangée `Lien` libellée** sous la consigne : conditionnelle, et elle mène au lancement.
+  Le callout §46 de la consigne reste toujours affiché sur le poste quand il y en a une.
+  L'icône Fils est la **bobine d'ETM** (`components/icons/BobineIcon.tsx`, miroir verbatim de
+  `ETM/apps/web/src/components/icons/BobineIcon.tsx`, l'icône du menu Fils de l'ERP —
+  améliorer là-bas et recopier), sur le bouton comme dans l'en-tête de `FilsOf.tsx` ; pas le
+  `Cylinder` de lucide.
 
 - **Consigne** (`Consigne.tsx`, déjà là depuis le 08/09) : le régleur écrit ou vide
   `ordre_fabrication.observations` (vide = effacée), les deux rôles lisent et postent dans

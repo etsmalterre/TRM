@@ -17,7 +17,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, AlertCircle, Cylinder, MapPin, Info } from 'lucide-react'
+import { Loader2, AlertCircle, MapPin, Info } from 'lucide-react'
+import { BobineIcon } from '@/components/icons/BobineIcon'
 import { fetchMachines, fetchFilsOf, progression, type FilsOf as FilsOfPayload, type LotFilOf } from '@/lib/atelier-api'
 import { PosteHeader } from '@/components/layout/PosteHeader'
 import { Segment } from '@/components/atelier/Segment'
@@ -92,7 +93,7 @@ export function FilsOf() {
           <div className="flex-shrink-0 px-3 pt-3">
             <div className="flex items-center gap-2.5">
               <div className="icon-box-gold h-10 w-10 flex items-center justify-center flex-shrink-0">
-                <Cylinder className="h-5 w-5" />
+                <BobineIcon className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
                 <h1 className="text-2xl font-heading font-bold tracking-tight leading-none">

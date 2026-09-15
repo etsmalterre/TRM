@@ -1,4 +1,4 @@
-// A navigation row of the poste's band 3 (and of the réglage sheet): icon,
+// A navigation row of the poste's band 3 (Réglage) and of the réglage sheet: icon,
 // label, one line of detail, chevron — the legacy's 24 px top-bar glyphs
 // (IMG_Warning, IMG_Consigne, IMG_Historique) as station-scale rows. Same
 // height as the tiles of the métier list, so a thumb finds it the same way.

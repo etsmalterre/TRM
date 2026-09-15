@@ -8,7 +8,7 @@
 // defaut_qualite and the ordre_fabrication timestamps, from an enrolled phone
 // (enrolment is the right to write). There is NO undo yet — the legacy has one
 // (IMG_Annuler on the last action) and this does not.
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -20,8 +20,8 @@ import {
   MessageSquareText,
   Wrench,
   History,
-  Cylinder,
 } from 'lucide-react'
+import { BobineIcon } from '@/components/icons/BobineIcon'
 import { fetchMachines, fetchOf, progression } from '@/lib/atelier-api'
 import { actionsDisponibles } from '@/lib/actions'
 import { PosteHeader } from '@/components/layout/PosteHeader'
@@ -100,7 +100,11 @@ export function Poste() {
       {of && (
         <div className="flex-1 min-h-0 overflow-y-auto scrollbar-transparent">
           {/* Band 2 — what the context resolved to. §5 detail header: gold
-              icon box, 2xl heading, the short gold gradient rule. */}
+              icon box, 2xl heading, the short gold gradient rule. The
+              progression sits under the reference so the top-right corner
+              holds the legacy's top-bar icons (IMG_Warning → FEN_Consigne,
+              FEN_Fils_OF, FEN_Historique) as bare icon buttons — the régleur
+              opens them every day and learns them, so no label (2026-09-15). */}
           <div className="px-3 pt-3">
             <div className="flex items-center gap-2.5">
               <div className="icon-box-gold h-10 w-10 flex items-center justify-center flex-shrink-0">
@@ -114,10 +118,35 @@ export function Poste() {
                   {of.reference}
                   {of.coloris ? ` · ${of.coloris}` : ''}
                 </p>
+                <p className="text-xs font-medium tabular-nums truncate mt-0.5">
+                  {progression(of)}
+                </p>
               </div>
-              <span className="text-sm font-medium tabular-nums text-right flex-shrink-0">
-                {progression(of)}
-              </span>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <BoutonIcone
+                  onClick={() => navigate(`/metier/${idMachine}/consigne`)}
+                  label={
+                    of.nb_messages > 0
+                      ? `Consigne, notes et messages · ${of.nb_messages} message${of.nb_messages > 1 ? 's' : ''}`
+                      : 'Consigne, notes et messages'
+                  }
+                  badge={of.nb_messages > 0 ? of.nb_messages : undefined}
+                >
+                  <MessageSquareText className="h-5 w-5" />
+                </BoutonIcone>
+                <BoutonIcone
+                  onClick={() => navigate(`/metier/${idMachine}/fils`)}
+                  label="Fils · lots et emplacements"
+                >
+                  <BobineIcon className="h-5 w-5" />
+                </BoutonIcone>
+                <BoutonIcone
+                  onClick={() => navigate(`/metier/${idMachine}/historique`)}
+                  label="Historique · pièces et visitage"
+                >
+                  <History className="h-5 w-5" />
+                </BoutonIcone>
+              </div>
             </div>
             <div className="mt-2 h-px w-24 bg-gradient-to-r from-gold to-transparent" />
           </div>
@@ -156,43 +185,19 @@ export function Poste() {
                 OF fiche. Renders nothing when there is no consigne. */}
             <ConsigneCallout texte={of.consigne} />
 
-            {/* The legacy's top-bar icons (IMG_Warning → FEN_Consigne with the
-                message count; FEN_Historique — pieces and rolls; FEN_Fils_OF —
-                where the yarn is; the réglage sheet for a régleur on an OF that
-                has not started), as station-scale rows rather than 24 px glyphs. */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <Lien
-                onClick={() => navigate(`/metier/${idMachine}/consigne`)}
-                icone={<MessageSquareText className="h-5 w-5" />}
-                label="Consigne"
-                detail={
-                  of.nb_messages > 0
-                    ? `${of.nb_messages} message${of.nb_messages > 1 ? 's' : ''}`
-                    : 'Aucun message'
-                }
-                badge={of.nb_messages > 0 ? of.nb_messages : undefined}
-              />
-              <Lien
-                onClick={() => navigate(`/metier/${idMachine}/historique`)}
-                icone={<History className="h-5 w-5" />}
-                label="Historique"
-                detail="Pièces et visitage"
-              />
-              <Lien
-                onClick={() => navigate(`/metier/${idMachine}/fils`)}
-                icone={<Cylinder className="h-5 w-5" />}
-                label="Fils"
-                detail="Lots et emplacements"
-              />
-              {regleur && !of.demarre && (
+            {/* The réglage sheet stays a labelled row: it appears only for a
+                régleur on an OF that has not started, and it leads to the
+                launch, so it is not one of the daily icons of band 2. */}
+            {regleur && !of.demarre && (
+              <div className="grid">
                 <Lien
                   onClick={() => navigate(`/metier/${idMachine}/reglage`)}
                   icone={<Wrench className="h-5 w-5" />}
                   label="Réglage"
                   detail="Fiche de réglage et lancement"
                 />
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Band 4 — the input band, and the only place this app writes. */}
@@ -238,6 +243,38 @@ export function Poste() {
         </div>
       )}
     </div>
+  )
+}
+
+// A bare-icon navigation button of band 2: 44 px (a thumb target at the
+// station), the Lien card's look and gold badge. The label only lives in
+// title / aria-label — the régleur learns the icon.
+function BoutonIcone({
+  onClick,
+  label,
+  badge,
+  children,
+}: {
+  onClick: () => void
+  label: string
+  badge?: number
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className="relative h-11 w-11 rounded-xl border border-border bg-card shadow-sm text-primary flex items-center justify-center active:bg-muted transition-colors"
+    >
+      {children}
+      {badge !== undefined && (
+        <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-gold text-gold-foreground text-[10px] font-bold flex items-center justify-center tabular-nums">
+          {badge}
+        </span>
+      )}
+    </button>
   )
 }
 
