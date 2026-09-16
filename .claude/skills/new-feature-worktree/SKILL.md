@@ -97,6 +97,9 @@ never the cause of this banner.
    the ERP otherwise), the slot number, and which terminal now carries the feature (the
    script's `wt-slot:` line).
    That session has `/feature-checkpoint` (sync) and `/feature-complete` (land) available.
+   **End the report with the dev link alone on its last line** (`http://localhost:517N`),
+   not inside a bullet or a sentence: the user opens it from there (2026-09-16: it was
+   buried mid-bullet and had to be asked for).
 
    **The session opens by itself.** `--terminal` hands the worktree to one of the six
    Windows Terminal windows of the 2x3 grid whose title is exactly « free »: that window is
