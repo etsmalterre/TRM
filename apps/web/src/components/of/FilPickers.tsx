@@ -20,7 +20,7 @@
 // `/of-trm/lookups/lots`. Query keys are shared with the fiche so opening one
 // after the other costs nothing.
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -55,6 +55,21 @@ export interface LotLookup {
 let draftKeySeq = 1
 export function nextDraftKey(): number {
   return draftKeySeq++
+}
+
+/** Bring a freshly opened picker panel fully into view. Both panels open at
+ *  the bottom of their card, and the Incorporer card is the last thing in the
+ *  fiche's scroll container, so a panel that mounts (or grows, when the lot
+ *  field appears) sits at the very edge of the viewport and its dropdowns open
+ *  low — that was ticket #1160. Instant scroll on purpose: a smooth one still
+ *  emits scroll events while the user clicks the field, and the dropdown's
+ *  close-on-scroll listener would snap it shut. */
+function useScrollIntoView(deps: unknown[]) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: 'nearest' })
+  }, deps)
+  return ref
 }
 
 /** Dashed add-row affordance (§7.1) — the OF fiche's trigger shape. */
@@ -99,9 +114,10 @@ export function FilPickerPanel({
     staleTime: 5 * 60_000,
   })
   const selected = (pairs ?? []).find((_, i) => i + 1 === pairKey) ?? null
+  const panelRef = useScrollIntoView([])
 
   return (
-    <div className="rounded-lg border border-accent/25 bg-card p-3 space-y-2 shadow-sm">
+    <div ref={panelRef} className="rounded-lg border border-accent/25 bg-card p-3 space-y-2 shadow-sm">
       <p className="text-xs font-semibold text-accent uppercase tracking-wide">{label}</p>
       <SearchableCombobox
         options={(pairs ?? []).map((p, i) => ({ ...p, _idx: i + 1 }))}
@@ -150,9 +166,11 @@ export function LotPickerPanel({
     staleTime: 60_000,
   })
   const chosenLot = (lots ?? []).find((l) => l.id === lotId) ?? null
+  // Re-run once the lot field appears: the panel just grew by a row.
+  const panelRef = useScrollIntoView([selectedPair !== null])
 
   return (
-    <div className="rounded-lg border border-accent/25 bg-card p-3 space-y-2 shadow-sm">
+    <div ref={panelRef} className="rounded-lg border border-accent/25 bg-card p-3 space-y-2 shadow-sm">
       <p className="text-xs font-semibold text-accent uppercase tracking-wide">Ajouter un lot</p>
       <SearchableCombobox
         options={(pairs ?? []).map((p, i) => ({ ...p, _idx: i + 1 }))}
