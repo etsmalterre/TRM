@@ -425,6 +425,10 @@ recherche, onglets, Observations régleur).
   jamais un palier Tailwind ; en-tête sur une ligne ; consigne en bandeau rouge §46.
 - Approximations signalées : % par pièce, filtre faux-arrêts 120 s ; Imprimer (ETAT_OF)
   toujours placeholder.
+- **« Ajouter un fil » / « Ajouter un lot » sont un DIALOGUE** (`AjouterFilDialog`,
+  `components/of/FilPickers.tsx`, LIVA #1160, 2026-09-16), empilé sur `CreateOfDialog` ; les
+  deux champs d'emblée, lot obligatoire en mode `lot` seulement. Ne pas réintroduire le
+  panneau qui grandissait dans la carte. Dossier § « Ajouter un fil / lot ».
 
 ### Atelier › Maintenance (`/atelier/maintenance`) — port de `FI_Maintenance.wdw`
 
