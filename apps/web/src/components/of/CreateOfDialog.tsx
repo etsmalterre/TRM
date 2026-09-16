@@ -57,7 +57,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PopoverSelect, SearchableCombobox, type PopoverSelectOption } from '@/components/ui/popover-select'
 import { BobineIcon } from '@/components/icons/BobineIcon'
-import { AddTrigger, FilPickerPanel, LotPickerPanel, nextDraftKey, type LotLookup } from '@/components/of/FilPickers'
+import { AddTrigger, AjouterFilDialog, nextDraftKey, type LotLookup } from '@/components/of/FilPickers'
 import { HorsRefBadge } from '@/components/of/HorsRefBadge'
 import { apiFetch } from '@/lib/api'
 import { fmtNum } from '@/lib/format'
@@ -797,7 +797,7 @@ export function CreateOfDialog({
                 icon={BobineIcon}
                 title="Fils à tricoter"
                 aside={qte > 0 ? <>besoin total <span className="font-semibold text-foreground tabular-nums">{fmtNum(qte, 1)} Kg</span></> : null}
-                action={!addFilOpen ? <AddTrigger label="Ajouter un fil" onClick={() => setAddFilOpen(true)} /> : null}
+                action={<AddTrigger label="Ajouter un fil" onClick={() => setAddFilOpen(true)} />}
               >
                 {seedLoading ? (
                   <div className="h-16 bg-muted animate-pulse rounded-md" />
@@ -866,29 +866,6 @@ export function CreateOfDialog({
                       </div>
                     )}
 
-                    {/* The legacy toolbar's "Ajouter un fil" — a run can use a
-                        yarn the écru sheet doesn't list, and a reference with
-                        no composition at all is only launchable this way. The
-                        trigger lives in the section caption; this is its panel. */}
-                    {addFilOpen && (
-                      <FilPickerPanel
-                        label="Ajouter un fil"
-                        onCancel={() => setAddFilOpen(false)}
-                        onAdd={(pair) => {
-                          setComp((cur) => [...cur, {
-                            key: nextDraftKey(),
-                            IDref_fil: pair.IDref_fil,
-                            IDcolori_fil: pair.IDcolori_fil,
-                            ref_label: pair.ref_label,
-                            coloris_label: pair.coloris_label,
-                            pourcentage: cur.length === 0 ? '100' : '',
-                            IDstock_fil: 0,
-                            lots: null,
-                          }])
-                          setAddFilOpen(false)
-                        }}
-                      />
-                    )}
                   </div>
                 )}
                 {ignoredLots > 0 && (
@@ -916,7 +893,7 @@ export function CreateOfDialog({
                 icon={Layers}
                 title="Incorporer"
                 aside={inc.length > 0 ? <>{inc.length} lot{inc.length > 1 ? 's' : ''}</> : null}
-                action={!addLotOpen ? <AddTrigger label="Ajouter un lot" onClick={() => setAddLotOpen(true)} /> : null}
+                action={<AddTrigger label="Ajouter un lot" onClick={() => setAddLotOpen(true)} />}
               >
                 <div className="space-y-2">
                   {inc.length > 0 && (
@@ -966,27 +943,50 @@ export function CreateOfDialog({
                       </table>
                     </div>
                   )}
-                  {inc.length === 0 && !addLotOpen && (
+                  {inc.length === 0 && (
                     <p className="text-xs text-muted-foreground">Aucun lot incorporé.</p>
-                  )}
-                  {addLotOpen && (
-                    <LotPickerPanel
-                      onCancel={() => setAddLotOpen(false)}
-                      onAdd={(lot, pair) => {
-                        setInc((cur) => [...cur, {
-                          key: nextDraftKey(),
-                          IDstock_fil: lot.id,
-                          lot: lot.lot,
-                          ref_label: pair.ref_label,
-                          coloris_label: pair.coloris_label,
-                          poids: '',
-                        }])
-                        setAddLotOpen(false)
-                      }}
-                    />
                   )}
                 </div>
               </Section>
+
+              {/* The legacy toolbar's "Ajouter un fil" — a run can use a yarn
+                  the écru sheet doesn't list, and a reference with no
+                  composition at all is only launchable this way — and its
+                  "Incorporer un fil". Both triggers live in their section
+                  caption; the dialogs stack over this one. */}
+              <AjouterFilDialog
+                mode="fil"
+                open={addFilOpen}
+                onClose={() => setAddFilOpen(false)}
+                onAdd={(pair, lot) => {
+                  setComp((cur) => [...cur, {
+                    key: nextDraftKey(),
+                    IDref_fil: pair.IDref_fil,
+                    IDcolori_fil: pair.IDcolori_fil,
+                    ref_label: pair.ref_label,
+                    coloris_label: pair.coloris_label,
+                    pourcentage: cur.length === 0 ? '100' : '',
+                    IDstock_fil: lot?.id ?? 0,
+                    lots: null,
+                  }])
+                }}
+              />
+              <AjouterFilDialog
+                mode="lot"
+                open={addLotOpen}
+                onClose={() => setAddLotOpen(false)}
+                onAdd={(pair, lot) => {
+                  if (!lot) return
+                  setInc((cur) => [...cur, {
+                    key: nextDraftKey(),
+                    IDstock_fil: lot.id,
+                    lot: lot.lot,
+                    ref_label: pair.ref_label,
+                    coloris_label: pair.coloris_label,
+                    poids: '',
+                  }])
+                }}
+              />
 
             </>
           )}

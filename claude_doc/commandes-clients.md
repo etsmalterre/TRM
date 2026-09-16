@@ -60,7 +60,11 @@ composition qu'ils peuvent alimenter. Port du bouton legacy en bas à droite du 
   `presetLotIds`), jamais une copie. Il a été sorti de `ProductionOf.tsx` pour ça et porte
   toute la fenêtre legacy : visitage, nettoyage, finir le fil, ouvert au large, maille
   d'ouverture, sonneter, consigne, **Ajouter un fil** et **Incorporer un fil**. Les deux
-  sélecteurs de fil vivent dans `components/of/FilPickers.tsx`, partagés avec la fiche OF.
+  sélecteurs de fil vivent dans `components/of/FilPickers.tsx`, partagés avec la fiche OF —
+  **un dialogue depuis le 2026-09-16** (`AjouterFilDialog`, modes `fil` / `lot`, empilé sur
+  celui-ci), plus un panneau qui grandissait dans la carte : LIVA #1160 et décision de
+  Vincent le même jour, « ça a l'air compliqué ». Les deux champs sont visibles d'emblée, le
+  lot désactivé tant qu'aucun fil n'est choisi, obligatoire en mode `lot` seulement.
 - **Écran scindé, comme la fenêtre legacy** (`mps_designer` §18.C, `max-w-5xl`) : à gauche
   **l'OF lui-même** — ses réglages (métier, poids/pièce, quantité, nb pièces, visitage,
   nettoyage, options) et ses fils ; à droite **ce que le régleur lit puis écrit** — les
@@ -178,7 +182,7 @@ composition qu'ils peuvent alimenter. Port du bouton legacy en bas à droite du 
   `PopoverSelect` (rendu dans les lignes du popover seulement), **jamais en `secondary`**
   — `secondary` est aussi concaténé sur le bouton, ce qui donnait un champ fermé lisant
   « 10131 — 168,8 Kg ». Même règle dans les trois endroits qui listent des lots :
-  `CreateOfDialog`, `FilPickers.LotPickerPanel` et le `CompositionEditRow` de la fiche OF.
+  `CreateOfDialog`, `FilPickers.AjouterFilDialog` et le `CompositionEditRow` de la fiche OF.
 - Sélection multi-lignes = **`mps_designer` §44** (ancre en `useRef`, MAJ+clic pour une
   plage, `select-none` sur la ligne). `PanelTable` a gagné `selectedIds` + l'événement
   transmis à `onRowClick` pour ça.

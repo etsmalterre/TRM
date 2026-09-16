@@ -8,11 +8,21 @@
 // creation the "besoin" per fil is what tells you whether the lot is enough —
 // but the pickers themselves are one implementation, here.
 //
-// Each picker comes in two shapes:
-//   • `…Panel` — the picker alone, opened and closed by the caller. The
-//     création dialog triggers it from its section caption (top right), so the
-//     trigger and the panel sit in different parts of the layout.
-//   • `Add…Button` — the §7.1 dashed add-row affordance, owning its own open
+// Since 2026-09-16 (LIVA #1160) the picker is a DIALOG, not a panel that grows
+// inside the card. The inline version cascaded — click the dashed row, a
+// panel appears, pick a fil, a second field appears, then Ajouter — at the
+// very bottom of a long fiche, and read as complicated even once its
+// dropdowns stopped painting off-screen. The dialog shows both fields from
+// the start (the lot one disabled until a fil is chosen) in a stable frame.
+// It is the mps_designer §18.0 / row-creation rule too: a row that needs real
+// data to exist (a lot for Incorporer, a fil for Tricoter) is created through
+// a modal, not an inline placeholder.
+//
+// Two shapes share the one dialog:
+//   • `AjouterFilDialog` — the dialog alone, opened and closed by the caller.
+//     The création dialog triggers it from its section caption (top right)
+//     and stacks it over itself.
+//   • `Add…Button` — the §7.1 dashed add-row affordance owning its own open
 //     state. That is the shape the OF fiche uses, under its list.
 //
 // Both read `/of-trm/lookups/fils` (the pairs actually in stock: TRM knits à
@@ -20,10 +30,11 @@
 // `/of-trm/lookups/lots`. Query keys are shared with the fiche so opening one
 // after the other costs nothing.
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PopoverSelect, SearchableCombobox } from '@/components/ui/popover-select'
 import { apiFetch } from '@/lib/api'
 import { fmtNum } from '@/lib/format'
@@ -57,21 +68,6 @@ export function nextDraftKey(): number {
   return draftKeySeq++
 }
 
-/** Bring a freshly opened picker panel fully into view. Both panels open at
- *  the bottom of their card, and the Incorporer card is the last thing in the
- *  fiche's scroll container, so a panel that mounts (or grows, when the lot
- *  field appears) sits at the very edge of the viewport and its dropdowns open
- *  low — that was ticket #1160. Instant scroll on purpose: a smooth one still
- *  emits scroll events while the user clicks the field, and the dropdown's
- *  close-on-scroll listener would snap it shut. */
-function useScrollIntoView(deps: unknown[]) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    ref.current?.scrollIntoView({ block: 'nearest' })
-  }, deps)
-  return ref
-}
-
 /** Dashed add-row affordance (§7.1) — the OF fiche's trigger shape. */
 function DashedTrigger({ label, onClick }: { label: string; onClick: () => void }) {
   return (
@@ -98,58 +94,38 @@ export function AddTrigger({ label, onClick }: { label: string; onClick: () => v
   )
 }
 
-/** Pick a (fil, coloris) pair. The lot is chosen afterwards, on the row itself
- *  — a composition row can legitimately carry no lot yet. */
-export function FilPickerPanel({
-  label, onAdd, onCancel,
-}: {
-  label: string
-  onAdd: (pair: FilPair, lot: LotLookup | null) => void
-  onCancel: () => void
-}) {
-  const [pairKey, setPairKey] = useState(0)
-  const { data: pairs, isLoading } = useQuery<FilPair[]>({
-    queryKey: ['of-trm-fils'],
-    queryFn: () => apiFetch('/of-trm/lookups/fils'),
-    staleTime: 5 * 60_000,
-  })
-  const selected = (pairs ?? []).find((_, i) => i + 1 === pairKey) ?? null
-  const panelRef = useScrollIntoView([])
+// ── The dialog ───────────────────────────────────────────
 
+/** `fil` = Tricoter: the row is a (fil, coloris) pair, the lot is optional
+ *  and can be chosen later on the row itself. `lot` = Incorporer: the weight
+ *  is taken off that very lot, so the row is meaningless without it. */
+export type AjouterFilMode = 'fil' | 'lot'
+
+const TITLES: Record<AjouterFilMode, string> = { fil: 'Ajouter un fil', lot: 'Ajouter un lot' }
+
+export function AjouterFilDialog({
+  mode, open, onClose, onAdd,
+}: {
+  mode: AjouterFilMode
+  open: boolean
+  onClose: () => void
+  /** `lot` is null only in `fil` mode, when the user left it for later. */
+  onAdd: (pair: FilPair, lot: LotLookup | null) => void
+}) {
   return (
-    <div ref={panelRef} className="rounded-lg border border-accent/25 bg-card p-3 space-y-2 shadow-sm">
-      <p className="text-xs font-semibold text-accent uppercase tracking-wide">{label}</p>
-      <SearchableCombobox
-        options={(pairs ?? []).map((p, i) => ({ ...p, _idx: i + 1 }))}
-        value={pairKey}
-        onChange={(id) => setPairKey(id)}
-        getId={(p: FilPair & { _idx: number }) => p._idx}
-        getPrimary={(p) => p.ref_label}
-        getSecondary={(p) => `${p.coloris_label || 'ecru'} · ${fmtNum(p.stock, 1)} Kg`}
-        loading={isLoading}
-        placeholder="Choisir un fil en stock…"
-      />
-      <div className="flex justify-end gap-2 pt-1">
-        <Button variant="outline" size="sm" onClick={onCancel}>Annuler</Button>
-        <Button
-          size="sm"
-          disabled={!selected}
-          onClick={() => { if (selected) onAdd(selected, null) }}
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />Ajouter
-        </Button>
-      </div>
-    </div>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+      {/* Mounted only while open so every opening starts from a blank form. */}
+      {open && <AjouterFilForm mode={mode} onClose={onClose} onAdd={onAdd} />}
+    </Dialog>
   )
 }
 
-/** Incorporer picks a LOT, not a pair: the weight is taken off that very lot,
- *  so the row is meaningless without it (hence the two-step picker). */
-export function LotPickerPanel({
-  onAdd, onCancel,
+function AjouterFilForm({
+  mode, onClose, onAdd,
 }: {
-  onAdd: (lot: LotLookup, pair: FilPair) => void
-  onCancel: () => void
+  mode: AjouterFilMode
+  onClose: () => void
+  onAdd: (pair: FilPair, lot: LotLookup | null) => void
 }) {
   const [pairIdx, setPairIdx] = useState(0)
   const [lotId, setLotId] = useState(0)
@@ -159,70 +135,78 @@ export function LotPickerPanel({
     staleTime: 5 * 60_000,
   })
   const selectedPair = (pairs ?? [])[pairIdx - 1] ?? null
-  const { data: lots } = useQuery<LotLookup[]>({
+  const { data: lots, isLoading: lotsLoading } = useQuery<LotLookup[]>({
     queryKey: ['of-trm-lots', selectedPair?.IDref_fil ?? 0, selectedPair?.IDcolori_fil ?? 0],
     queryFn: () => apiFetch(`/of-trm/lookups/lots?refFil=${selectedPair!.IDref_fil}&coloriFil=${selectedPair!.IDcolori_fil}`),
     enabled: selectedPair !== null,
     staleTime: 60_000,
   })
   const chosenLot = (lots ?? []).find((l) => l.id === lotId) ?? null
-  // Re-run once the lot field appears: the panel just grew by a row.
-  const panelRef = useScrollIntoView([selectedPair !== null])
+  const lotRequired = mode === 'lot'
+  const canAdd = selectedPair !== null && (!lotRequired || chosenLot !== null)
+
+  const submit = () => {
+    if (!canAdd || !selectedPair) return
+    onAdd(selectedPair, chosenLot)
+    onClose()
+  }
 
   return (
-    <div ref={panelRef} className="rounded-lg border border-accent/25 bg-card p-3 space-y-2 shadow-sm">
-      <p className="text-xs font-semibold text-accent uppercase tracking-wide">Ajouter un lot</p>
-      <SearchableCombobox
-        options={(pairs ?? []).map((p, i) => ({ ...p, _idx: i + 1 }))}
-        value={pairIdx}
-        onChange={(id) => { setPairIdx(id); setLotId(0) }}
-        getId={(p: FilPair & { _idx: number }) => p._idx}
-        getPrimary={(p) => p.ref_label}
-        getSecondary={(p) => `${p.coloris_label || 'ecru'} · ${fmtNum(p.stock, 1)} Kg`}
-        loading={isLoading}
-        placeholder="Choisir un fil en stock…"
-      />
-      {selectedPair && (
-        // Same rule as the création dialog: the field names the lot, its
-        // weight is a label right of it. `description` keeps the weight in the
-        // popover rows without letting it onto the trigger button.
-        <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <PopoverSelect
-              options={(lots ?? []).map((l) => ({ id: l.id, primary: l.lot || `#${l.id}`, description: `${fmtNum(l.stock, 1)} Kg en stock` }))}
-              value={lotId}
-              onChange={setLotId}
-              emptyLabel="Choisir un lot"
-              size="sm"
-              widthClass="w-full"
-            />
-          </div>
-          {chosenLot && (
-            <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-              stock <span className="tabular-nums font-semibold">{fmtNum(chosenLot.stock, 1)} Kg</span>
-            </span>
-          )}
+    <DialogContent className="max-w-md" onClose={onClose}>
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <Plus className="h-5 w-5 text-accent" />
+          {TITLES[mode]}
+        </DialogTitle>
+      </DialogHeader>
+      <div className="mt-4 space-y-3">
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Fil *</label>
+          <SearchableCombobox
+            options={(pairs ?? []).map((p, i) => ({ ...p, _idx: i + 1 }))}
+            value={pairIdx}
+            onChange={(id) => { setPairIdx(id); setLotId(0) }}
+            getId={(p: FilPair & { _idx: number }) => p._idx}
+            getPrimary={(p) => p.ref_label}
+            getSecondary={(p) => `${p.coloris_label || 'ecru'} · ${fmtNum(p.stock, 1)} Kg`}
+            loading={isLoading}
+            placeholder="Choisir un fil en stock…"
+          />
         </div>
-      )}
-      <div className="flex justify-end gap-2 pt-1">
-        <Button variant="outline" size="sm" onClick={onCancel}>Annuler</Button>
-        <Button
-          size="sm"
-          disabled={!selectedPair || lotId === 0}
-          onClick={() => {
-            const lot = (lots ?? []).find((l) => l.id === lotId)
-            if (selectedPair && lot) onAdd(lot, selectedPair)
-          }}
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />Ajouter
-        </Button>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">{lotRequired ? 'Lot *' : 'Lot'}</label>
+          {/* Same rule as the composition rows: the field names the lot, its
+              weight travels in `description` (popover rows only), never on
+              the closed button. */}
+          <PopoverSelect
+            options={(lots ?? []).map((l) => ({ id: l.id, primary: l.lot || `#${l.id}`, description: `${fmtNum(l.stock, 1)} Kg en stock` }))}
+            value={lotId}
+            onChange={setLotId}
+            emptyLabel={selectedPair === null ? "Choisissez d'abord un fil" : lotsLoading ? 'Chargement…' : 'Choisir un lot'}
+            disabled={selectedPair === null || lotsLoading}
+            widthClass="w-full"
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {chosenLot
+              ? <>stock <span className="tabular-nums font-semibold text-foreground">{fmtNum(chosenLot.stock, 1)} Kg</span>{chosenLot.emplacement ? ` · ${chosenLot.emplacement}` : ''}</>
+              : lotRequired
+                ? 'Le poids incorporé sera déduit de ce lot.'
+                : 'Facultatif — le lot peut être choisi plus tard sur la ligne.'}
+          </p>
+        </div>
       </div>
-    </div>
+      <DialogFooter className="mt-4">
+        <Button variant="outline" onClick={onClose}>Annuler</Button>
+        <Button disabled={!canAdd} onClick={submit}>
+          <Plus className="h-4 w-4 mr-1.5" />Ajouter
+        </Button>
+      </DialogFooter>
+    </DialogContent>
   )
 }
 
-/** Dashed-trigger wrappers — the shape the OF fiche uses in its Tricoter and
- *  Incorporer cards. */
+// ── Dashed-trigger wrappers — the OF fiche's shape ───────
+
 export function AddFilButton({
   label, onAdd,
 }: {
@@ -230,23 +214,25 @@ export function AddFilButton({
   onAdd: (pair: FilPair, lot: LotLookup | null) => void
 }) {
   const [open, setOpen] = useState(false)
-  if (!open) return <DashedTrigger label={label} onClick={() => setOpen(true)} />
   return (
-    <FilPickerPanel
-      label={label}
-      onCancel={() => setOpen(false)}
-      onAdd={(pair, lot) => { onAdd(pair, lot); setOpen(false) }}
-    />
+    <>
+      <DashedTrigger label={label} onClick={() => setOpen(true)} />
+      <AjouterFilDialog mode="fil" open={open} onClose={() => setOpen(false)} onAdd={onAdd} />
+    </>
   )
 }
 
 export function AddIncorporeButton({ onAdd }: { onAdd: (lot: LotLookup, pair: FilPair) => void }) {
   const [open, setOpen] = useState(false)
-  if (!open) return <DashedTrigger label="Ajouter un lot" onClick={() => setOpen(true)} />
   return (
-    <LotPickerPanel
-      onCancel={() => setOpen(false)}
-      onAdd={(lot, pair) => { onAdd(lot, pair); setOpen(false) }}
-    />
+    <>
+      <DashedTrigger label="Ajouter un lot" onClick={() => setOpen(true)} />
+      <AjouterFilDialog
+        mode="lot"
+        open={open}
+        onClose={() => setOpen(false)}
+        onAdd={(pair, lot) => { if (lot) onAdd(lot, pair) }}
+      />
+    </>
   )
 }

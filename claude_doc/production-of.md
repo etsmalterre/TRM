@@ -233,3 +233,15 @@ confirmation de suppression), CRUD `ETM/apps/api/src/routes/of-trm.ts`
   joker) est imposé, pas le lot : changer de lot en cours d'OF reste le geste du régleur. Une
   commande TRM native (sans `IDligne_commande_ETM`) n'est jamais bloquée. Règle et test :
   `ETM/apps/api/src/lib/affectation-fil-trm.ts`.
+
+## « Ajouter un fil » / « Ajouter un lot » — un dialogue (2026-09-16, LIVA #1160)
+
+Les deux rangées pointillées §7.1 des cartes Tricoter et Incorporer ouvrent
+`AjouterFilDialog` (`components/of/FilPickers.tsx`, partagé avec `CreateOfDialog` qui
+l'empile sur lui-même). Le ticket disait « je ne peux pas descendre assez pour sélectionner
+mon fil » : la vraie cause était `popover-select.tsx` resté en retard sur le correctif #1098
+d'ETM (re-copié le même jour, toutes les listes de l'app en profitent), mais le panneau qui
+grandissait en cascade au bas de la fiche — clic, panneau, fil, second champ, Ajouter —
+lisait compliqué même une fois les listes visibles ; d'où le dialogue (règle de création
+de ligne du designer : une ligne qui a besoin d'une vraie donnée pour exister passe par un
+modal). Rien n'est enregistré avant Enregistrer, comme avant.
