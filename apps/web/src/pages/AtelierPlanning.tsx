@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { apiFetch, API_URL } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { semaineDeLaGrille } from '@/lib/semaine-iso'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -112,15 +113,6 @@ function addDays(d: Date, days: number): Date {
   const x = new Date(d)
   x.setDate(x.getDate() + days)
   return x
-}
-
-/** ISO week number of the week containing `weekStart`'s Monday. */
-function isoWeekNumber(weekStart: Date): number {
-  const thursday = addDays(weekStart, 4) // Sunday-start week → its Thursday
-  const target = new Date(thursday.getFullYear(), thursday.getMonth(), thursday.getDate())
-  const jan4 = new Date(target.getFullYear(), 0, 4)
-  const jan4Week = sundayOf(jan4)
-  return Math.round((target.getTime() - addDays(jan4Week, 4).getTime()) / (7 * 86_400_000)) + 1
 }
 
 const DAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
@@ -295,7 +287,7 @@ export function AtelierPlanning() {
         </div>
         <div className="min-w-0">
           <p className="text-lg font-heading font-bold tracking-tight leading-tight">{monthLabel}</p>
-          <p className="text-xs text-muted-foreground">Semaine {isoWeekNumber(weekStart)}</p>
+          <p className="text-xs text-muted-foreground">Semaine {semaineDeLaGrille(weekStart)}</p>
         </div>
 
         <div className="flex-1" />

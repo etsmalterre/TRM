@@ -586,6 +586,7 @@ clé le menu Rapports disparaît. **Dossier : `claude_doc/rapports-finance.md`.*
 - `planning_bonnetier` — `IDplanning_bonnetier`, `date_debut`/`date_fin` (DATETIME, one row per bonnetier per worked day), `IDbonnetier`. No équipe column: the shift (Matin/Après-Midi/Nuit) is derived from the start hour. Overnight (Nuit) shifts end on the next day.
 - `bonnetier` — accented columns `prénom`/`archivé` (HFSQL accent rules apply). Grid rows = `archivé=0 AND regleur=0`; regleurs are excluded (roles in `role_employe`: apprenti/bonnetier/visiteur/regleur).
 - `desiderata` — `DATE` (reserved word → returns uppercased; 8-char YYYYMMDD), `description`, `IDbonnetier`, `justifie`, `declare`. Writes use positional INSERT (max+1 PK) to avoid naming the reserved column. "En cours" = date ≥ today.
+- ⚠️ **Le numéro de semaine = la semaine ISO du LUNDI de la grille** (`lib/semaine-iso.ts`, testé), le même que le PDF de l'API. La grille commence le dimanche : ancrer la semaine 1 sur la semaine dimanche-samedi du 4 janvier décale toute l'année quand le 4 janvier tombe un dimanche (2026 — LIVA #1166/#1167). Ne pas recalculer à la main dans un écran.
 
 ## Ticket widget (LIVA issue tracker) — feature version 1.3.0
 
