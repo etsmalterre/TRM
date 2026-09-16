@@ -107,6 +107,15 @@ never the cause of this banner.
    `layout`). No « free » window (all six busy, or the grid not open) → the script says so
    and the user opens the session by hand; a « busy » title means someone is typing there.
 
+   **On Linux (Omarchy / Hyprland) there is no grid.** The same `--terminal` opens a new
+   terminal window on the **current workspace**, titled after the feature, cwd'd in the
+   worktree and running the same launcher (`yolo-ets` / `yolo-liva`, the bash functions from
+   `claude_config/bin/launchers.sh` that `~/.bashrc` sources — hence `bash -ic`). When Claude
+   exits the shell stays open. Mechanics: `setsid uwsm-app -- xdg-terminal-exec --title=…
+   --dir=…` (what `omarchy-launch-terminal` does), in the Linux branch of `up.mjs`. The
+   script prints `terminal: new « <feature> » window …`; a `NOTE: --terminal ignored` means
+   `xdg-terminal-exec` is missing — open a terminal in the worktree and run the launcher.
+
 ## Feature needs shared-API changes? → paired NG worktree
 
 TRM has no API; its endpoints live in the **MPS API**. If this feature needs new or
