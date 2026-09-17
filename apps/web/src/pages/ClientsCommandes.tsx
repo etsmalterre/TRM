@@ -70,7 +70,6 @@ import { CreateOfDialog } from '@/components/of/CreateOfDialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { postEmail } from '@/lib/email'
 import { useHasPermission } from '@/contexts/PermissionsContext'
-import { VerdictTile } from '@/components/shared/VerdictTile'
 
 // ── Types ──────────────────────────────────────────────
 
@@ -2697,11 +2696,10 @@ function StatusFooter({ etat, onToggle, isToggling, disabled, disabledReason }: 
   )
 }
 
-// ── Solder — banded « bilan » dialog (mps_designer §18.D, LIVA #1171) ──
+// ── Solder — banded confirmation (mps_designer §18.D band, LIVA #1171) ──
 
-/** What the user reads before soldering: produced vs ordered, shipped vs
- *  produced, and on a mirror the one consequence ETM will act on. No field
- *  is written — the confirm is the whole decision. */
+/** One sentence, then the decision. No bilan: Vincent asked for it simple
+ *  and brief (2026-09-17) — the fiche behind already shows the figures. */
 function SolderDialog({ open, onOpenChange, commande, isPending, onConfirm }: {
   open: boolean
   onOpenChange: (o: boolean) => void
@@ -2709,19 +2707,10 @@ function SolderDialog({ open, onOpenChange, commande, isPending, onConfirm }: {
   isPending: boolean
   onConfirm: () => void
 }) {
-  const tot = commande.lignes.reduce(
-    (a, l) => ({
-      commande: a.commande + (Number(l.quantite) || 0),
-      produit: a.produit + (Number(l.produit) || 0),
-      expedie: a.expedie + (Number(l.expedie) || 0),
-      pieces: a.pieces + (Number(l.nb_pieces) || 0),
-    }),
-    { commande: 0, produit: 0, expedie: 0, pieces: 0 },
-  )
   const numero = commande.numero ?? commande.IDcommande_client
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!isPending) onOpenChange(o) }}>
-      <DialogContent className="max-w-lg p-0 border-0 bg-primary overflow-hidden max-h-[90dvh] flex flex-col">
+      <DialogContent className="max-w-md p-0 border-0 bg-primary overflow-hidden flex flex-col">
         <div className="flex-shrink-0 flex items-center gap-2.5 rounded-t-lg border-b-2 border-gold bg-primary px-4 py-2.5">
           <div className="h-8 w-8 flex-shrink-0 rounded-lg flex items-center justify-center shadow-sm bg-gold text-gold-foreground">
             <CheckCircle2 className="h-[18px] w-[18px]" />
@@ -2733,7 +2722,6 @@ function SolderDialog({ open, onOpenChange, commande, isPending, onConfirm }: {
             <p className="text-xs text-white/70 truncate">
               {commande.client_nom || '—'}
               {!!commande.ref_client && <> • {commande.ref_client}</>}
-              {!!commande.date_commande && <> • {formatHfsqlDate(commande.date_commande)}</>}
             </p>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white flex-shrink-0" title="Fermer" onClick={() => onOpenChange(false)} disabled={isPending}>
@@ -2741,46 +2729,34 @@ function SolderDialog({ open, onOpenChange, commande, isPending, onConfirm }: {
           </Button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto bg-zinc-100 p-4 space-y-3 scrollbar-transparent">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <VerdictTile
-              icon={<Factory className="h-4 w-4" />}
-              label="Produit"
-              value={`${fmtNum(tot.produit)} Kgs`}
-              detail={`sur ${fmtNum(tot.commande)} Kgs commandés · ${tot.pieces} pièce${tot.pieces > 1 ? 's' : ''}`}
-              tone={tot.produit >= tot.commande ? 'success' : tot.produit > 0 ? 'warning' : 'neutral'}
-            />
-            <VerdictTile
-              icon={<Truck className="h-4 w-4" />}
-              label="Expédié"
-              value={`${fmtNum(tot.expedie)} Kgs`}
-              detail={`sur ${fmtNum(tot.produit)} Kgs produits`}
-              tone={tot.produit > 0 && tot.expedie >= tot.produit ? 'success' : tot.expedie > 0 ? 'warning' : 'neutral'}
-            />
+        <div className="bg-zinc-100 px-4 py-4">
+          <div className="rounded-lg border border-border/60 bg-card px-3 py-2.5 shadow-sm flex items-center gap-3">
+            {commande.is_mirror ? (
+              <>
+                <div className="h-8 w-8 rounded-md flex items-center justify-center flex-shrink-0 bg-primary/10">
+                  <Lock className="h-4 w-4 text-primary" />
+                </div>
+                <p className="text-sm">ETM la verra « Soldée par TRM ».</p>
+              </>
+            ) : (
+              <>
+                <div className="h-8 w-8 rounded-md flex items-center justify-center flex-shrink-0 bg-green-500/10">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                </div>
+                <p className="text-sm">La commande passera en « Soldée ».</p>
+              </>
+            )}
           </div>
-          {commande.is_mirror && (
-            <div className="rounded-lg border border-border/60 bg-card p-3 shadow-sm flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary/10">
-                <Lock className="h-5 w-5 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">Pilotée par ETM</p>
-                <p className="text-xs text-muted-foreground">ETM la verra « Soldée par TRM ».</p>
-              </div>
-            </div>
-          )}
         </div>
 
-        <div className="flex-shrink-0 flex items-center gap-3 rounded-b-lg border-t border-border/60 bg-zinc-200 px-4 py-3">
-          <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
-              <X className="h-4 w-4 mr-2" />Annuler
-            </Button>
-            <Button onClick={onConfirm} disabled={isPending}>
-              {isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
-              Solder
-            </Button>
-          </div>
+        <div className="flex-shrink-0 flex items-center gap-2 justify-end rounded-b-lg border-t border-border/60 bg-zinc-200 px-4 py-3">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+            <X className="h-4 w-4 mr-2" />Annuler
+          </Button>
+          <Button onClick={onConfirm} disabled={isPending}>
+            {isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
+            Solder
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

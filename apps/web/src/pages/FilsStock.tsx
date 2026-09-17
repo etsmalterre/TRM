@@ -56,7 +56,6 @@ import { BobineIcon } from '@/components/icons/BobineIcon'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { PopoverSelect, SearchableCombobox } from '@/components/ui/popover-select'
 import { cn } from '@/lib/utils'
-import { VerdictTile, type VerdictTone } from '@/components/shared/VerdictTile'
 import { formatHfsqlDate, hfsqlDateToInput, inputDateToHfsql } from '@/lib/dates'
 import { apiFetch, API_URL } from '@/lib/api'
 import { fmtNum } from '@/lib/format'
@@ -228,6 +227,15 @@ function ageDays(dateEntree: string | null): number | null {
 // above or negative; second choix green at 0, amber ≤ 5 %, red above. Kept in
 // sync with the RapportFreintePdf colors. Rendered through the §7 status card
 // system (left edge + icon box + value share one tone).
+type VerdictTone = 'success' | 'warning' | 'danger' | 'neutral'
+
+const VERDICT_TONE: Record<VerdictTone, { border: string; iconBg: string; icon: string; value: string }> = {
+  success: { border: 'border-l-green-500/60', iconBg: 'bg-green-500/10', icon: 'text-green-600', value: 'text-green-600' },
+  warning: { border: 'border-l-amber-400/60', iconBg: 'bg-amber-400/10', icon: 'text-amber-600', value: 'text-amber-600' },
+  danger: { border: 'border-l-destructive/60', iconBg: 'bg-destructive/10', icon: 'text-destructive/70', value: 'text-destructive' },
+  neutral: { border: 'border-l-border', iconBg: 'bg-muted', icon: 'text-muted-foreground', value: 'text-foreground' },
+}
+
 function freinteTone(pct: number | null): VerdictTone {
   if (pct == null) return 'neutral'
   if (pct < 0 || pct > 10) return 'danger'
@@ -238,6 +246,36 @@ function secondChoixTone(pct: number | null): VerdictTone {
   if (pct === 0) return 'success'
   if (pct <= 5) return 'warning'
   return 'danger'
+}
+
+/** One stat tile of the Archivage bilan — status-colored card (§7) with the
+ *  big figure carrying the verdict color. */
+function VerdictTile({
+  icon,
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  detail: string
+  tone: VerdictTone
+}) {
+  const t = VERDICT_TONE[tone]
+  return (
+    <div className={cn('rounded-lg border-l-4 border border-border/60 bg-card p-3 shadow-sm', t.border)}>
+      <div className="flex items-center gap-2">
+        <div className={cn('h-7 w-7 rounded-md flex items-center justify-center flex-shrink-0', t.iconBg, t.icon)}>
+          {icon}
+        </div>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      </div>
+      <p className={cn('mt-2 text-2xl font-bold tabular-nums leading-none', t.value)}>{value}</p>
+      <p className="mt-1.5 text-xs tabular-nums text-muted-foreground">{detail}</p>
+    </div>
+  )
 }
 
 // ── Sort handling ──────────────────────────────────────
