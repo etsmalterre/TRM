@@ -298,10 +298,10 @@ All other screens are `PagePlaceholder`s for now. Legacy references for each dom
   de la carte de ligne, actif sur un miroir. **La liste de gauche se colore sur le délai**
   (§30 : rouge = à faire de notre côté — sans délai ou dépassé ; ambre = sous 3 jours), la
   pastille compteur compte les rouges ; la phase reste dans sa pastille.
-- **« Solder » se confirme et la commande reste à l'écran** (LIVA #1171, 2026-09-17) :
-  `ConfirmDialog` avant `PUT /etat` (texte miroir ≠ native), « Rouvrir » direct ; la
-  commande soldée reste dans la liste par un `ghost` (ligne lue dans le cache avant
-  invalidation, §25.2) jusqu'à la sélection suivante — ne pas la laisser disparaître.
+- **« Solder » se confirme** (LIVA #1171, 2026-09-17) : `SolderDialog` en bandeau §18.D,
+  une phrase (miroir ≠ native), « Rouvrir » direct. La commande soldée quitte « En cours »
+  aussitôt — voulu ; ne pas réintroduire le « ghost » ni les tuiles de bilan (essayés,
+  retirés). Dossier § « Solder ».
 - **Tarif suggéré = `max(PrixDeRevientTRM / 0,7, ref_ecru.prix)`**, la base retenue telle
   quelle quand elle gagne — **la même règle que `trmLinePrix`** (sous-traitance ETM → TRM,
   colle au WinDev) depuis le 2026-09-11 (LIVA #1151). La règle « base = plancher sur le coût »
