@@ -70,6 +70,7 @@ import { CreateOfDialog } from '@/components/of/CreateOfDialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { postEmail } from '@/lib/email'
 import { useHasPermission } from '@/contexts/PermissionsContext'
+import { VerdictTile } from '@/components/shared/VerdictTile'
 
 // ── Types ──────────────────────────────────────────────
 
@@ -755,18 +756,15 @@ export function ClientsCommandes() {
         }}
       />
 
-      <ConfirmDialog
-        open={solderConfirmOpen}
-        variant="default"
-        title={`Solder la commande n° ${detail?.numero ?? selectedId ?? ''}`}
-        description={detail?.is_mirror
-          ? 'ETM la verra « Soldée par TRM ».'
-          : 'La commande passera en « Soldée ».'}
-        confirmLabel="Solder"
-        isPending={toggleEtatMut.isPending}
-        onCancel={() => setSolderConfirmOpen(false)}
-        onConfirm={() => toggleEtatMut.mutate(1)}
-      />
+      {detail && (
+        <SolderDialog
+          open={solderConfirmOpen}
+          onOpenChange={setSolderConfirmOpen}
+          commande={detail}
+          isPending={toggleEtatMut.isPending}
+          onConfirm={() => toggleEtatMut.mutate(1)}
+        />
+      )}
 
       <ConfirmDialog
         open={writeError !== null}
@@ -2696,6 +2694,96 @@ function StatusFooter({ etat, onToggle, isToggling, disabled, disabledReason }: 
         <ActionIcon className="h-3.5 w-3.5" />{actionLabel}
       </button>
     </div>
+  )
+}
+
+// ── Solder — banded « bilan » dialog (mps_designer §18.D, LIVA #1171) ──
+
+/** What the user reads before soldering: produced vs ordered, shipped vs
+ *  produced, and on a mirror the one consequence ETM will act on. No field
+ *  is written — the confirm is the whole decision. */
+function SolderDialog({ open, onOpenChange, commande, isPending, onConfirm }: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  commande: CommandeDetail
+  isPending: boolean
+  onConfirm: () => void
+}) {
+  const tot = commande.lignes.reduce(
+    (a, l) => ({
+      commande: a.commande + (Number(l.quantite) || 0),
+      produit: a.produit + (Number(l.produit) || 0),
+      expedie: a.expedie + (Number(l.expedie) || 0),
+      pieces: a.pieces + (Number(l.nb_pieces) || 0),
+    }),
+    { commande: 0, produit: 0, expedie: 0, pieces: 0 },
+  )
+  const numero = commande.numero ?? commande.IDcommande_client
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!isPending) onOpenChange(o) }}>
+      <DialogContent className="max-w-lg p-0 border-0 bg-primary overflow-hidden max-h-[90dvh] flex flex-col">
+        <div className="flex-shrink-0 flex items-center gap-2.5 rounded-t-lg border-b-2 border-gold bg-primary px-4 py-2.5">
+          <div className="h-8 w-8 flex-shrink-0 rounded-lg flex items-center justify-center shadow-sm bg-gold text-gold-foreground">
+            <CheckCircle2 className="h-[18px] w-[18px]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-heading font-bold tracking-tight truncate text-primary-foreground">
+              Solder la commande n° {numero}
+            </h2>
+            <p className="text-xs text-white/70 truncate">
+              {commande.client_nom || '—'}
+              {!!commande.ref_client && <> • {commande.ref_client}</>}
+              {!!commande.date_commande && <> • {formatHfsqlDate(commande.date_commande)}</>}
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white flex-shrink-0" title="Fermer" onClick={() => onOpenChange(false)} disabled={isPending}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto bg-zinc-100 p-4 space-y-3 scrollbar-transparent">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <VerdictTile
+              icon={<Factory className="h-4 w-4" />}
+              label="Produit"
+              value={`${fmtNum(tot.produit)} Kgs`}
+              detail={`sur ${fmtNum(tot.commande)} Kgs commandés · ${tot.pieces} pièce${tot.pieces > 1 ? 's' : ''}`}
+              tone={tot.produit >= tot.commande ? 'success' : tot.produit > 0 ? 'warning' : 'neutral'}
+            />
+            <VerdictTile
+              icon={<Truck className="h-4 w-4" />}
+              label="Expédié"
+              value={`${fmtNum(tot.expedie)} Kgs`}
+              detail={`sur ${fmtNum(tot.produit)} Kgs produits`}
+              tone={tot.produit > 0 && tot.expedie >= tot.produit ? 'success' : tot.expedie > 0 ? 'warning' : 'neutral'}
+            />
+          </div>
+          {commande.is_mirror && (
+            <div className="rounded-lg border border-border/60 bg-card p-3 shadow-sm flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary/10">
+                <Lock className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Pilotée par ETM</p>
+                <p className="text-xs text-muted-foreground">ETM la verra « Soldée par TRM ».</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 flex items-center gap-3 rounded-b-lg border-t border-border/60 bg-zinc-200 px-4 py-3">
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+              <X className="h-4 w-4 mr-2" />Annuler
+            </Button>
+            <Button onClick={onConfirm} disabled={isPending}>
+              {isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
+              Solder
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
