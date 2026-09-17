@@ -36,6 +36,18 @@ filter on IDsociete** (filtering would make every delivered avis read
 client (e.g. Bonneterie Gautier) keep their pieces at `IDsociete = 2`, lot
 stamped all the same.
 
+**A roll reading « MATEL » (or any dyer) on a TRM avis is not a display bug** (LIVA #1169,
+2026-09-17). The Expédition tab labels a roll by `stock_ecru.IDmagasin` when it is set and by
+its owning company otherwise; only ETM's Transferts screen ever writes `IDmagasin`. Until that
+day ETM's transfer picker listed every roll at the usine with no company filter, so TRM's
+freshly visited rolls (IDmagasin 0, IDsociete 2) could be put on a bon de transfert to the dyer
+**before** TRM shipped them — avis 12329 showed 3568/29–31 at MATEL, and 3573/23 sat at MATEL
+unshipped. Fixed on the ETM side (`transferts.ts`, `se.IDsociete = 1` on the picker and on
+add-pieces): a TRM roll is not ETM's to move until « Expédier » flips it to société 1.
+`stampShippedPieces` deliberately does not check `IDmagasin` — the stamp must still go through
+on such a roll so the ledger catches up with where the roll physically is. To find the bon:
+`piece_transfert.IDpiece_ecru` → `bon_transfert` (no timestamp, `DATE` only).
+
 **« Expédier » from Clients › Commandes** (LIVA #1109, 2026-09-02) — the way the
 atelier actually ships: in the Progression drawer › Affectation tab, tick the
 unshipped rolls (§44: checkbox, MAJ+clic range, « Non expédiées » selects them
