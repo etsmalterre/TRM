@@ -760,8 +760,8 @@ export function ClientsCommandes() {
         variant="default"
         title={`Solder la commande n° ${detail?.numero ?? selectedId ?? ''}`}
         description={detail?.is_mirror
-          ? 'La commande passera en « Soldée ». ETM la verra « Soldée par TRM » et clôturera sa propre commande sous-traitant. Elle restera visible ici jusqu\'à ce que vous en choisissiez une autre, et « Rouvrir » reste possible.'
-          : 'La commande passera en « Soldée » et quittera la liste « En cours ». « Rouvrir » reste possible.'}
+          ? 'ETM la verra « Soldée par TRM ».'
+          : 'La commande passera en « Soldée ».'}
         confirmLabel="Solder"
         isPending={toggleEtatMut.isPending}
         onCancel={() => setSolderConfirmOpen(false)}
