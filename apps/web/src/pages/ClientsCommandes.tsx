@@ -410,6 +410,18 @@ export function ClientsCommandes() {
   const [progressionLineId, setProgressionLineId] = useState<number | null>(null)
   const [autoEditForId, setAutoEditForId] = useState<number | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  // « Solder » asks first (LIVA #1171): on a mirror it is a signal ETM acts
+  // on (it closes its own commande), and one click used to do it silently.
+  // « Rouvrir » stays direct — it is the undo.
+  const [solderConfirmOpen, setSolderConfirmOpen] = useState(false)
+  // The order that just changed état, kept in the left list at the position
+  // it had — the list is filtered server-side, so a freshly soldée commande
+  // dropped out of « En cours » on the next refetch and the auto-select
+  // jumped the fiche to the next card: « la commande disparaît dès qu'on
+  // clique » (LIVA #1171). The ghost lets the user see the card and the
+  // footer turn green, and keeps « Rouvrir » under the hand. Cleared as
+  // soon as they select another card, change the filter or the search.
+  const [ghost, setGhost] = useState<{ row: CommandeListRow; index: number } | null>(null)
   const [writeError, setWriteError] = useState<string | null>(null)
   const [emailOpen, setEmailOpen] = useState(false)
 
@@ -566,19 +578,51 @@ export function ClientsCommandes() {
       method: 'PUT',
       body: JSON.stringify({ est_soldee: newEtat }),
     }),
-    onSuccess: invalidateAll,
-    onError: () => setWriteError("Changement d'état refusé — une commande ETM ne se solde qu'une fois tous ses OF terminés et tous ses rouleaux expédiés."),
+    onSuccess: (_data, newEtat) => {
+      setSolderConfirmOpen(false)
+      // Read the cache BEFORE invalidating (mps_designer §25.2): the row is
+      // still there, at the index the user is looking at. Only needed when
+      // the filter is about to drop it — « Toutes » keeps it by itself.
+      if (statusFilter !== 'all' && selectedId !== null) {
+        const cached = queryClient.getQueryData<CommandeListRow[]>(['commandes-trm', statusFilter, debouncedQuery]) ?? []
+        const index = cached.findIndex((r) => r.IDcommande_client === selectedId)
+        if (index >= 0) setGhost({ row: { ...cached[index], est_soldee: newEtat }, index })
+      }
+      invalidateAll()
+    },
+    onError: () => {
+      setSolderConfirmOpen(false)
+      setWriteError("Changement d'état refusé — une commande ETM ne se solde qu'une fois tous ses OF terminés et tous ses rouleaux expédiés.")
+    },
   })
 
   const handleSelect = useCallback((id: number) => {
-    guard.guardAction(() => { setIsEditing(false); setSelectedId(id) })
+    guard.guardAction(() => {
+      setIsEditing(false)
+      setSelectedId(id)
+      setGhost((g) => (g && g.row.IDcommande_client !== id ? null : g))
+    })
   }, [guard])
 
   const handleStatusFilterChange = useCallback((s: StatusFilter) => {
-    guard.guardAction(() => { setIsEditing(false); setStatusFilter(s); setSelectedId(null) })
+    guard.guardAction(() => { setIsEditing(false); setStatusFilter(s); setSelectedId(null); setGhost(null) })
   }, [guard])
 
-  const rows = commandes ?? []
+  useEffect(() => { setGhost(null) }, [debouncedQuery])
+
+  // The ghost wears the état and phase the fresh detail reports (the list
+  // row only knew its old phase); it is dropped once the real list carries
+  // the order again (e.g. « Rouvrir » under « Soldées », then « Solder »).
+  const rows = useMemo(() => {
+    const base = commandes ?? []
+    if (!ghost || base.some((r) => r.IDcommande_client === ghost.row.IDcommande_client)) return base
+    const fresh = detail && detail.IDcommande_client === ghost.row.IDcommande_client ? detail : null
+    const row: CommandeListRow = fresh
+      ? { ...ghost.row, est_soldee: fresh.est_soldee, phase: fresh.phase }
+      : { ...ghost.row, phase: ghost.row.est_soldee === 1 ? 'terminee' : ghost.row.phase }
+    const at = Math.min(ghost.index, base.length)
+    return [...base.slice(0, at), row, ...base.slice(at)]
+  }, [commandes, ghost, detail])
 
   // Counter pills (mps_designer §41) = the red cards (délai to give or past,
   // LIVA #1123) and the amber ones (délai within 3 days). Each hidden at 0,
@@ -671,7 +715,10 @@ export function ClientsCommandes() {
             editRemise={editRemise} onEditRemiseChange={setEditRemise}
             editIDAdresseFacturation={editIDAdresseFacturation} onEditIDAdresseFacturationChange={setEditIDAdresseFacturation}
             editIDAdresseLivraison={editIDAdresseLivraison} onEditIDAdresseLivraisonChange={setEditIDAdresseLivraison}
-            onToggleEtat={() => toggleEtatMut.mutate(detail?.est_soldee === 1 ? 0 : 1)}
+            onToggleEtat={() => {
+              if (detail?.est_soldee === 1) toggleEtatMut.mutate(0)
+              else setSolderConfirmOpen(true)
+            }}
             isTogglingEtat={toggleEtatMut.isPending}
           />
         ) : null}
@@ -687,6 +734,7 @@ export function ClientsCommandes() {
         onClose={() => setCreateOpen(false)}
         onCreated={(newId) => {
           setCreateOpen(false)
+          setGhost(null)
           queryClient.invalidateQueries({ queryKey: ['commandes-trm'] })
           setSelectedId(newId)
           setAutoEditForId(newId)
@@ -705,6 +753,19 @@ export function ClientsCommandes() {
           // on the follow-up selection change (mps_designer §28.5).
           if (selectedId !== null) { setIsEditing(false); deleteMut.mutate(selectedId) }
         }}
+      />
+
+      <ConfirmDialog
+        open={solderConfirmOpen}
+        variant="default"
+        title={`Solder la commande n° ${detail?.numero ?? selectedId ?? ''}`}
+        description={detail?.is_mirror
+          ? 'La commande passera en « Soldée ». ETM la verra « Soldée par TRM » et clôturera sa propre commande sous-traitant. Elle restera visible ici jusqu\'à ce que vous en choisissiez une autre, et « Rouvrir » reste possible.'
+          : 'La commande passera en « Soldée » et quittera la liste « En cours ». « Rouvrir » reste possible.'}
+        confirmLabel="Solder"
+        isPending={toggleEtatMut.isPending}
+        onCancel={() => setSolderConfirmOpen(false)}
+        onConfirm={() => toggleEtatMut.mutate(1)}
       />
 
       <ConfirmDialog
