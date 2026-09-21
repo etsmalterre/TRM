@@ -43,7 +43,7 @@ export function Accueil() {
       <header className="flex-shrink-0 bg-gradient-brand text-white">
         <div className="safe-top" />
         <div className="px-8 py-4 grid grid-cols-[1fr_auto_1fr] items-center gap-6">
-          <img src="/logo-full.png" alt="Malterre" className="h-10 w-auto justify-self-start" />
+          <img src="/logo-full.png" alt="Malterre" className="h-20 w-auto justify-self-start" />
           <Horloge />
           <div className="justify-self-end text-right text-xs text-white/45 leading-relaxed">
             {appareil?.libelle}
