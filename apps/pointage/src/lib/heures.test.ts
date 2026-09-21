@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { debutStatut, duree, heure, heuresMinutes, jourCourt, jourLong, phraseStatut, soldeClasse, soldeSigne } from './heures'
+import { debutStatut, heure, heuresMinutes, jourCourt, jourLong, phraseStatut, soldeClasse, soldeSigne } from './heures'
 import type { Ligne } from './pointage-api'
 
 const at = (h: number, m: number) => Date.UTC(2026, 8, 15, h - 2, m) // Paris = UTC+2 in September
@@ -20,16 +20,6 @@ describe('jourLong / jourCourt', () => {
   it('names the day', () => {
     expect(jourLong('20260914')).toBe('lundi 14 septembre')
     expect(jourCourt('20260914')).toBe('lun. 14/09')
-  })
-})
-
-describe('duree', () => {
-  it('reads hours the office way', () => {
-    expect(duree(0)).toBe('0')
-    expect(duree(0.5)).toBe('30 min')
-    expect(duree(1)).toBe('1 h')
-    expect(duree(1.5)).toBe('1 h 30')
-    expect(duree(0.75)).toBe('45 min')
   })
 })
 

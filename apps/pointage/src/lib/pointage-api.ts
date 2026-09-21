@@ -65,8 +65,6 @@ export interface EtatSalarie {
   /** Legacy « Semaine N : » (last week, worked minutes) and « Cumul » (annual
    *  balance in minutes); null = hidden, as the legacy does. */
   semaine: { annee: number; numero: number; semaineMin: number; cumulMin: number } | null
-  /** Hours of « temps hors prod » today; null = nothing recorded yet. */
-  horsProd: number | null
   maintenantMs: number
 }
 
@@ -109,12 +107,6 @@ export const pointer = (id: number, body: { action: ActionPointage; ligneId: num
   apiFetch<{ resultat: ResultatPointage; etat: EtatSalarie }>(`/pointage/salaries/${id}/pointage`, {
     method: 'POST',
     body: JSON.stringify(body),
-  })
-
-export const definirHorsProd = (id: number, duree: number) =>
-  apiFetch<{ horsProd: number }>(`/pointage/salaries/${id}/hors-prod`, {
-    method: 'PUT',
-    body: JSON.stringify({ duree }),
   })
 
 /** 2x the displayed size, so the face stays crisp on the tablet's DPR. */

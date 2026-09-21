@@ -19,15 +19,15 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  AlertTriangle, ArrowLeft, CheckCircle2, Coffee, Loader2, LogIn, LogOut, Minus, Play, Plus, type LucideIcon,
+  AlertTriangle, ArrowLeft, CheckCircle2, Coffee, Loader2, LogIn, LogOut, Play, type LucideIcon,
 } from 'lucide-react'
 import {
-  definirHorsProd, fetchEtat, pointer, type ActionOfferte, type ActionPointage, type EtatSalarie, type Ligne,
+  fetchEtat, pointer, type ActionOfferte, type ActionPointage, type Ligne,
 } from '@/lib/pointage-api'
 import type { ApiError } from '@/lib/api'
 import { messagePourErreur } from '@/lib/erreurs'
 import { CONFIRMATION_MS, INACTIVITE_MS } from '@/lib/rafraichissement'
-import { duree, heure, heuresMinutes, jourLong, phraseStatut, soldeClasse, soldeSigne } from '@/lib/heures'
+import { heure, heuresMinutes, jourLong, phraseStatut, soldeClasse, soldeSigne } from '@/lib/heures'
 import { Horloge } from '@/components/Horloge'
 import { SalariePhoto } from '@/components/SalariePhoto'
 import { cn } from '@/lib/utils'
@@ -39,9 +39,6 @@ const ICONE: Record<ActionPointage, LucideIcon> = {
   fin_travail: LogOut,
   fin_pause_fin_travail: LogOut,
 }
-
-const HORS_PROD_PAS = 0.5
-const HORS_PROD_MAX = 12
 
 /** Back to the faces after `delaiMs` without a touch. */
 function useRetourAccueil(delaiMs: number) {
@@ -181,7 +178,9 @@ export function Salarie() {
 
           {e.ligne && <Recap ligne={e.ligne} />}
 
-          <HorsProd id={id} valeur={e.horsProd} />
+          {/* No « Temps hors prod du jour » (legacy COMBO_Temps_hors_prod_du_jour):
+              it fed a productivity measure the company no longer uses — dropped
+              on Vincent's decision, 2026-09-21. */}
 
           {e.messages.length > 0 && (
             <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
@@ -284,87 +283,6 @@ function PosteNonFerme({ ligne }: { ligne: Ligne }) {
           Votre poste du {jourLong(ligne.jour)} (arrivée {heure(ligne.debutMs)}) n’a pas été fermé.
         </p>
         <p className="text-base text-amber-800">Prévenez le bureau : il sera corrigé dans Admin Pointage.</p>
-      </div>
-    </div>
-  )
-}
-
-/** « Temps hors prod du jour » (legacy COMBO_Temps_hors_prod_du_jour): a
- *  half-hour stepper, saved once the taps stop — and on leaving the screen. */
-function HorsProd({ id, valeur }: { id: number; valeur: number | null }) {
-  const qc = useQueryClient()
-  const [local, setLocal] = useState(valeur ?? 0)
-  const [modifie, setModifie] = useState(false)
-  const dernier = useRef({ local, modifie })
-  dernier.current = { local, modifie }
-
-  const mut = useMutation({
-    mutationFn: (d: number) => definirHorsProd(id, d),
-    onSuccess: (_r, d) => {
-      qc.setQueryData<EtatSalarie>(['pointage', 'etat', id], (old) => (old ? { ...old, horsProd: d } : old))
-      if (dernier.current.local === d) setModifie(false)
-    },
-  })
-  const envoyer = mut.mutate
-
-  // Follow the server while the salarié is not changing it.
-  useEffect(() => {
-    if (!modifie) setLocal(valeur ?? 0)
-  }, [valeur, modifie])
-
-  useEffect(() => {
-    if (!modifie) return
-    const t = window.setTimeout(() => envoyer(local), 700)
-    return () => window.clearTimeout(t)
-  }, [local, modifie, envoyer])
-
-  // Leaving before the delay (Retour, inactivity, a pointage): still saved.
-  useEffect(
-    () => () => {
-      if (dernier.current.modifie) void definirHorsProd(id, dernier.current.local).catch(() => undefined)
-    },
-    [id],
-  )
-
-  const changer = (delta: number) => {
-    setLocal((v) => Math.min(HORS_PROD_MAX, Math.max(0, v + delta)))
-    setModifie(true)
-  }
-
-  return (
-    <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
-      <div className="px-4 py-2 bg-sand border-b border-border flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-accent">Temps hors prod du jour</span>
-        <span className="text-xs text-muted-foreground">
-          {mut.isError ? (
-            <span className="text-destructive font-semibold">Non enregistré</span>
-          ) : modifie || mut.isPending ? (
-            '…'
-          ) : valeur !== null ? (
-            'Enregistré'
-          ) : null}
-        </span>
-      </div>
-      <div className="p-3 flex items-center gap-3">
-        <button
-          type="button"
-          aria-label="Moins une demi-heure"
-          disabled={local <= 0}
-          onClick={() => changer(-HORS_PROD_PAS)}
-          className="h-14 w-14 rounded-xl border border-border bg-background flex items-center justify-center active:bg-muted disabled:opacity-30"
-        >
-          <Minus className="h-6 w-6" />
-        </button>
-        <p className="flex-1 text-center text-3xl font-heading font-bold tabular-nums text-primary">{duree(local)}</p>
-        <button
-          type="button"
-          aria-label="Plus une demi-heure"
-          disabled={local >= HORS_PROD_MAX}
-          onClick={() => changer(HORS_PROD_PAS)}
-          className="h-14 w-14 rounded-xl border border-border bg-background flex items-center justify-center active:bg-muted disabled:opacity-30"
-        >
-          <Plus className="h-6 w-6" />
-        </button>
       </div>
     </div>
   )

@@ -23,7 +23,6 @@ prod, `--replace` pour reconstruire). Détails pilote : `ETM/claude_doc/hfsql_od
 | `lst_horaire` | **la vérité** : une ligne par poste, six heures en **epoch secondes UTC**, 0 = vide ; seule table d'Admin Pointage |
 | `lst_pointage` | jumelle DATETIME (heure de Paris, NULL = vide), lue par TricoBot |
 | `mps.pointage` | journal `en_poste` 1/0 lu par les TRS, écrit seulement si `id_mps > 0` |
-| `hors_prod` | « temps hors prod du jour » en heures ; ⚠️ clé unique (salarié, date) **non appliquée** |
 | `lst_message` | messages au salarié (`date_fin >= aujourd'hui`), HTML → texte côté API |
 
 ## L'API — `/api/pointage` (`ETM/apps/api/src/routes/pointage.ts`)
@@ -37,7 +36,7 @@ prod, `--replace` pour reconstruire). Détails pilote : `ETM/claude_doc/hfsql_od
   (atelier) refuse une pointeuse.
 - **Lectures** (tablette enrôlée ou admin) : `/en-poste`, `/salaries`, `/salaries/:id/photo`,
   `/salaries/:id/etat`. **Écritures** (tablette seulement) : `POST /salaries/:id/pointage
-  { action, ligneId }`, `PUT /salaries/:id/hors-prod { duree }` (0–12 h, pas de 0,25).
+  { action, ligneId }`.
 - **Les boutons sont calculés au serveur** (`lib/pointage-etat.ts`, port de
   FEN_PointageSalarié, testé) : Début du travail → Début de la pause / Fin du travail → Fin
   de la pause / Fin de la pause et fin du travail → (2ᵉ pause) → Fin du travail. La tablette
@@ -68,8 +67,7 @@ prod, `--replace` pour reconstruire). Détails pilote : `ETM/claude_doc/hfsql_od
   date affichée ; poste de plus de 14 h = ligne ambre « non fermé » (le legacy la listait
   sans rien dire). Plus récente arrivée en haut.
 - **Écran salarié** (§45 Poste) : photo, nom, semaine ISO, phrase d'état (« Au travail
-  depuis 08:02 »), récap de la ligne, pas-à-pas « temps hors prod » (demi-heures, enregistré
-  700 ms après le dernier appui et à la sortie), messages ; à droite **un ou deux boutons**
+  depuis 08:02 »), récap de la ligne, messages ; à droite **un ou deux boutons**
   (le premier or, le second navy — écart assumé au §45.3 : le legacy offre deux gestes).
   Pas de confirmation (comme le legacy) ; après un pointage, grand « enregistré à HH:MM »
   puis retour aux visages en 4 s ; écran laissé seul → retour en 30 s (`INACTIVITE_MS`).
@@ -89,8 +87,9 @@ prod, `--replace` pour reconstruire). Détails pilote : `ETM/claude_doc/hfsql_od
 
 ## Deltas assumés vis-à-vis du legacy
 
-- ligne `hors_prod` du jour créée au **début du travail**, pas à l'ouverture de l'écran (un
-  GET reste une lecture) ;
+- **pas de « temps hors prod du jour »** (COMBO_Temps_hors_prod_du_jour, table `hors_prod`) :
+  mesure de productivité abandonnée, retirée le 2026-09-21 sur décision de Vincent — la
+  tablette ne lit ni n'écrit `hors_prod` (le legacy y ouvrait la ligne du jour) ;
 - messages en texte, pas en HTML ;
 - visages sur l'accueil (un appui de moins) ;
 - poste de plus de 14 h non continué.

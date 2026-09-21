@@ -34,16 +34,6 @@ export function jourCourt(jour: string): string {
   return JOUR_COURT.format(Date.UTC(+jour.slice(0, 4), +jour.slice(4, 6) - 1, +jour.slice(6, 8), 12))
 }
 
-/** Hours of « temps hors prod » as the office says them: « 1 h 30 », « 45 min », « 0 ». */
-export function duree(h: number): string {
-  const min = Math.round(h * 60)
-  if (min === 0) return '0'
-  const hh = Math.floor(min / 60)
-  const mm = min % 60
-  if (hh === 0) return `${mm} min`
-  return mm ? `${hh} h ${String(mm).padStart(2, '0')}` : `${hh} h`
-}
-
 /** Minutes as the legacy MinToFormat (COL_ProcéduresGlobales) writes them:
  *  « HH:MM », hours padded to two digits (never cut past two), negatives
  *  « -HH:MM » — « 36:15 », « -02:30 », « 00:00 ». */
