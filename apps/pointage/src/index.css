@@ -415,6 +415,11 @@
       height: 0;
     }
   }
+  /* Fullscreen asked by the app itself (lib/plein-ecran.ts): same bar, same
+     empty strip to avoid. */
+  html:fullscreen .safe-top {
+    height: 0;
+  }
 
   /* Number font feature */
   .tabular-nums {

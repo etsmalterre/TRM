@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { router } from './router'
 import { POLL_MS } from './lib/rafraichissement'
 import { installerMiseAJour } from './lib/mise-a-jour'
+import { installerPleinEcran } from './lib/plein-ecran'
 import { AppareilProvider, useAppareil } from './contexts/AppareilContext'
 import { NonEnrolee } from './pages/NonEnrolee'
 import './index.css'
@@ -35,6 +36,8 @@ const queryClient = new QueryClient({
 
 // A deploy reaches the tablet on its own (lib/mise-a-jour.ts).
 installerMiseAJour(queryClient)
+// Nothing but the app on the wall, even outside an installed WebAPK (lib/plein-ecran.ts).
+installerPleinEcran()
 
 /** Nothing renders until the server has said this tablet is an enrolled
  *  pointeuse: every read and write needs it. */
