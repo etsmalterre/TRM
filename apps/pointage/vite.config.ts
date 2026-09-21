@@ -48,7 +48,11 @@ export default defineConfig({
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          // Android shows only the central 66 % of a maskable icon (adaptive icon
+          // safe zone), narrower than the W3C 80 %: this variant has the word fitted
+          // to that circle. The plain icons above keep the wider word for the
+          // install dialog, splash screen and task switcher, which do not mask.
+          { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       devOptions: { enabled: false, type: 'module' },
