@@ -10,7 +10,7 @@
 // Vincent): every OPEN line — arrival, pauses, minutes of finished pauses —
 // so it reads « who is at work or on a break », not « the day's history ».
 // A shift forgotten on a previous day stays in it, as in the legacy, flagged
-// amber: it is what Admin Pointage has to close.
+// red: it is what Admin Pointage has to close.
 //
 // Landscape, arm's length: faces on the left (the action), the table on the right.
 import { useQuery } from '@tanstack/react-query'
@@ -23,22 +23,24 @@ import { useAppareil } from '@/contexts/AppareilContext'
 import { heure, jourCourt } from '@/lib/heures'
 import { cn } from '@/lib/utils'
 
-// `lisere` is the §41 attention strip of a table row (inset shadow, not a
-// border, so it never fights the row's own borders).
-const STATUT: Record<Statut, { label: string; anneau: string; pastille: string; lisere: string }> = {
+// `ligne` styles the « En poste » card of that status: a §41 liseré (inset
+// shadow, not a border, so it never fights the card's own border) and, for a
+// break, an amber tint of the whole card. « Non fermé » has its own, red, in
+// LigneTable.
+const STATUT: Record<Statut, { label: string; anneau: string; pastille: string; ligne: string }> = {
   au_travail: {
     label: 'Au travail',
     anneau: 'ring-success',
     pastille: 'bg-success/15 text-success',
-    lisere: 'shadow-[inset_4px_0_0_0_hsl(var(--success))]',
+    ligne: 'bg-white border-border shadow-[inset_4px_0_0_0_hsl(var(--success))]',
   },
   en_pause: {
     label: 'En pause',
     anneau: 'ring-warning',
     pastille: 'bg-warning/20 text-amber-800',
-    lisere: 'shadow-[inset_4px_0_0_0_hsl(var(--warning))]',
+    ligne: 'bg-amber-50 border-amber-200 shadow-[inset_4px_0_0_0_hsl(var(--warning))]',
   },
-  hors_poste: { label: '', anneau: 'ring-transparent', pastille: '', lisere: '' },
+  hors_poste: { label: '', anneau: 'ring-transparent', pastille: '', ligne: '' },
 }
 
 /** Salarié · Arrivée · Pauses · Cumul — header and rows share it. */
@@ -105,9 +107,11 @@ export function Accueil() {
             <span>Salarié</span>
             <span>Arrivée</span>
             <span className="text-center">Pauses</span>
-            <span className="whitespace-nowrap">Cumul des pauses</span>
+            <span className="whitespace-nowrap text-center">Cumul des pauses</span>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-transparent">
+          {/* §5 list body: zinc ground, one white card per line, so the rows read
+              as cards and not as a stack of text. */}
+          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-transparent bg-zinc-100/80 p-3 space-y-2">
             {enPoste.isError && <Injoignable />}
             {enPoste.data && enPoste.data.lignes.length === 0 && (
               <p className="p-6 text-center text-muted-foreground italic">Personne n’est en poste.</p>
@@ -148,9 +152,10 @@ function Visage({ s, onPick }: { s: SalarieGrille; onPick: () => void }) {
 // A row is the record, not the person: no photo and no status pill here — the
 // face tile on the left already carries both, and a second portrait made the
 // two panels read as the same list twice (Vincent, 2026-09-21). What is left
-// of the status is the §41 liseré (green at work, amber on a break or on a
-// shift left open), then the two figures a salarié checks — his arrival and
-// his pause minutes — at text-xl. Pauses are chips, the running one amber.
+// of the status is the card itself: white with a green liseré at work, amber
+// on a break, red on a shift left open (§41 liseré + tint). Then the two
+// figures a salarié checks — his arrival and his pause minutes — at text-xl.
+// Pauses are chips, the running one amber.
 function LigneTable({ l, jour }: { l: LigneEnPoste; jour: string }) {
   const pauses = [
     [l.debutPause1Ms, l.finPause1Ms],
@@ -162,22 +167,22 @@ function LigneTable({ l, jour }: { l: LigneEnPoste; jour: string }) {
     <div
       className={cn(
         COLONNES,
-        'items-center px-4 py-3 border-b border-border/60',
-        l.nonFermee ? 'bg-amber-50 shadow-[inset_4px_0_0_0_theme(colors.amber.400)]' : st.lisere,
+        'items-center rounded-lg border px-4 py-3 shadow-sm',
+        l.nonFermee ? 'bg-red-50 border-red-200 shadow-[inset_4px_0_0_0_theme(colors.red.500)]' : st.ligne,
       )}
     >
       <div className="min-w-0 leading-tight">
         <p className="truncate text-lg font-semibold text-primary">{l.salarie.prenom}</p>
         <p className="truncate text-sm text-muted-foreground">{l.salarie.nom}</p>
         {l.nonFermee && (
-          <span className="mt-1 inline-flex h-5 items-center rounded-full bg-amber-200/70 px-2 text-[11px] font-semibold text-amber-900">
+          <span className="mt-1 inline-flex h-5 items-center rounded-full bg-red-100 px-2 text-[11px] font-semibold text-red-800">
             Non fermé
           </span>
         )}
       </div>
       <div className="leading-tight tabular-nums">
         {l.jour !== jour && (
-          <p className={cn('text-xs', l.nonFermee ? 'font-semibold text-amber-700' : 'text-muted-foreground')}>
+          <p className={cn('text-xs', l.nonFermee ? 'font-semibold text-red-700' : 'text-muted-foreground')}>
             {jourCourt(l.jour)}
           </p>
         )}
@@ -199,7 +204,7 @@ function LigneTable({ l, jour }: { l: LigneEnPoste; jour: string }) {
           </span>
         ))}
       </div>
-      <div className="leading-tight tabular-nums whitespace-nowrap">
+      <div className="leading-tight tabular-nums whitespace-nowrap text-center">
         <span className={cn('text-xl font-semibold', l.cumulPauseMin > 0 ? 'text-foreground' : 'text-muted-foreground/60')}>{l.cumulPauseMin}</span>
         <span className="ml-1 text-xs font-medium text-muted-foreground">min</span>
       </div>
