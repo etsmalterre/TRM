@@ -174,7 +174,7 @@ function LigneTable({ l, jour }: { l: LigneEnPoste; jour: string }) {
           </span>
         )}
       </div>
-      <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-4">
+      <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-4">
         <Stat label={autreJour ? `Arrivée · ${jourCourt(l.jour)}` : 'Arrivée'} alerte={l.nonFermee}>
           <span className="text-xl font-semibold tabular-nums text-foreground">{heure(l.debutMs)}</span>
         </Stat>
@@ -199,7 +199,7 @@ function LigneTable({ l, jour }: { l: LigneEnPoste; jour: string }) {
             </span>
           )}
         </Stat>
-        <Stat label="Cumul des pauses" className="text-right">
+        <Stat label="Cumul des pauses" className="text-right" valueClass="justify-end">
           <span className={cn('text-xl font-semibold tabular-nums', l.cumulPauseMin > 0 ? 'text-foreground' : 'text-muted-foreground/60')}>
             {l.cumulPauseMin}
           </span>
@@ -211,10 +211,11 @@ function LigneTable({ l, jour }: { l: LigneEnPoste; jour: string }) {
 }
 
 /** A labelled figure of a card — the salarié screen's recap vocabulary. */
-function Stat({ label, alerte, className, children }: {
+function Stat({ label, alerte, className, valueClass, children }: {
   label: string
   alerte?: boolean
   className?: string
+  valueClass?: string
   children: React.ReactNode
 }) {
   return (
@@ -222,7 +223,7 @@ function Stat({ label, alerte, className, children }: {
       <p className={cn('mb-0.5 truncate text-[11px] font-semibold uppercase tracking-wide', alerte ? 'text-red-700' : 'text-muted-foreground')}>
         {label}
       </p>
-      <div className="whitespace-nowrap">{children}</div>
+      <div className={cn('flex h-7 items-center whitespace-nowrap', valueClass)}>{children}</div>
     </div>
   )
 }
