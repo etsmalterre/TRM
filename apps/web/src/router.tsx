@@ -111,6 +111,14 @@ const QualiteAnalysePage = createPlaceholder('Analyse', 'Analyse qualité', BarC
 // Charges and Analyse financière widgets already read). Edit it in ETM.
 import { RapportFinance } from '@etm/pages/RapportFinance'
 
+// Pointage
+// The office's side of the time clock — port of the WinDev Admin Pointage
+// over the legacy `pointage` database (/api/pointage-admin). Horaires = the
+// shift grid + corrections, Salariés = the pointeuse's people and their
+// messages. Both behind view_pointage; writes behind edit_pointage.
+import { PointageHoraires } from '@/pages/PointageHoraires'
+import { PointageSalaries } from '@/pages/PointageSalaries'
+
 // Settings
 // Utilisateurs — real screen (admin-only): the TRM staff list, Profil cards
 // (email / photo / signature, shared stores with ETM) and the Permissions tab
@@ -171,6 +179,11 @@ export const router = createBrowserRouter([
       // The page renders its own "Accès restreint" state without the
       // view_rapport_finance permission; the API refuses too.
       { path: 'rapports/finance', element: <RapportFinance basePath="/rapports-trm/finance" /> },
+
+      // Pointage
+      { path: 'pointage', element: <Navigate to="/pointage/horaires" replace /> },
+      { path: 'pointage/horaires', element: <PointageHoraires /> },
+      { path: 'pointage/salaries', element: <PointageSalaries /> },
 
       // Settings (admin-only sub-routes)
       { path: 'settings', element: <Navigate to="/settings/utilisateurs" replace /> },

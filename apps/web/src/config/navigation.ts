@@ -6,6 +6,7 @@ import {
   Wrench,
   ShieldCheck,
   FileBarChart,
+  Clock,
   Settings,
 } from 'lucide-react'
 import { BobineIcon } from '@/components/icons/BobineIcon'
@@ -243,6 +244,21 @@ export const mainNavigation: MainMenuItem[] = [
     href: '/rapports',
     submenus: [
       { title: 'Finance', href: '/rapports/finance', permission: 'view_rapport_finance' },
+    ],
+  },
+  {
+    // Pointage — the office's side of the time clock (port of the WinDev Admin
+    // Pointage, 2026-09-21). Hours are personal data and the legacy had no
+    // login: both screens carry view_pointage on top of the menu grant, so a
+    // viewer without the key loses the whole menu, like Rapports. Mirrored in
+    // ETM's screen-keys-trm.ts (check-screen-access-trm.ts).
+    id: 'pointage',
+    title: 'Pointage',
+    icon: Clock,
+    href: '/pointage',
+    submenus: [
+      { title: 'Horaires', href: '/pointage/horaires', permission: 'view_pointage' },
+      { title: 'Salariés', href: '/pointage/salaries', permission: 'view_pointage' },
     ],
   },
 ]

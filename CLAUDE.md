@@ -100,6 +100,7 @@ warnings that would bite in the first hour) with a pointer to the dossier.
 | `claude_doc/tickets.md` | Ticket widget (LIVA), comptes sans email |
 | `claude_doc/dashboard-widgets.md` | Widgets finance, « Poids des pièces », « Pièces à visiter » |
 | `claude_doc/pointage-pwa.md` | `apps/pointage`, la tablette pointeuse (base `pointage`, boutons, enrôlement) |
+| `claude_doc/admin-pointage.md` | Menu Pointage de l'ERP : Horaires, Salariés + messages (port d'Admin Pointage, corrections suivies dans la jumelle et le journal TRS) |
 
 ## Atelier — la PWA mobile de l'atelier (`apps/atelier`)
 
@@ -234,6 +235,26 @@ boutons. **Quatrième app**, port dev **5178**, hôte prévu `pointage.intra.ets
 - ⚠️ **Pas de « temps hors prod »** (retiré des deux côtés le 2026-09-21, mesure abandonnée) ;
   **plein écran demandé au premier tap** (`lib/plein-ecran.ts`) car un « Installer » sur
   `localhost` n'est pas un WebAPK et garde la barre d'état.
+
+## Pointage — le menu de l'ERP (port d'Admin Pointage)
+
+Le bureau corrige ici ce que la tablette a pointé : menu **« Pointage »** (`screen_pointage`,
+fermé par défaut, **pas de seed**), écrans **Horaires** (`/pointage/horaires`) et **Salariés**
+(`/pointage/salaries`), tous deux sous `view_pointage` ; toute écriture sous `edit_pointage`.
+API **`/api/pointage-admin`** (`routes/pointage-admin.ts`), séparée de la tablette. Phase 1
+construite le 2026-09-21 ; phases 2–4 (Semaines / Lissage, Prévisionnel, Paie, ratio) attendent
+du code WinDev. **Dossier : `claude_doc/admin-pointage.md`** ; code legacy récupéré dans
+`~/.claude/plans/admin-pointage.md` § 7.
+
+- ⚠️ **Une heure se saisit « HH:MM » et c'est le serveur qui la place** (`lib/pointage-admin.ts`,
+  testé) : pas strictement après le début ⇒ **lendemain** (règle du legacy), début jamais vide,
+  case vidée = 0 (vider la fin rouvre le poste), ordre des heures contrôlé (écart assumé).
+- ⚠️ **Une correction suit dans `lst_pointage` ET dans `mps.pointage`** (décision A du
+  2026-09-21, le legacy ne le faisait pas) : écritures dans `lib/pointage-ecritures.ts` avec le
+  verrou et la `jumelle()` de la tablette ; supprimer un poste flague vérité + jumelle, journal
+  intact. Garde : `scripts/check-pointage-admin.ts` (copie de dev).
+- « Présence » = fin − début **brute**, pauses terminées seules (le SQL du legacy) ; un message
+  vise **un** salarié ; le login (3 car.) est unique sur toutes les lignes, supprimées comprises.
 
 ## Production / deploy
 
