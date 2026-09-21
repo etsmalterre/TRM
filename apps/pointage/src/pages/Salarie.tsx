@@ -27,7 +27,7 @@ import {
 import type { ApiError } from '@/lib/api'
 import { messagePourErreur } from '@/lib/erreurs'
 import { CONFIRMATION_MS, INACTIVITE_MS } from '@/lib/rafraichissement'
-import { duree, heure, heuresMinutes, jourLong, phraseStatut } from '@/lib/heures'
+import { duree, heure, heuresMinutes, jourLong, phraseStatut, soldeClasse, soldeSigne } from '@/lib/heures'
 import { Horloge } from '@/components/Horloge'
 import { SalariePhoto } from '@/components/SalariePhoto'
 import { cn } from '@/lib/utils'
@@ -148,7 +148,9 @@ export function Salarie() {
               <p className="text-3xl font-heading font-bold text-primary leading-tight truncate">{e.salarie.prenom}</p>
               <p className="text-xl text-foreground/80 leading-tight truncate">{e.salarie.nom}</p>
               {/* Legacy SAI_Semaine / SAI_Cumul: last week's hours and the
-                  annual balance; both hidden when the legacy hides them. */}
+                  annualised-hours balance (« Solde annuel » — Vincent, 2026-09-21:
+                  « Cumul » said nothing; the sign and colour say credit or debt);
+                  both hidden when the legacy hides them. */}
               {e.semaine && (
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-muted-foreground">
                   <span>
@@ -156,7 +158,10 @@ export function Salarie() {
                     <span className="font-semibold text-foreground tabular-nums">{heuresMinutes(e.semaine.semaineMin)}</span>
                   </span>
                   <span>
-                    Cumul : <span className="font-semibold text-foreground tabular-nums">{heuresMinutes(e.semaine.cumulMin)}</span>
+                    Solde annuel :{' '}
+                    <span className={cn('font-semibold tabular-nums', soldeClasse(e.semaine.cumulMin))}>
+                      {soldeSigne(e.semaine.cumulMin)}
+                    </span>
                   </span>
                 </div>
               )}

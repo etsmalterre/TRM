@@ -54,6 +54,21 @@ export function heuresMinutes(min: number): string {
   return `${total < 0 ? '-' : ''}${p2(Math.floor(a / 60))}:${p2(a % 60)}`
 }
 
+/** The annualised-hours balance (« Solde annuel »), always signed so a credit
+ *  is as visible as a debt: « +02:30 », « -00:30 », « 00:00 » when even. */
+export function soldeSigne(min: number): string {
+  const s = heuresMinutes(min)
+  return Math.round(min) > 0 ? `+${s}` : s
+}
+
+/** Green in credit, amber when hours are owed, plain when even. */
+export function soldeClasse(min: number): string {
+  const total = Math.round(min)
+  if (total > 0) return 'text-success'
+  if (total < 0) return 'text-amber-700'
+  return 'text-foreground'
+}
+
 /** When the current status began: the start of the running pause, or the
  *  latest return to work (arrival or end of a pause). */
 export function debutStatut(statut: Statut, ligne: Ligne | null): number | null {

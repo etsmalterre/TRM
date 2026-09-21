@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { debutStatut, duree, heure, heuresMinutes, jourCourt, jourLong, phraseStatut } from './heures'
+import { debutStatut, duree, heure, heuresMinutes, jourCourt, jourLong, phraseStatut, soldeClasse, soldeSigne } from './heures'
 import type { Ligne } from './pointage-api'
 
 const at = (h: number, m: number) => Date.UTC(2026, 8, 15, h - 2, m) // Paris = UTC+2 in September
@@ -40,6 +40,18 @@ describe('heuresMinutes', () => {
     expect(heuresMinutes(-150)).toBe('-02:30')
     expect(heuresMinutes(-15)).toBe('-00:15')
     expect(heuresMinutes(6030)).toBe('100:30')
+  })
+})
+
+describe('soldeSigne / soldeClasse', () => {
+  it('always shows the sign of the annual balance, and colours it', () => {
+    expect(soldeSigne(150)).toBe('+02:30')
+    expect(soldeSigne(-30)).toBe('-00:30')
+    expect(soldeSigne(0)).toBe('00:00')
+    expect(soldeSigne(0.4)).toBe('00:00')
+    expect(soldeClasse(150)).toBe('text-success')
+    expect(soldeClasse(-30)).toBe('text-amber-700')
+    expect(soldeClasse(0)).toBe('text-foreground')
   })
 })
 
