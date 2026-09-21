@@ -30,7 +30,7 @@ const STATUT: Record<Statut, { label: string; anneau: string; pastille: string }
 }
 
 /** Salarié · Arrivée · Pauses · Cumul — header and rows share it. */
-const COLONNES = 'grid grid-cols-[minmax(0,11.5rem)_4.5rem_minmax(0,1fr)_6.5rem] gap-3'
+const COLONNES = 'grid grid-cols-[minmax(0,11.5rem)_4.5rem_minmax(0,1fr)_8.25rem] gap-3'
 
 export function Accueil() {
   const navigate = useNavigate()
@@ -91,7 +91,7 @@ export function Accueil() {
             <span>Salarié</span>
             <span>Arrivée</span>
             <span className="text-center">Pauses</span>
-            <span>Cumul des pauses</span>
+            <span className="whitespace-nowrap">Cumul des pauses</span>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto scrollbar-transparent">
             {enPoste.isError && <Injoignable />}
