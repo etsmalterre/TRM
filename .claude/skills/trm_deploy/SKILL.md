@@ -5,10 +5,10 @@
 Invoke with `/trm_deploy` **from the TRM main checkout** to deploy a TRM web bundle
 to production.
 
-## Targets — the monorepo ships THREE bundles, to three hosts
+## Targets — the monorepo ships FOUR bundles, to four hosts
 
-`/trm_deploy [web|atelier|trs|all]`. Everything below is identical per target except
-these four values — which is why this is one skill with a table, not three skills.
+`/trm_deploy [web|atelier|trs|pointage|all]`. Everything below is identical per target except
+these four values — which is why this is one skill with a table, not four skills.
 A per-app difference is a **parameter, never a fork**: the rule `createFinanceRouter(scope)`
 and `RapportFinance basePath` already follow, and the one `mps_designer` broke by being
 copied (709 lines of drift, teaching patterns ETM had already replaced).
@@ -18,11 +18,12 @@ copied (709 lines of drift, teaching patterns ETM had already replaced).
 | `web` | `@mps-trm/web` | `/home/debian/mps_trm/dist` | `mps_trm/DEPLOYED_SHA` | `trm.intra.etsmalterre.com` | **root** `package.json` |
 | `atelier` | `@mps-trm/atelier` | `/home/debian/mps_atelier/dist` | `mps_atelier/DEPLOYED_SHA` | `atelier.intra.etsmalterre.com` | `apps/atelier/package.json` |
 | `trs` | `@mps-trm/trs` | `/home/debian/mps_trs/dist` | `mps_trs/DEPLOYED_SHA` | `trs.intra.etsmalterre.com` | `apps/trs/package.json` |
+| `pointage` | `@mps-trm/pointage` | `/home/debian/mps_pointage/dist` | `mps_pointage/DEPLOYED_SHA` | `pointage.intra.etsmalterre.com` | `apps/pointage/package.json` |
 
 **With no target, deploy every bundle that is actually BEHIND** — as reported by
 `preflight.mjs`, which compares each tier's stamp against its own `apps/<x>` path.
 Print the plan first (`web current, skipping · trs BEHIND → deploying`), then ship
-exactly those. `all` forces all three regardless.
+exactly those. `all` forces all four regardless.
 
 ⚠️ **Do NOT default to `web`.** It is backwards-compatible and silently wrong — the same
 shape as the false green that left `atelier` and `trs` undeployed on 2026-08-28 while
@@ -226,6 +227,7 @@ Run everything with **absolute paths** — the Bash tool's cwd drifts between ca
    cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-web.mjs --app trm       # web  → trm.intra.etsmalterre.com
    cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-web.mjs --app atelier   # atelier.intra.etsmalterre.com
    cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-web.mjs --app trs       # trs.intra.etsmalterre.com
+   cd /c/dev/etsmalterre/ETM && node scripts/deploy/deploy-web.mjs --app pointage  # pointage.intra.etsmalterre.com (host provisioned 2026-09-21)
    ```
    Each run: guards the app's checkout (and the ETM one for `trm`, whose build imports
    shared screens through the `@etm` alias), `pnpm install`, builds with `VITE_API_URL=/api`

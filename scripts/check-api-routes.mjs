@@ -35,6 +35,7 @@ const APPS = [
   { name: 'web',     host: 'https://trm.intra.etsmalterre.com/api' },
   { name: 'atelier', host: 'https://atelier.intra.etsmalterre.com/api' },
   { name: 'trs',     host: 'https://trs.intra.etsmalterre.com/api' },
+  { name: 'pointage', host: 'https://pointage.intra.etsmalterre.com/api' },
 ].map((a) => ({ ...a, src: join(__dirname, '..', 'apps', a.name, 'src') }))
   .filter((a) => existsSync(a.src))
 
