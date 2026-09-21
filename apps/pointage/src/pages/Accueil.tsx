@@ -23,14 +23,26 @@ import { useAppareil } from '@/contexts/AppareilContext'
 import { heure, jourCourt } from '@/lib/heures'
 import { cn } from '@/lib/utils'
 
-const STATUT: Record<Statut, { label: string; anneau: string; pastille: string }> = {
-  au_travail: { label: 'Au travail', anneau: 'ring-success', pastille: 'bg-success/15 text-success' },
-  en_pause: { label: 'En pause', anneau: 'ring-warning', pastille: 'bg-warning/20 text-amber-800' },
-  hors_poste: { label: '', anneau: 'ring-transparent', pastille: '' },
+// `lisere` is the §41 attention strip of a table row (inset shadow, not a
+// border, so it never fights the row's own borders).
+const STATUT: Record<Statut, { label: string; anneau: string; pastille: string; lisere: string }> = {
+  au_travail: {
+    label: 'Au travail',
+    anneau: 'ring-success',
+    pastille: 'bg-success/15 text-success',
+    lisere: 'shadow-[inset_4px_0_0_0_hsl(var(--success))]',
+  },
+  en_pause: {
+    label: 'En pause',
+    anneau: 'ring-warning',
+    pastille: 'bg-warning/20 text-amber-800',
+    lisere: 'shadow-[inset_4px_0_0_0_hsl(var(--warning))]',
+  },
+  hors_poste: { label: '', anneau: 'ring-transparent', pastille: '', lisere: '' },
 }
 
 /** Salarié · Arrivée · Pauses · Cumul — header and rows share it. */
-const COLONNES = 'grid grid-cols-[minmax(0,11.5rem)_4.5rem_minmax(0,1fr)_8.25rem] gap-3'
+const COLONNES = 'grid grid-cols-[minmax(0,8.5rem)_4.5rem_minmax(0,1fr)_7.5rem] gap-3'
 
 export function Accueil() {
   const navigate = useNavigate()
@@ -78,7 +90,9 @@ export function Accueil() {
           </div>
         </section>
 
-        <section className="flex-1 min-w-0 flex flex-col rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+        {/* Fixed width: the table needs its four columns and no more; the faces
+            take whatever the tablet has left. */}
+        <section className="flex-shrink-0 w-[33rem] flex flex-col rounded-xl border border-border bg-white shadow-sm overflow-hidden">
           <div className="flex-shrink-0 px-4 py-2.5 bg-sand border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold uppercase tracking-wide text-accent">En poste</span>
             {enPoste.data && (
@@ -131,10 +145,12 @@ function Visage({ s, onPick }: { s: SalarieGrille; onPick: () => void }) {
   )
 }
 
-// A row is read from across the room, like the faces: the same status ring
-// (a running pause = amber), the first name in navy, and the
-// two figures a salarié checks — his arrival and his pause minutes — at
-// text-xl. Pauses are chips, the running one amber.
+// A row is the record, not the person: no photo and no status pill here — the
+// face tile on the left already carries both, and a second portrait made the
+// two panels read as the same list twice (Vincent, 2026-09-21). What is left
+// of the status is the §41 liseré (green at work, amber on a break or on a
+// shift left open), then the two figures a salarié checks — his arrival and
+// his pause minutes — at text-xl. Pauses are chips, the running one amber.
 function LigneTable({ l, jour }: { l: LigneEnPoste; jour: string }) {
   const pauses = [
     [l.debutPause1Ms, l.finPause1Ms],
@@ -143,28 +159,21 @@ function LigneTable({ l, jour }: { l: LigneEnPoste; jour: string }) {
   const statut: Statut = pauses.some(([, f]) => f === null) ? 'en_pause' : 'au_travail'
   const st = STATUT[statut]
   return (
-    <div className={cn(COLONNES, 'items-center px-4 py-3 border-b border-border/60', l.nonFermee && 'bg-amber-50')}>
-      <div className="flex items-center gap-3 min-w-0">
-        <SalariePhoto
-          salarie={l.salarie}
-          size={52}
-          className={cn(
-            'ring-[3px] ring-offset-2',
-            l.nonFermee ? 'ring-amber-400 ring-offset-amber-50' : st.anneau,
-          )}
-        />
-        <div className="min-w-0 leading-tight">
-          <p className="truncate text-lg font-semibold text-primary">{l.salarie.prenom}</p>
-          <p className="truncate text-sm text-muted-foreground">{l.salarie.nom}</p>
-          {/* No « Au travail » / « En pause » pill here: the ring says it, and the
-              face tile on the left already spells it out. « Non fermé » stays —
-              the tiles do not carry it. */}
-          {l.nonFermee && (
-            <span className="mt-1 inline-flex h-5 items-center rounded-full bg-amber-200/70 px-2 text-[11px] font-semibold text-amber-900">
-              Non fermé
-            </span>
-          )}
-        </div>
+    <div
+      className={cn(
+        COLONNES,
+        'items-center px-4 py-3 border-b border-border/60',
+        l.nonFermee ? 'bg-amber-50 shadow-[inset_4px_0_0_0_theme(colors.amber.400)]' : st.lisere,
+      )}
+    >
+      <div className="min-w-0 leading-tight">
+        <p className="truncate text-lg font-semibold text-primary">{l.salarie.prenom}</p>
+        <p className="truncate text-sm text-muted-foreground">{l.salarie.nom}</p>
+        {l.nonFermee && (
+          <span className="mt-1 inline-flex h-5 items-center rounded-full bg-amber-200/70 px-2 text-[11px] font-semibold text-amber-900">
+            Non fermé
+          </span>
+        )}
       </div>
       <div className="leading-tight tabular-nums">
         {l.jour !== jour && (
