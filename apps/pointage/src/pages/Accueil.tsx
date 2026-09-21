@@ -90,7 +90,7 @@ export function Accueil() {
           <div className={cn(COLONNES, 'flex-shrink-0 items-end px-4 py-2 border-b border-border text-xs leading-tight font-semibold uppercase tracking-wide text-muted-foreground')}>
             <span>Salarié</span>
             <span>Arrivée</span>
-            <span>Pauses</span>
+            <span className="text-center">Pauses</span>
             <span>Cumul des pauses</span>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto scrollbar-transparent">
@@ -174,7 +174,7 @@ function LigneTable({ l, jour }: { l: LigneEnPoste; jour: string }) {
         )}
         <p className="text-xl font-semibold text-foreground">{heure(l.debutMs)}</p>
       </div>
-      <div className="flex flex-col items-start gap-1">
+      <div className="flex flex-col items-center gap-1">
         {pauses.length === 0 && <span className="text-sm text-muted-foreground/50">—</span>}
         {pauses.map(([d, f], i) => (
           <span
