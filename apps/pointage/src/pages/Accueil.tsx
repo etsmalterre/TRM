@@ -30,7 +30,7 @@ const STATUT: Record<Statut, { label: string; anneau: string; pastille: string }
 }
 
 /** Salarié · Arrivée · Pauses · Cumul — header and rows share it. */
-const COLONNES = 'grid grid-cols-[minmax(0,1.6fr)_4.5rem_minmax(0,1.1fr)_4.25rem] gap-3'
+const COLONNES = 'grid grid-cols-[minmax(0,11.5rem)_4.5rem_minmax(0,1fr)_6.5rem] gap-3'
 
 export function Accueil() {
   const navigate = useNavigate()
@@ -54,7 +54,7 @@ export function Accueil() {
       </header>
 
       <main className="flex-1 min-h-0 flex gap-6 p-6">
-        <section className="flex-[4] min-w-0 flex flex-col gap-3">
+        <section className="flex-1 min-w-0 flex flex-col gap-3">
           <h2 className="flex-shrink-0 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Touchez votre photo pour pointer
           </h2>
@@ -78,7 +78,7 @@ export function Accueil() {
           </div>
         </section>
 
-        <section className="flex-[3] min-w-0 flex flex-col rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+        <section className="flex-1 min-w-0 flex flex-col rounded-xl border border-border bg-white shadow-sm overflow-hidden">
           <div className="flex-shrink-0 px-4 py-2.5 bg-sand border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold uppercase tracking-wide text-accent">En poste</span>
             {enPoste.data && (
@@ -87,11 +87,11 @@ export function Accueil() {
               </span>
             )}
           </div>
-          <div className={cn(COLONNES, 'flex-shrink-0 px-4 py-2 border-b border-border text-xs font-semibold uppercase tracking-wide text-muted-foreground')}>
+          <div className={cn(COLONNES, 'flex-shrink-0 items-end px-4 py-2 border-b border-border text-xs leading-tight font-semibold uppercase tracking-wide text-muted-foreground')}>
             <span>Salarié</span>
             <span>Arrivée</span>
             <span>Pauses</span>
-            <span>Cumul</span>
+            <span>Cumul des pauses</span>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto scrollbar-transparent">
             {enPoste.isError && <Injoignable />}
