@@ -61,11 +61,24 @@ prod, `--replace` pour reconstruire). Détails pilote : `ETM/claude_doc/hfsql_od
   FEN_Choix_salarié du legacy disparaissent (7 salariés tiennent sur l'accueil) ; à droite
   la table **« En poste »** = TABLE_Pointage du legacy (requête donnée par Vincent le
   2026-09-15) : **toutes les lignes ouvertes** (`fin = 0 AND is_deleted = 0`, quel que soit
-  le jour, salariés supprimés compris), colonnes Salarié · Arrivée · Pauses · Cumul ; ⚠️ le
+  le jour, salariés supprimés compris) ; ⚠️ le
   cumul ne compte **que les pauses terminées** (`ROUND(secondes / 60)`, `cumulPausesMin`),
   **pas de colonne Départ** (une ligne fermée quitte la table). Arrivée d'un autre jour =
-  date affichée ; poste de plus de 14 h = ligne ambre « non fermé » (le legacy la listait
-  sans rien dire). Plus récente arrivée en haut.
+  date dans le libellé ; poste de plus de 14 h = carte **rouge** « Non fermé » (le legacy la
+  listait sans rien dire). Plus récente arrivée en haut. **Rendu (2026-09-21, itéré avec
+  Vincent)** : mêmes règles que les visages — petit titre « En poste · N salariés », **cartes
+  posées sur le fond de page**, sans panneau ni en-têtes de colonnes ; **sans photo** (elle
+  doublait la tuile de gauche) ; deux lignes par carte, toujours la même hauteur (nom, puis
+  Arrivée · Pauses · Cumul des pauses libellés, `Stat`) ; état porté par la carte : liseré
+  §41 vert au travail, **carte ambre** en pause, **carte rouge** non fermée ; puces de pause
+  côte à côte, la pause en cours en ambre. Ne pas réintroduire la photo, la pastille « Au
+  travail / En pause » ni les en-têtes de colonnes (essayés, retirés).
+- **Plein écran** : `display: fullscreen` au manifeste **et** `lib/plein-ecran.ts` — sur écran
+  tactile le premier tap demande `requestFullscreen` (redemandé après rechargement ou geste
+  retour), no-op en WebAPK et à la souris. ⚠️ **Chrome ne fabrique pas de WebAPK pour
+  `localhost`** : « Installer » depuis un serveur de dev donne un raccourci legacy
+  (`WebappActivity`) qui garde la barre d'état — d'où le fallback. Vérifié sur la Galaxy
+  Tab A7 (SM-T500) le 2026-09-21.
 - **Écran salarié** (§45 Poste) : photo, nom, semaine ISO, phrase d'état (« Au travail
   depuis 08:02 »), récap de la ligne, messages ; à droite **un ou deux boutons**
   (le premier or, le second navy — écart assumé au §45.3 : le legacy offre deux gestes).
@@ -74,8 +87,11 @@ prod, `--replace` pour reconstruire). Détails pilote : `ETM/claude_doc/hfsql_od
   Erreurs en texte sous les boutons (`lib/erreurs.ts`).
 - Poll 10 s, mise à jour du bundle seule (`lib/mise-a-jour.ts`, copie de l'atelier), SW
   `injectManifest`. Pas de vibration (tablette).
-- **« Semaine N : » et « Cumul »** (SAI_Semaine / SAI_Cumul ; code de la fenêtre et des trois
-  requêtes donnés par Vincent le 2026-09-15, `soldeHeures` dans `lib/pointage.ts`) :
+- **« Semaine N : » et « Solde annuel »** (SAI_Semaine / SAI_Cumul ; code de la fenêtre et des
+  trois requêtes donnés par Vincent le 2026-09-15, `soldeHeures` dans `lib/pointage.ts`).
+  Le legacy disait « Cumul » ; depuis le 2026-09-21 l'écran dit **« Solde annuel »** (compteur
+  d'annualisation du temps de travail des accords d'entreprise), **toujours signé** et coloré
+  (`soldeSigne` / `soldeClasse`, testés : vert en crédit, ambre en heures dues) :
   - ⚠️ **la semaine est la PRÉCÉDENTE** : `NuméroDeSemaine(DateSys()) - 1`, dans l'**année
     civile** du jour (`semaineDeReference`, testé) ; masqués en semaine 1 et quand
     `lst_lissage` n'a pas de ligne (salarié, année, semaine, non supprimée) ;

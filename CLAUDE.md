@@ -227,8 +227,13 @@ boutons. **Quatrième app**, port dev **5178**, hôte prévu `pointage.intra.ets
 - ⚠️ **Cookie `mps_pointeuse`**, appareil de type `pointeuse` émis dans Paramètres ›
   Utilisateurs › Appareils ; 5178 doit être dans le `CORS_ORIGIN` de dev. **Pas d'enrôlement
   en dev local** (API hors production + base locale, `lib/pointage-dev.ts`).
-- Fidèle au legacy (code donné par Vincent) : table d'accueil « En poste » = lignes ouvertes ;
-  « Semaine N » = la semaine **précédente**, « Cumul » = Σ lissage − Σ prev − Σ info, « HH:MM ».
+- Fidèle au legacy (code donné par Vincent) : « En poste » = lignes ouvertes, en **cartes sans
+  photo** (liseré vert / carte ambre en pause / rouge non fermé — pas de photo, pastille ni
+  en-têtes de colonnes, essayés et retirés le 2026-09-21) ; « Semaine N » = la semaine
+  **précédente**, « Solde annuel » (ex-« Cumul ») = Σ lissage − Σ prev − Σ info, signé, « HH:MM ».
+- ⚠️ **Pas de « temps hors prod »** (retiré des deux côtés le 2026-09-21, mesure abandonnée) ;
+  **plein écran demandé au premier tap** (`lib/plein-ecran.ts`) car un « Installer » sur
+  `localhost` n'est pas un WebAPK et garde la barre d'état.
 
 ## Production / deploy
 
