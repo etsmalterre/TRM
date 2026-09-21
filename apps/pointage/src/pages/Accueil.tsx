@@ -30,7 +30,7 @@ const STATUT: Record<Statut, { label: string; anneau: string; pastille: string }
 }
 
 /** Salarié · Arrivée · Pauses · Cumul — header and rows share it. */
-const COLONNES = 'grid grid-cols-[minmax(0,1.5fr)_5rem_minmax(0,1.4fr)_4rem] gap-3'
+const COLONNES = 'grid grid-cols-[minmax(0,1.6fr)_4.5rem_minmax(0,1.1fr)_4.25rem] gap-3'
 
 export function Accueil() {
   const navigate = useNavigate()
@@ -54,7 +54,7 @@ export function Accueil() {
       </header>
 
       <main className="flex-1 min-h-0 flex gap-6 p-6">
-        <section className="flex-[3] min-w-0 flex flex-col gap-3">
+        <section className="flex-[4] min-w-0 flex flex-col gap-3">
           <h2 className="flex-shrink-0 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Touchez votre photo pour pointer
           </h2>
@@ -78,16 +78,16 @@ export function Accueil() {
           </div>
         </section>
 
-        <section className="flex-[2] min-w-0 flex flex-col rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+        <section className="flex-[3] min-w-0 flex flex-col rounded-xl border border-border bg-white shadow-sm overflow-hidden">
           <div className="flex-shrink-0 px-4 py-2.5 bg-sand border-b border-border flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide text-accent">En poste</span>
+            <span className="text-sm font-semibold uppercase tracking-wide text-accent">En poste</span>
             {enPoste.data && (
-              <span className="text-xs text-muted-foreground tabular-nums">
+              <span className="text-sm text-muted-foreground tabular-nums">
                 {enPoste.data.lignes.length} {enPoste.data.lignes.length > 1 ? 'salariés' : 'salarié'}
               </span>
             )}
           </div>
-          <div className={cn(COLONNES, 'flex-shrink-0 px-4 py-2 border-b border-border text-[11px] font-semibold uppercase tracking-wide text-muted-foreground')}>
+          <div className={cn(COLONNES, 'flex-shrink-0 px-4 py-2 border-b border-border text-xs font-semibold uppercase tracking-wide text-muted-foreground')}>
             <span>Salarié</span>
             <span>Arrivée</span>
             <span>Pauses</span>
@@ -131,45 +131,69 @@ function Visage({ s, onPick }: { s: SalarieGrille; onPick: () => void }) {
   )
 }
 
+// A row is read from across the room, like the faces: the same status ring
+// and pill (a running pause = « En pause »), the first name in navy, and the
+// two figures a salarié checks — his arrival and his pause minutes — at
+// text-xl. Pauses are chips, the running one amber.
 function LigneTable({ l, jour }: { l: LigneEnPoste; jour: string }) {
-  const pauses: Array<[number | null, number | null]> = [
+  const pauses = [
     [l.debutPause1Ms, l.finPause1Ms],
     [l.debutPause2Ms, l.finPause2Ms],
-  ]
+  ].filter((p): p is [number, number | null] => p[0] !== null)
+  const statut: Statut = pauses.some(([, f]) => f === null) ? 'en_pause' : 'au_travail'
+  const st = STATUT[statut]
   return (
-    <div
-      className={cn(
-        COLONNES,
-        'items-center px-4 py-2 border-b border-border/60 text-sm tabular-nums',
-        l.nonFermee && 'bg-amber-50',
-      )}
-    >
-      <span className="flex items-center gap-2 min-w-0">
-        <SalariePhoto salarie={l.salarie} size={32} />
-        <span className="min-w-0 leading-tight">
-          <span className="block truncate font-medium text-foreground">{l.salarie.prenom}</span>
-          <span className="block truncate text-[11px] text-muted-foreground">{l.salarie.nom}</span>
-        </span>
-      </span>
-      <span className="leading-tight">
-        {l.jour !== jour && (
-          <span className={cn('block text-[11px]', l.nonFermee ? 'font-semibold text-amber-700' : 'text-muted-foreground')}>
-            {jourCourt(l.jour)}
+    <div className={cn(COLONNES, 'items-center px-4 py-3 border-b border-border/60', l.nonFermee && 'bg-amber-50')}>
+      <div className="flex items-center gap-3 min-w-0">
+        <SalariePhoto
+          salarie={l.salarie}
+          size={52}
+          className={cn(
+            'ring-[3px] ring-offset-2',
+            l.nonFermee ? 'ring-amber-400 ring-offset-amber-50' : st.anneau,
+          )}
+        />
+        <div className="min-w-0 leading-tight">
+          <p className="truncate text-lg font-semibold text-primary">{l.salarie.prenom}</p>
+          <p className="truncate text-sm text-muted-foreground">{l.salarie.nom}</p>
+          <span
+            className={cn(
+              'mt-1 inline-flex h-5 items-center rounded-full px-2 text-[11px] font-semibold',
+              l.nonFermee ? 'bg-amber-200/70 text-amber-900' : st.pastille,
+            )}
+          >
+            {l.nonFermee ? 'Non fermé' : st.label}
           </span>
+        </div>
+      </div>
+      <div className="leading-tight tabular-nums">
+        {l.jour !== jour && (
+          <p className={cn('text-xs', l.nonFermee ? 'font-semibold text-amber-700' : 'text-muted-foreground')}>
+            {jourCourt(l.jour)}
+          </p>
         )}
-        {heure(l.debutMs)}
-        {l.nonFermee && <span className="block text-[11px] font-semibold text-amber-700">non fermé</span>}
-      </span>
-      <span className="text-xs leading-snug">
-        {pauses
-          .filter(([d]) => d !== null)
-          .map(([d, f], i) => (
-            <span key={i} className={cn('block', f === null && 'text-amber-700 font-semibold')}>
-              {heure(d)} – {f === null ? 'en cours' : heure(f)}
-            </span>
-          ))}
-      </span>
-      <span className="text-muted-foreground">{l.cumulPauseMin} min</span>
+        <p className="text-xl font-semibold text-foreground">{heure(l.debutMs)}</p>
+      </div>
+      <div className="flex flex-col items-start gap-1">
+        {pauses.length === 0 && <span className="text-sm text-muted-foreground/50">—</span>}
+        {pauses.map(([d, f], i) => (
+          <span
+            key={i}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-sm tabular-nums whitespace-nowrap',
+              f === null ? 'bg-warning/20 text-amber-800 font-semibold' : 'bg-sand text-foreground font-medium',
+            )}
+          >
+            {heure(d)}
+            <span className={f === null ? 'text-amber-800/60' : 'text-muted-foreground'}>–</span>
+            {f === null ? 'en cours' : heure(f)}
+          </span>
+        ))}
+      </div>
+      <div className="leading-tight tabular-nums whitespace-nowrap">
+        <span className={cn('text-xl font-semibold', l.cumulPauseMin > 0 ? 'text-foreground' : 'text-muted-foreground/60')}>{l.cumulPauseMin}</span>
+        <span className="ml-1 text-xs font-medium text-muted-foreground">min</span>
+      </div>
     </div>
   )
 }
