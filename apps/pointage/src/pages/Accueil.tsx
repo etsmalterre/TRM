@@ -132,7 +132,7 @@ function Visage({ s, onPick }: { s: SalarieGrille; onPick: () => void }) {
 }
 
 // A row is read from across the room, like the faces: the same status ring
-// and pill (a running pause = « En pause »), the first name in navy, and the
+// (a running pause = amber), the first name in navy, and the
 // two figures a salarié checks — his arrival and his pause minutes — at
 // text-xl. Pauses are chips, the running one amber.
 function LigneTable({ l, jour }: { l: LigneEnPoste; jour: string }) {
@@ -156,14 +156,14 @@ function LigneTable({ l, jour }: { l: LigneEnPoste; jour: string }) {
         <div className="min-w-0 leading-tight">
           <p className="truncate text-lg font-semibold text-primary">{l.salarie.prenom}</p>
           <p className="truncate text-sm text-muted-foreground">{l.salarie.nom}</p>
-          <span
-            className={cn(
-              'mt-1 inline-flex h-5 items-center rounded-full px-2 text-[11px] font-semibold',
-              l.nonFermee ? 'bg-amber-200/70 text-amber-900' : st.pastille,
-            )}
-          >
-            {l.nonFermee ? 'Non fermé' : st.label}
-          </span>
+          {/* No « Au travail » / « En pause » pill here: the ring says it, and the
+              face tile on the left already spells it out. « Non fermé » stays —
+              the tiles do not carry it. */}
+          {l.nonFermee && (
+            <span className="mt-1 inline-flex h-5 items-center rounded-full bg-amber-200/70 px-2 text-[11px] font-semibold text-amber-900">
+              Non fermé
+            </span>
+          )}
         </div>
       </div>
       <div className="leading-tight tabular-nums">
