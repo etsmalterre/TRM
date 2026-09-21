@@ -95,29 +95,29 @@ never the cause of this banner.
 4. **Report to the user** the worktree path, **the link of the app the feature is for**
    (`http://localhost:517N` — the PWA when `--app atelier` / `--app trs` was passed, say so;
    the ERP otherwise), the slot number, and which terminal now carries the feature (the
-   script's `wt-slot:` line).
+   script's `terminal:` line).
    That session has `/feature-checkpoint` (sync) and `/feature-complete` (land) available.
    **End the report with the dev link alone on its last line** (`http://localhost:517N`),
    not inside a bullet or a sentence: the user opens it from there (2026-09-16: it was
    buried mid-bullet and had to be asked for).
 
-   **The session opens by itself.** `--terminal` hands the worktree to one of the six
-   Windows Terminal windows of the 2x3 grid whose title is exactly « free »: that window is
-   replaced on the same spot by one titled after the feature, running the context launcher
-   (`yolo-ets` under `C:\dev\etsmalterre`, `yolo-liva` under `C:\dev\liva`) in the
-   worktree. When Claude exits there, the window turns back into a « free » one. The
-   mechanics live in `C:\dev\claude_config\bin\wt-slot.ps1` (`list` / `claim` / `free` /
-   `layout`). No « free » window (all six busy, or the grid not open) → the script says so
-   and the user opens the session by hand; a « busy » title means someone is typing there.
+   **The session opens by itself.** The skill runs from a Herdr pane (`HERDR_ENV=1`), so
+   `--terminal` opens the worktree as a **new tab of the repo's Herdr space**, named after
+   the feature (one space per repo, one tab per worktree), and runs the context launcher in
+   that tab's shell (`yolo-ets` under `C:\dev\etsmalterre`, `yolo-liva` under
+   `C:\dev\liva`; their `.ps1` twins on Windows, since 2026-09-21) without stealing focus.
+   The script prints `terminal: Herdr tab « <feature> » (wN:tM) in space wN …` and a new
+   « <repo> · <feature> » agent row appears in the sidebar at once, with the current task and
+   the web URL under it (Claude SessionStart / UserPromptSubmit hook
+   `claude_config/config/hooks/task-line.mjs`). `prefix+u` in any pane of the worktree opens
+   its web app. A `NOTE: could not open a Herdr tab` means the socket call failed: open a
+   tab (`prefix+c`) in the worktree and run the launcher by hand.
 
-   **On Linux (Omarchy / Hyprland) there is no grid.** The same `--terminal` opens a new
-   terminal window on the **current workspace**, titled after the feature, cwd'd in the
-   worktree and running the same launcher (`yolo-ets` / `yolo-liva`, the bash functions from
-   `claude_config/bin/launchers.sh` that `~/.bashrc` sources — hence `bash -ic`). When Claude
-   exits the shell stays open. Mechanics: `setsid uwsm-app -- xdg-terminal-exec --title=…
-   --dir=…` (what `omarchy-launch-terminal` does), in the Linux branch of `up.mjs`. The
-   script prints `terminal: new « <feature> » window …`; a `NOTE: --terminal ignored` means
-   `xdg-terminal-exec` is missing — open a terminal in the worktree and run the launcher.
+   **Outside Herdr** the older paths remain as fallbacks only: on Windows the 2x3 Windows
+   Terminal grid (`claude_config/bin/wt-slot.ps1` claims a window titled « free » — retired
+   from daily use on 2026-09-21, so « no window titled free » now just means the skill ran
+   outside Herdr); on Linux (Omarchy / Hyprland) a new terminal window on the current
+   workspace (`xdg-terminal-exec`; `NOTE: --terminal ignored` when it is missing).
 
 ## Feature needs shared-API changes? → paired NG worktree
 
