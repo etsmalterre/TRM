@@ -115,6 +115,11 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
     `VISITAGE_PIECE_MAX_AGE_DAYS` (`.env.development` de l'API, la base locale étant un
     instantané de mars) n'élargit **que** les pièces de l'OF en tête de file. Rien n'est
     supprimé en base ; `probe-visitage-trm.ts` §5 compte l'arriéré.
+  - ⚠️ **Un métier sans OF en cours s'ouvre sur sa plus ancienne isolée** (2026-09-22,
+    OF 3588 sur le 2B) : « Dernière pièce » termine l'OF, et si rien n'attend derrière,
+    `/poste` répondait « Pas d'OF affecté » avec `autres_pieces: []` — le métier était
+    listé (1 isolée) mais la pièce inatteignable. `check-visitage-trm.ts` vérifie que
+    tout métier listé ouvre sur une pièce.
 - **Le bandeau « Pièce à visiter »** : `ouvert_visiteuse = 1` → toutes les pièces, **exact**
   (18 355/18 362). Sinon une **cadence approximative** (~1 sur 3, parité 71,8 % — sept
   variantes essayées, aucune meilleure) : le legacy est probablement indicatif, donc l'écran
