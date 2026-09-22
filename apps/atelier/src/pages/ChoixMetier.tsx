@@ -75,8 +75,12 @@ export function ChoixMetier() {
 
   const { actives, inactives } = useMemo(() => {
     const all = data ?? []
+    // The two tabs are complementary: a métier inactive for this role never
+    // shows in Actifs too (an unlaunched OF sat in both for a bonnetier,
+    // 2026-09-22). `actif` still keeps the régleur's finished-but-open OFs
+    // out of Actifs, as before.
     return {
-      actives: all.filter((m) => m.actif),
+      actives: all.filter((m) => m.actif && !estInactif(m, regleur)),
       inactives: all.filter((m) => estInactif(m, regleur)),
     }
   }, [data, regleur])
