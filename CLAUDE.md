@@ -326,6 +326,10 @@ All other screens are `PagePlaceholder`s for now. Legacy references for each dom
   le picker), le dialogue barre « Créer l'OF » avec un encart rouge nommant le fil manquant,
   et l'API répond 409 `fil_non_affecte` (`POST /of-trm`, `PUT /of-trm/:id/composition`). Le
   fil (réf + coloris) est imposé, pas le lot ; une commande TRM native n'est jamais bloquée.
+  ⚠️ **La sélection suit le droit de l'action** (2026-09-22) : sans `edit_of` l'onglet Stock
+  de fil n'a ni cases ni clic de ligne, sans `edit_expeditions` l'Affectation non plus — une
+  case qu'aucun bouton ne consomme passe pour un bouton cassé. Tout futur multi-select §44
+  gardé par un droit cache ses cases sous la même clé.
 - `ligne_commande_client.prix` est un réel 4 octets : arrondir le bruit flottant à l'affichage.
 - Le PDF de confirmation est `CommandeClientPdf.tsx` d'ETM rendu avec `company: companyTrm`,
   disponible aussi sur les miroirs, pas de CGV, journal `envoi_email` `IDtype_doc = 7`.
