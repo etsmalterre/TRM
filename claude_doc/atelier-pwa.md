@@ -31,7 +31,10 @@ le poste d'un métier sans OF n'est plus un état vide.
   flèche retour du poste revenait toujours sur Actifs (`useState` remis à zéro par
   `navigate('/')`). Le retour du poste va sur l'onglet où le métier se trouve **maintenant**
   (`cheminListe`) ; les autres écrans reviennent par `navigate(-1)`, qui garde l'URL. La
-  règle Actifs / Inactifs (`estInactif`) n'a qu'une copie.
+  règle Actifs / Inactifs (`estInactif`) n'a qu'une copie. **Pour un bonnetier, un métier
+  dont l'OF n'est pas lancé est inactif** (Vincent, 2026-09-22 — il ne peut plus le lancer),
+  sa tuile dit « OF non lancé — en attente du régleur » à la place de la barre ; pour le
+  régleur il reste dans Actifs (c'est son travail).
 - **Les pastilles de pièces portent le rouleau tombé métier** (`components/icons/TmRollIcon.tsx`,
   miroir de celui de l'ERP, masque CSS sur `public/icons/tm.png`, précaché par
   `includeAssets: ['icons/*.png']`) — plus l'icône « Layers » de lucide.
@@ -254,6 +257,8 @@ Le rôle est celui du téléphone enrôlé (identité fixe = régleur), comme pa
   l'offrait aux deux builds, mais le lancement est la fin de la fiche de réglage, que seul
   un régleur lit. La bande dit « OF non lancé — en attente du régleur » (`SaisieBand.tsx`) ;
   l'API répond 409 `action_indisponible` à un ancien bundle qui l'enverrait quand même.
+  **Et le métier est « inactif » pour lui** (`estInactif`, `vue-metiers.test.ts`) : onglet
+  Inactifs, tuile « OF non lancé — en attente du régleur » sans barre d'avancement.
 - **Le % de 2nd choix se voit dès 1 %, par les deux rôles** : il voyage **brut** sur
   `of.pct_defaut` de `GET /atelier/machines` (sans `?regleur=1`, `pctDefautDesOfs`, un
   `TOP 100` par couple), et la tuile est seule à décider (`SEUIL_PCT_DEFAUT = 0,01`,

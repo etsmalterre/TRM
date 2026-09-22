@@ -32,7 +32,8 @@
 //    §41 attention state this list is allowed to spend red on: it is rare by
 //    construction, and it names the métier the régleur should walk to next;
 //  - « Inactifs » = métiers with NO active OF (the bonnetier build also lists
-//    the finished-but-still-active ones there);
+//    the finished-but-still-active ones there — and, since 2026-09-22, the
+//    ones whose OF the régleur has not launched yet: lib/vue-metiers.ts);
 //  - tapping a métier whose OF has not started opens the réglage sheet, not
 //    the poste — the legacy's own routing, eligibility check included.
 import { useMemo } from 'react'
@@ -221,7 +222,14 @@ function MetierTile({ m, regleur, onOpen }: { m: Machine; regleur: boolean; onOp
       </span>
 
       <span className="min-w-0">
-        {of ? (
+        {of && !regleur && !of.demarre ? (
+          // A bonnetier cannot launch (2026-09-22): the métier sits in
+          // Inactifs (lib/vue-metiers.ts) and says why, instead of a 0 % bar
+          // that reads as a job to start.
+          <span className="block text-sm text-muted-foreground italic truncate">
+            OF non lancé — en attente du régleur
+          </span>
+        ) : of ? (
           // The one thing a régleur reads at a glance: how far the OF is.
           // The reference, coloris and OF number live on the poste screen
           // one tap away (decision 2026-09-14).

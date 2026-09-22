@@ -7,9 +7,13 @@ import type { Machine } from '@/lib/atelier-api'
 export type VueMetiers = 'actifs' | 'inactifs'
 
 /** A régleur's Inactifs are the métiers with no OF at all (an OF in réglage
- *  is their work, so it stays in Actifs); a bonnetier's follow `actif`. */
+ *  is their work, so it stays in Actifs). A bonnetier's follow `actif` — and
+ *  an OF not yet launched counts as inactive too (Vincent, 2026-09-22): the
+ *  bonnetier can no longer launch it, so until the régleur has, there is
+ *  nothing for them to do on that métier. */
 export function estInactif(m: Pick<Machine, 'actif' | 'of'>, regleur: boolean): boolean {
-  return regleur ? !m.of : !m.actif
+  if (regleur) return !m.of
+  return !m.actif || (!!m.of && !m.of.demarre)
 }
 
 export function lireVue(params: URLSearchParams): VueMetiers {
