@@ -113,7 +113,7 @@ function compareRows(a: Horaire, b: Horaire, key: SortKey): number {
     case 'presence':
       return n(a.presenceMin) - n(b.presenceMin)
     case 'etat':
-      return Number(a.nonFermee) * 2 + Number(a.ouverte) - (Number(b.nonFermee) * 2 + Number(b.ouverte))
+      return rangEtat(a) - rangEtat(b)
   }
 }
 
@@ -415,22 +415,44 @@ function PausePill({ debutMs, finMs, posteFerme }: { debutMs: number | null; fin
 /** `surNavy`: inside the drawer's navy band the pastel chip loses its text —
  *  the §27.5bis neutral white chip carries the words there, the colour is on
  *  the row anyway. */
+type Etat = 'non_ferme' | 'en_pause' | 'en_poste' | null
+
+/** The state of an open shift, the tablet's words: on a break when a pause has
+ *  started and not ended; forgotten (> 14 h) wins over both. */
+function etatDe(row: Horaire): Etat {
+  if (row.nonFermee) return 'non_ferme'
+  if (!row.ouverte) return null
+  const enPause = (row.debutPause1Ms != null && row.finPause1Ms == null) || (row.debutPause2Ms != null && row.finPause2Ms == null)
+  return enPause ? 'en_pause' : 'en_poste'
+}
+const RANG_ETAT: Record<NonNullable<Etat>, number> = { en_poste: 1, en_pause: 2, non_ferme: 3 }
+const rangEtat = (row: Horaire) => { const e = etatDe(row); return e ? RANG_ETAT[e] : 0 }
+
+const ETAT_LIBELLE: Record<NonNullable<Etat>, string> = { non_ferme: 'Non fermé', en_pause: 'En pause', en_poste: 'En poste' }
+const ETAT_CLAIR: Record<NonNullable<Etat>, string> = {
+  non_ferme: 'bg-red-500/15 text-red-800 border-red-500/30',
+  en_pause: 'bg-amber-500/15 text-amber-800 border-amber-500/30',
+  en_poste: 'bg-emerald-500/15 text-emerald-800 border-emerald-500/30',
+}
+const ETAT_NAVY: Record<NonNullable<Etat>, string> = {
+  non_ferme: 'border-red-300/60 bg-red-500/40 text-white',
+  en_pause: 'border-amber-300/60 bg-amber-500/40 text-white',
+  en_poste: 'border-white/25 bg-white/15 text-white',
+}
+
 function EtatBadge({ row, surNavy }: { row: Horaire; surNavy?: boolean }) {
-  const libelle = row.nonFermee ? 'Non fermé' : row.ouverte ? 'En poste' : null
-  if (!libelle) return null
+  const etat = etatDe(row)
+  if (!etat) return null
   if (surNavy) {
     return (
-      <span className={cn('rounded-full border px-1.5 py-0 text-[10px] font-medium whitespace-nowrap', row.nonFermee ? 'border-red-300/60 bg-red-500/40 text-white' : 'border-white/25 bg-white/15 text-white')}>
-        {libelle}
+      <span className={cn('rounded-full border px-1.5 py-0 text-[10px] font-medium whitespace-nowrap', ETAT_NAVY[etat])}>
+        {ETAT_LIBELLE[etat]}
       </span>
     )
   }
   return (
-    <Badge
-      variant="outline"
-      className={cn('text-[10px] py-0', row.nonFermee ? 'bg-red-500/15 text-red-800 border-red-500/30' : 'bg-emerald-500/15 text-emerald-800 border-emerald-500/30')}
-    >
-      {libelle}
+    <Badge variant="outline" className={cn('text-[10px] py-0', ETAT_CLAIR[etat])}>
+      {ETAT_LIBELLE[etat]}
     </Badge>
   )
 }
