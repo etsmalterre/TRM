@@ -296,7 +296,7 @@ export function AtelierPlanning() {
         <Button
           variant="outline"
           size="icon"
-          className={cn('h-9 w-9', excludedIds.length > 0 && 'text-accent border-accent/40 hover:text-accent')}
+          className={cn('h-9 w-9', excludedIds.length > 0 && 'text-accent border-accent/40 hover:text-accent hover:bg-accent/10')}
           title={
             excludedIds.length > 0
               ? `Bonnetiers affichés (${excludedIds.length} masqué${excludedIds.length > 1 ? 's' : ''})`
@@ -463,7 +463,7 @@ export function AtelierPlanning() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-accent"
+                            className="h-7 w-7 text-muted-foreground hover:text-accent hover:bg-accent/10"
                             title="Planifier la semaine"
                             onClick={() => setFillTarget(b)}
                           >
@@ -474,7 +474,7 @@ export function AtelierPlanning() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-accent"
+                                className="h-7 w-7 text-muted-foreground hover:text-accent hover:bg-accent/10"
                                 title="Dupliquer cette semaine sur la semaine suivante"
                                 disabled={repeatMut.isPending}
                                 onClick={() => repeatMut.mutate(b.IDbonnetier)}

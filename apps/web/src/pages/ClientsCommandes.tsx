@@ -1486,7 +1486,7 @@ function LineCard({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-accent"
+                    className="h-6 w-6 text-muted-foreground hover:text-accent hover:bg-accent/10"
                     title={line.IDligne_commande_ETM > 0 ? 'Donner le délai (remonte sur la commande ETM)' : 'Donner le délai'}
                     onClick={(e) => { e.stopPropagation(); onSetDelai() }}
                   >
@@ -1887,7 +1887,7 @@ function ProgressionDrawer({
                   <span className="font-semibold text-accent">{fmtNum(pieces?.disponible_1er_choix ?? 0, 1)} Kgs</span>
                 </span>
                 {canShip && shippable.length > 0 && (
-                  <Button variant="ghost" size="sm" className="h-7 text-[11px] text-accent hover:text-accent" onClick={selectNonExpediees} title="Sélectionner toutes les pièces non expédiées">
+                  <Button variant="ghost" size="sm" className="h-7 text-[11px] text-accent hover:text-accent hover:bg-accent/10" onClick={selectNonExpediees} title="Sélectionner toutes les pièces non expédiées">
                     Non expédiées
                   </Button>
                 )}
