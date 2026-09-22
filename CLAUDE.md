@@ -563,7 +563,7 @@ reste ouvert. Dossier plan : `~/.claude/plans/curried-nibbling-wave.md`.
 - **Écrans** : menu = grant (`screen_<menu>`, fermé par défaut), écran = hide
   (`hide_<menu>_<screen>`), clés dérivées de `mainNavigation` ; ⚠️ **hide keys via
   `hasRaw()`, jamais `has()`**. Rideau (`useScreenGuard`), pas un verrou. ⚠️ Nouveau menu
-  = `seed-screen-access-trm.ts --write` sur la prod **avant** le web deploy.
+  = `seed-screen-access-trm.ts --menu screen_<menu> --write` sur la prod **avant** le web deploy — ⚠️ **jamais sans `--menu`** : le script nu redistribue TOUS les menus, ceux retirés à la main compris (2026-09-22, 16 menus rendus à cinq comptes, défaits dans l heure).
 - Liste = allowlist `TRM_STAFF` (dont le compte-poste `Visitage`, id 10, clé finissant par
   `|` nu — pas une coquille). Clés livrées : `edit_commandes_client`, `edit_of`, …
 
