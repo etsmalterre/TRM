@@ -259,6 +259,7 @@ export const mainNavigation: MainMenuItem[] = [
     submenus: [
       { title: 'Horaires', href: '/pointage/horaires', permission: 'view_pointage' },
       { title: 'Semaines', href: '/pointage/semaines', permission: 'view_pointage' },
+      { title: 'Prévisionnel', href: '/pointage/previsionnel', permission: 'view_pointage' },
       { title: 'Salariés', href: '/pointage/salaries', permission: 'view_pointage' },
     ],
   },

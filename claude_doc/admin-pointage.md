@@ -15,12 +15,13 @@ ajoute : `lst_salarie.login` (3 car., **clé unique sur toutes les lignes, suppr
 ; `lst_message` (un message = **un salarié**, texte + `date_fin`) ; `lst_lissage`,
 `lst_prev`, `lst_info_sal_annee` (phases 2–3, non portées).
 
-## Livré : Horaires · Semaines · Salariés (+ messages)
+## Livré : Horaires · Semaines · Prévisionnel · Salariés (+ messages)
 
 | Écran | Route | Legacy fusionné |
 |---|---|---|
 | Horaires | `/pointage/horaires` (`PointageHoraires.tsx`) | `FEN_Accueil` (table « En poste »), `FEN_Horaires` (grille éditable), `FEN_Nouvel_horaire` |
 | Semaines | `/pointage/semaines` (`PointageSemaines.tsx`) | `FEN_Contrôles` (grille de l'année + « Détail »), `FEN_Lissage` (la semaine) |
+| Prévisionnel | `/pointage/previsionnel` (`PointagePrevisionnel.tsx`) | `FEN_Prévisionnel`, `FEN_MAJ_prévisionnel`, `FEN_Initialisation_prévisionnel`, `FEN_Variables` |
 | Salariés | `/pointage/salaries` (`PointageSalaries.tsx`) | `FEN_Salariés`, `FEN_Nouveau_salarié`, `FEN_Messages`, `FEN_Message` |
 
 Patron §27 (tableau + tiroir), pièces partagées `components/pointage/parts.tsx`, client
@@ -45,6 +46,17 @@ Patron §27 (tableau + tiroir), pièces partagées `components/pointage/parts.ts
   rouvre, comme le `HEnregistre` du legacy). Règles pures + tests : `lib/pointage-admin.ts`
   (`lundiIso`, `semaineMaxControle`, `semaineMinControle`, `semaineDetail`, `typePropose`, `lissePropose`,
   `cumulJourMin`).
+- **Prévisionnel** (2026-09-22, plan § 9.5–9.6) : salarié + année (l'année suivante offerte) → une tuile par
+  semaine ISO avec `lst_prev.prev` (« — » sans ligne, liseré or = commentaire), bandeau « Objectif annuel »
+  = Σ prev + Σ info (le « Détail » du legacy). Tiroir = `FEN_MAJ_prévisionnel` : total « HH:MM » +
+  commentaire, boutons « − 1 jour / − 2 jours » (7:00 par jour : les données réelles montrent 28:00 « 1 CP »,
+  21:00 « 1 CP + 1 JF » sur une base 35:00), `PUT /previsionnel/semaine` (création ou mise à jour).
+  « Initialiser l'année » (année **vide** seulement, comme le bouton legacy ; l'API refuse sinon) : même total
+  chaque semaine (défaut 35:00) ou recopie d'un salarié qui a un prévisionnel cette année-là (semaines
+  trouvées seules — le legacy ré-ajoutait le dernier tampon lu). **Variables** (`lst_info_sal_annee`) en
+  dialogue : ⚠️ **saisies comme EFFET sur le solde** (+10:00 = dix heures de crédit) et stockées
+  `info = −effet`, le signe du legacy (« -10:00 » tapé pour un report de +10 h, Détails affichant
+  `info × −1`) ; solde = Σ lissage − Σ prev − Σ info.
 - **Salariés** : liste (supprimés masqués par défaut), tiroir = fiche éditable (nom, prénom,
   login, **bonnetier lié** = `id_mps`, choisi parmi `mps.bonnetier`) + carte « Messages
   sur la pointeuse » (créer / modifier / supprimer, expirés grisés) + « Supprimer le salarié ».
@@ -98,7 +110,7 @@ Un refus métier répond **400 `saisie_invalide` + message français**, affiché
 
 ## Reste à faire (plan § 6, réunion Leticia § 9)
 
-Prévisionnel + Variables, Données paie (repas jour / nuit par plage de semaines), Tableau annuel + export xlsx.
+Données paie (repas jour / nuit par plage de semaines : M, A, E = jour, N = nuit), Tableau annuel + export xlsx.
 **Le ratio de production est abandonné** (Vincent, 2026-09-22) : `useInRatio` n'est ni affiché ni
 modifiable (écrit à 1 à la création, colonne conservée). Chacune attend du code WinDev à coller (plan § 1, liste datée) ; la
 plus haute valeur est **l'alphabet des lettres de type** de `lst_lissage` (nuit, paniers, absences).

@@ -123,3 +123,12 @@ export function minutesDepuisHM(v: string): number | null {
   const m = /^\s*(\d{1,3}):([0-5]\d)\s*$/.exec(v)
   return m ? +m[1] * 60 + +m[2] : null
 }
+
+/** « +10:00 » / « -7:00 » / « 35:00 » typed by hand → signed minutes, null when malformed
+ *  (the legacy Variables accepted « (-)H:MM »). */
+export function minutesSignees(v: string): number | null {
+  const m = /^\s*([+-]?)(\d{1,4}):([0-5]\d)\s*$/.exec(v)
+  if (!m) return null
+  const n = +m[2] * 60 + +m[3]
+  return m[1] === '-' ? -n : n
+}

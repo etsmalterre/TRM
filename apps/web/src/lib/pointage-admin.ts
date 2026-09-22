@@ -181,3 +181,40 @@ export const fetchSemaine = (salarie: number, annee: number, numero: number) =>
   apiFetch<SemaineDetail>(`/pointage-admin/lissage/semaine?salarie=${salarie}&annee=${annee}&numero=${numero}`)
 export const validerSemaine = (body: { idSalarie: number; annee: number; numero: number; jours: { type: string; lisseMin: number }[] }) =>
   apiFetch<SemaineDetail>('/pointage-admin/lissage/semaine', { method: 'PUT', body: JSON.stringify(body) })
+
+// ── Prévisionnel (+ Variables) ──
+export interface PrevSemaine {
+  numero: number
+  lundi: string
+  /** Planned minutes, null when the week has no row. */
+  prevMin: number | null
+  commentaire: string
+}
+/** A yearly adjustment as its EFFECT on the balance (+600 = ten hours in credit). */
+export interface Variable {
+  id: number
+  commentaire: string
+  soldeMin: number
+}
+export interface PrevisionnelReponse {
+  idSalarie: number
+  annee: number
+  nbSemaines: number
+  vide: boolean
+  semaines: PrevSemaine[]
+  variables: Variable[]
+  bilan: { prevuMin: number; ajustementMin: number; objectifMin: number }
+  sourcesRecopie: SalarieRef[]
+}
+export const fetchPrevisionnel = (salarie: number, annee: number) =>
+  apiFetch<PrevisionnelReponse>(`/pointage-admin/previsionnel?salarie=${salarie}&annee=${annee}`)
+export const definirPrevSemaine = (body: { idSalarie: number; annee: number; numero: number; prevMin: number; commentaire: string }) =>
+  apiFetch<PrevisionnelReponse>('/pointage-admin/previsionnel/semaine', { method: 'PUT', body: JSON.stringify(body) })
+export const initialiserPrevisionnel = (
+  body: { idSalarie: number; annee: number; mode: 'heures'; prevMin: number } | { idSalarie: number; annee: number; mode: 'copie'; sourceId: number },
+) => apiFetch<PrevisionnelReponse>('/pointage-admin/previsionnel/initialiser', { method: 'POST', body: JSON.stringify(body) })
+export const creerVariable = (body: { idSalarie: number; annee: number; soldeMin: number; commentaire: string }) =>
+  apiFetch<PrevisionnelReponse>('/pointage-admin/previsionnel/variables', { method: 'POST', body: JSON.stringify(body) })
+export const modifierVariable = (id: number, body: { soldeMin: number; commentaire: string }) =>
+  apiFetch<Variable>(`/pointage-admin/previsionnel/variables/${id}`, { method: 'PUT', body: JSON.stringify(body) })
+export const supprimerVariable = (id: number) => apiFetch<void>(`/pointage-admin/previsionnel/variables/${id}`, { method: 'DELETE' })

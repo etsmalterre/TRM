@@ -240,9 +240,10 @@ boutons. **Quatrième app**, port dev **5178**, hôte prévu `pointage.intra.ets
 
 Le bureau corrige ici ce que la tablette a pointé : menu **« Pointage »** (`screen_pointage`,
 fermé par défaut, **pas de seed**), écrans **Horaires** (`/pointage/horaires`), **Semaines**
-(`/pointage/semaines`, grille de l'année + lissage) et **Salariés** (`/pointage/salaries`), tous sous `view_pointage` ; toute écriture sous `edit_pointage`.
+(`/pointage/semaines`, grille de l'année + lissage), **Prévisionnel** (`/pointage/previsionnel`, heures prévues +
+Variables) et **Salariés** (`/pointage/salaries`), tous sous `view_pointage` ; toute écriture sous `edit_pointage`.
 API **`/api/pointage-admin`** (`routes/pointage-admin.ts`), séparée de la tablette. Horaires et Salariés
-construits le 2026-09-21, Semaines le 2026-09-22 ; Prévisionnel, Paie et Tableau annuel attendent du
+construits le 2026-09-21, Semaines et Prévisionnel le 2026-09-22 ; Paie et Tableau annuel attendent du
 code WinDev ; le ratio de production est abandonné (2026-09-22). **Dossier : `claude_doc/admin-pointage.md`** ; code legacy récupéré dans
 `~/.claude/plans/admin-pointage.md` § 7.
 
@@ -258,6 +259,8 @@ code WinDev ; le ratio de production est abandonné (2026-09-22). **Dossier : `c
 - ⚠️ **Lissage = plancher au quart d'heure** (`cumul − cumul mod 15`), pas « le plus proche » ; type
   du jour proposé par l'heure du premier début (M < 07:00, J < 11:00, A < 16:00, sinon N) ; une semaine
   validée se rouvre. Lettres M/A/N/J/E → repas jour (M, A, E) / nuit (N) / aucun (J).
+- ⚠️ **Une Variable se saisit comme effet sur le solde et se stocke négée** (`info = −effet`, le signe du
+  legacy) ; solde annuel = Σ lissage − Σ prev − Σ info ; « Initialiser l'année » refuse une année déjà remplie.
 
 ## Production / deploy
 

@@ -118,6 +118,7 @@ import { RapportFinance } from '@etm/pages/RapportFinance'
 // messages. Both behind view_pointage; writes behind edit_pointage.
 import { PointageHoraires } from '@/pages/PointageHoraires'
 import { PointageSemaines } from '@/pages/PointageSemaines'
+import { PointagePrevisionnel } from '@/pages/PointagePrevisionnel'
 import { PointageSalaries } from '@/pages/PointageSalaries'
 
 // Settings
@@ -185,6 +186,7 @@ export const router = createBrowserRouter([
       { path: 'pointage', element: <Navigate to="/pointage/horaires" replace /> },
       { path: 'pointage/horaires', element: <PointageHoraires /> },
       { path: 'pointage/semaines', element: <PointageSemaines /> },
+      { path: 'pointage/previsionnel', element: <PointagePrevisionnel /> },
       { path: 'pointage/salaries', element: <PointageSalaries /> },
 
       // Settings (admin-only sub-routes)
