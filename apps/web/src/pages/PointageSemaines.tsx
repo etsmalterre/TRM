@@ -336,7 +336,7 @@ function SemaineDrawer({ idSalarie, salarieNom, annee, numero, cellule, canEdit,
           </Button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 scrollbar-transparent">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-3 scrollbar-transparent">
           {detail.isLoading || !d || !draft ? (
             open && (
               <div className="flex items-center justify-center py-8">
@@ -406,6 +406,7 @@ function SemaineDrawer({ idSalarie, salarieNom, annee, numero, cellule, canEdit,
                               onChange={(v) => setDraft((x) => (x ? { ...x, type: x.type.map((t, k) => (k === i ? TYPES_JOUR[v - 1] ?? t : t)) } : x))}
                               hideEmpty
                               size="sm"
+                              widthClass="w-full"
                               emptyLabel={draft.type[i]}
                             />
                           ) : (

@@ -480,7 +480,7 @@ function SalarieDrawer({ row, canEdit, bonnetiers, onClose, onDirtyChange, saveR
                       value={
                         isEditing && draft ? (
                           <div className="w-52 inline-block text-left">
-                            <PopoverSelect options={options} value={draft.idMps} onChange={(v) => setDraft((d) => (d ? { ...d, idMps: v } : d))} emptyLabel="Aucun" size="sm" />
+                            <PopoverSelect options={options} value={draft.idMps} onChange={(v) => setDraft((d) => (d ? { ...d, idMps: v } : d))} emptyLabel="Aucun" size="sm" widthClass="w-full" />
                           </div>
                         ) : row.bonnetier ?? '—'
                       }
