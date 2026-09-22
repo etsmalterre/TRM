@@ -68,7 +68,7 @@ export const PERIODES: { id: Periode; libelle: string }[] = [
   { id: 'mois', libelle: 'Ce mois' },
   { id: 'mois_prec', libelle: 'Mois dernier' },
   { id: 'trente_jours', libelle: '30 derniers jours' },
-  { id: 'perso', libelle: 'Période libre' },
+  { id: 'perso', libelle: 'Personnaliser' },
 ]
 
 /** `du` / `au` (`YYYYMMDD`, inclusive) of a preset, seen from `aujourdhui`.

@@ -86,17 +86,12 @@ const COLUMNS: { key: SortKey; label: string; width: string; align?: 'left' | 'r
   { key: 'etat', label: '', width: '8%' },
 ]
 
-/** What the table shows: the period's shifts, or the open ones (any day). */
-type Affichage = 1 | 2 | 3
-// « En poste maintenant » first and by default (Vincent, 2026-09-22): the
-// screen opens on the legacy FEN_Accueil board, the period grid is one pick away.
-const AFFICHAGES: PopoverSelectOption[] = [
-  { id: 2, primary: 'En poste maintenant' },
-  { id: 1, primary: 'Postes de la période' },
-  { id: 3, primary: 'Postes non fermés' },
-]
-
-const PERIODE_OPTIONS: PopoverSelectOption[] = PERIODES.map((p, i) => ({ id: i + 1, primary: p.libelle }))
+/** What the table shows — ONE dropdown (Vincent, 2026-09-22): « Maintenant »
+ *  (every open shift, whatever its day, the legacy FEN_Accueil board — the
+ *  default) or a period of the shift grid. */
+type Vue = 'maintenant' | Periode
+const VUES: { id: Vue; libelle: string }[] = [{ id: 'maintenant', libelle: 'Maintenant' }, ...PERIODES]
+const VUE_OPTIONS: PopoverSelectOption[] = VUES.map((v, i) => ({ id: i + 1, primary: v.libelle }))
 
 const n = (v: number | null) => v ?? -1
 function compareRows(a: Horaire, b: Horaire, key: SortKey): number {
@@ -126,8 +121,7 @@ const QK = ['pointage-admin'] as const
 
 export function PointageHoraires() {
   const [searchQuery, setSearchQuery] = useState('')
-  const [affichage, setAffichage] = useState<Affichage>(2)
-  const [periode, setPeriode] = useState<Periode>('semaine')
+  const [vue, setVue] = useState<Vue>('maintenant')
   const aujourdhui = useMemo(() => jourDe(Date.now()), [])
   const [perso, setPerso] = useState(() => bornesPeriode('semaine', aujourdhui))
   const [salarieFiltre, setSalarieFiltre] = useState(0)
@@ -137,26 +131,27 @@ export function PointageHoraires() {
   const isDesktop = useIsDesktop()
   const canEdit = useHasPermission('edit_pointage')
 
-  const bornes = periode === 'perso' ? perso : bornesPeriode(periode, aujourdhui)
+  const maintenant = vue === 'maintenant'
+  const bornes = vue === 'maintenant' ? null : vue === 'perso' ? perso : bornesPeriode(vue, aujourdhui)
 
   const { data: salaries } = useQuery({ queryKey: [...QK, 'salaries'], queryFn: fetchSalariesAdmin })
   const horaires = useQuery({
-    queryKey: [...QK, 'horaires', bornes.du, bornes.au, salarieFiltre],
-    queryFn: () => fetchHoraires(bornes.du, bornes.au, salarieFiltre),
-    enabled: affichage === 1,
+    queryKey: [...QK, 'horaires', bornes?.du, bornes?.au, salarieFiltre],
+    queryFn: () => fetchHoraires(bornes!.du, bornes!.au, salarieFiltre),
+    enabled: bornes !== null,
   })
   const enPoste = useQuery({
     queryKey: [...QK, 'en-poste'],
     queryFn: fetchEnPoste,
-    enabled: affichage !== 1,
-    refetchInterval: affichage !== 1 ? 60_000 : false,
+    enabled: maintenant,
+    refetchInterval: maintenant ? 60_000 : false,
   })
-  const source = affichage === 1 ? horaires : enPoste
+  const source = maintenant ? enPoste : horaires
   const rows = useMemo(() => {
     const all = source.data?.lignes ?? []
-    if (affichage === 1) return all
-    return all.filter((r) => (affichage === 3 ? r.nonFermee : true) && (salarieFiltre === 0 || r.salarie.id === salarieFiltre))
-  }, [source.data, affichage, salarieFiltre])
+    if (!maintenant) return all
+    return all.filter((r) => salarieFiltre === 0 || r.salarie.id === salarieFiltre)
+  }, [source.data, maintenant, salarieFiltre])
 
   const deferredSearch = useDeferredValue(searchQuery)
   const filteredSorted = useMemo(() => {
@@ -213,16 +208,17 @@ export function PointageHoraires() {
 
   const selected = useMemo(() => filteredSorted.find((r) => r.id === selectedId) ?? rows.find((r) => r.id === selectedId) ?? null, [filteredSorted, rows, selectedId])
 
-  /** A shift created outside the shown period would vanish: widen to its day. */
+  /** A shift created outside the shown view would vanish: move the view to its day. */
   const handleCreated = useCallback((h: Horaire) => {
-    if (affichage === 1 && (h.jour < bornes.du || h.jour > bornes.au)) {
-      setPeriode('perso')
+    const visible = bornes === null ? h.ouverte : h.jour >= bornes.du && h.jour <= bornes.au
+    if (!visible) {
+      setVue('perso')
       setPerso({ du: h.jour, au: h.jour })
     }
     setSelectedId(h.id)
-  }, [affichage, bornes.du, bornes.au])
+  }, [bornes])
 
-  const isLoading = source.isLoading || (affichage === 1 && horaires.isFetching && !horaires.data)
+  const isLoading = source.isLoading || (!maintenant && horaires.isFetching && !horaires.data)
   const isError = source.isError
   const error = source.error
 
@@ -243,24 +239,20 @@ export function PointageHoraires() {
         </div>
 
         <div className="order-3 w-full flex flex-wrap items-center gap-3 sm:contents">
-          <div className="w-48 flex-shrink-0 sm:order-2">
-            <PopoverSelect options={AFFICHAGES} value={affichage} onChange={(v) => setAffichage(v as Affichage)} hideEmpty />
+          <div className="w-44 flex-shrink-0 sm:order-2">
+            <PopoverSelect
+              options={VUE_OPTIONS}
+              value={VUES.findIndex((v) => v.id === vue) + 1}
+              onChange={(v) => {
+                const next = VUES[v - 1]?.id ?? 'maintenant'
+                // « Personnaliser » starts from the period on screen, or this week
+                if (next === 'perso') setPerso(bornes ?? bornesPeriode('semaine', aujourdhui))
+                setVue(next)
+              }}
+              hideEmpty
+            />
           </div>
-          {affichage === 1 && (
-            <>
-              <div className="w-44 flex-shrink-0 sm:order-3">
-                <PopoverSelect
-                  options={PERIODE_OPTIONS}
-                  value={PERIODES.findIndex((p) => p.id === periode) + 1}
-                  onChange={(v) => {
-                    const next = PERIODES[v - 1]?.id ?? 'semaine'
-                    if (next === 'perso') setPerso(bornes)
-                    setPeriode(next)
-                  }}
-                  hideEmpty
-                />
-              </div>
-              {periode === 'perso' && (
+          {vue === 'perso' && (
                 <div className="flex items-center gap-1.5 flex-shrink-0 sm:order-4">
                   <input
                     type="date"
@@ -276,8 +268,6 @@ export function PointageHoraires() {
                     className="h-9 px-2 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
-              )}
-            </>
           )}
           <div className="w-52 flex-shrink-0 sm:order-5">
             <PopoverSelect options={salarieOptions} value={salarieFiltre} onChange={setSalarieFiltre} emptyLabel="Tous les salariés" />
@@ -315,7 +305,7 @@ export function PointageHoraires() {
         ) : filteredSorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
             <Clock className="h-12 w-12 opacity-30" />
-            <p className="text-sm">{affichage === 1 ? 'Aucun poste sur cette période' : affichage === 2 ? 'Personne en poste' : 'Aucun poste non fermé'}</p>
+            <p className="text-sm">{maintenant ? 'Personne en poste' : 'Aucun poste sur cette période'}</p>
           </div>
         ) : (
           <>
