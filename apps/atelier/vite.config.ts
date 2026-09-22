@@ -69,7 +69,11 @@ export default defineConfig({
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          // Android shows only the central 66 % of a maskable icon (adaptive icon
+          // safe zone): this variant has the word fitted to that circle, same fix
+          // as apps/pointage. The plain icons keep the wider word for the install
+          // dialog and splash screen, which do not mask.
+          { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       // The service worker stays OFF in dev: the atelier is developed in
