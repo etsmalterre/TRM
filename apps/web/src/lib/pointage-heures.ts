@@ -132,3 +132,22 @@ export function minutesSignees(v: string): number | null {
   const n = +m[2] * 60 + +m[3]
   return m[1] === '-' ? -n : n
 }
+
+/** ISO week (year + number) of a `YYYYMMDD` day — the numbering of the lissage sheets. */
+export function semaineIsoDe(jour: string): { annee: number; numero: number } {
+  const d = new Date(midi(jour))
+  const js = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - js)
+  const annee = d.getUTCFullYear()
+  const numero = Math.ceil(((d.getTime() - Date.UTC(annee, 0, 1)) / 86_400_000 + 1) / 7)
+  return { annee, numero }
+}
+
+/** The ISO weeks the previous month spans — payroll is done for the month just ended. */
+export function semainesDuMoisPrecedent(aujourdhui: string): { annee: number; du: number; au: number } {
+  const { du, au } = bornesPeriode('mois_prec', aujourdhui)
+  const a = semaineIsoDe(du)
+  const b = semaineIsoDe(au)
+  // a month straddling two ISO years (early January) is asked in the year of its last week
+  return a.annee === b.annee ? { annee: a.annee, du: a.numero, au: b.numero } : { annee: b.annee, du: 1, au: b.numero }
+}

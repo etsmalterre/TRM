@@ -53,3 +53,13 @@ describe('lissage figures', () => {
     expect(minutesDepuisHM('7h')).toBeNull()
   })
 })
+
+describe('payroll weeks', () => {
+  it('ISO week of a day and the previous month span', async () => {
+    const { semaineIsoDe, semainesDuMoisPrecedent } = await import('./pointage-heures')
+    expect(semaineIsoDe('20260922')).toEqual({ annee: 2026, numero: 39 })
+    expect(semaineIsoDe('20251229')).toEqual({ annee: 2026, numero: 1 })
+    expect(semainesDuMoisPrecedent('20260922')).toEqual({ annee: 2026, du: 31, au: 36 }) // August 2026: 1 Aug (Saturday) is W31, 31 Aug (Monday) is W36
+    expect(semainesDuMoisPrecedent('20260210')).toEqual({ annee: 2026, du: 1, au: 5 }) // January 2026 starts in W1 of 2026
+  })
+})

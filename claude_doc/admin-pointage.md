@@ -15,13 +15,14 @@ ajoute : `lst_salarie.login` (3 car., **clé unique sur toutes les lignes, suppr
 ; `lst_message` (un message = **un salarié**, texte + `date_fin`) ; `lst_lissage`,
 `lst_prev`, `lst_info_sal_annee` (phases 2–3, non portées).
 
-## Livré : Horaires · Semaines · Prévisionnel · Salariés (+ messages)
+## Livré : Horaires · Semaines · Prévisionnel · Paie · Salariés (+ messages)
 
 | Écran | Route | Legacy fusionné |
 |---|---|---|
 | Horaires | `/pointage/horaires` (`PointageHoraires.tsx`) | `FEN_Accueil` (table « En poste »), `FEN_Horaires` (grille éditable), `FEN_Nouvel_horaire` |
 | Semaines | `/pointage/semaines` (`PointageSemaines.tsx`) | `FEN_Contrôles` (grille de l'année + « Détail »), `FEN_Lissage` (la semaine) |
 | Prévisionnel | `/pointage/previsionnel` (`PointagePrevisionnel.tsx`) | `FEN_Prévisionnel`, `FEN_MAJ_prévisionnel`, `FEN_Initialisation_prévisionnel`, `FEN_Variables` |
+| Paie | `/pointage/paie` (`PointagePaie.tsx`) | `FEN_Données_paie` (+ export xlsx que le legacy n'avait pas) |
 | Salariés | `/pointage/salaries` (`PointageSalaries.tsx`) | `FEN_Salariés`, `FEN_Nouveau_salarié`, `FEN_Messages`, `FEN_Message` |
 
 Patron §27 (tableau + tiroir), pièces partagées `components/pointage/parts.tsx`, client
@@ -57,6 +58,13 @@ Patron §27 (tableau + tiroir), pièces partagées `components/pointage/parts.ts
   dialogue : ⚠️ **saisies comme EFFET sur le solde** (+10:00 = dix heures de crédit) et stockées
   `info = −effet`, le signe du legacy (« -10:00 » tapé pour un report de +10 h, Détails affichant
   `info × −1`) ; solde = Σ lissage − Σ prev − Σ info.
+- **Paie** (2026-09-22, plan § 9.7) : salarié, année, plage de semaines (défaut : les semaines ISO du **mois
+  précédent**), lecture seule sur les **semaines validées** : par semaine les 7 cumuls lissés + lettre, total,
+  **heures de nuit = Σ des jours N**, **repas jour = jours M / A / E de ≥ 6 h**, **repas nuit = jours N de
+  ≥ 6 h** (le `>= 360` du legacy ; J ne donne rien), ligne Totaux ; quatre tuiles (ce que Leticia reporte
+  en paie), bandeau ambre listant les semaines de la plage **non validées** (le legacy les ignorait en
+  silence), « Exporter » = classeur xlsx de la même table. Règles pures + tests : `paieSemaine`,
+  `totauxPaie` (API). **Tableau annuel : pas porté** (Vincent, 2026-09-22).
 - **Salariés** : liste (supprimés masqués par défaut), tiroir = fiche éditable (nom, prénom,
   login, **bonnetier lié** = `id_mps`, choisi parmi `mps.bonnetier`) + carte « Messages
   sur la pointeuse » (créer / modifier / supprimer, expirés grisés) + « Supprimer le salarié ».
@@ -108,9 +116,11 @@ Un refus métier répond **400 `saisie_invalide` + message français**, affiché
   un orphelin que la pointeuse ne montrait jamais) ; colonnes de la fiche salarié éditables (le
   legacy les affichait seulement) ; pas de « temps hors prod » (table abandonnée le 2026-09-21).
 
-## Reste à faire (plan § 6, réunion Leticia § 9)
+## Reste à faire
 
-Données paie (repas jour / nuit par plage de semaines : M, A, E = jour, N = nuit), Tableau annuel + export xlsx.
+Rien du legacy : les cinq écrans de Leticia sont portés (Tableau annuel et Ratio abandonnés). Pistes
+proposées non tranchées : liste « À valider » toutes personnes confondues en tête de Semaines ; jours
+fériés proposés dans le prévisionnel.
 **Le ratio de production est abandonné** (Vincent, 2026-09-22) : `useInRatio` n'est ni affiché ni
 modifiable (écrit à 1 à la création, colonne conservée). Chacune attend du code WinDev à coller (plan § 1, liste datée) ; la
 plus haute valeur est **l'alphabet des lettres de type** de `lst_lissage` (nuit, paniers, absences).

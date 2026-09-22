@@ -241,10 +241,11 @@ boutons. **Quatrième app**, port dev **5178**, hôte prévu `pointage.intra.ets
 Le bureau corrige ici ce que la tablette a pointé : menu **« Pointage »** (`screen_pointage`,
 fermé par défaut, **pas de seed**), écrans **Horaires** (`/pointage/horaires`), **Semaines**
 (`/pointage/semaines`, grille de l'année + lissage), **Prévisionnel** (`/pointage/previsionnel`, heures prévues +
-Variables) et **Salariés** (`/pointage/salaries`), tous sous `view_pointage` ; toute écriture sous `edit_pointage`.
+Variables), **Paie** (`/pointage/paie`, repas et heures de nuit d'une plage de semaines, export xlsx) et
+**Salariés** (`/pointage/salaries`), tous sous `view_pointage` ; toute écriture sous `edit_pointage`.
 API **`/api/pointage-admin`** (`routes/pointage-admin.ts`), séparée de la tablette. Horaires et Salariés
-construits le 2026-09-21, Semaines et Prévisionnel le 2026-09-22 ; Paie et Tableau annuel attendent du
-code WinDev ; le ratio de production est abandonné (2026-09-22). **Dossier : `claude_doc/admin-pointage.md`** ; code legacy récupéré dans
+construits le 2026-09-21, Semaines, Prévisionnel et Paie le 2026-09-22 ; Tableau annuel et ratio de production
+abandonnés (2026-09-22). **Dossier : `claude_doc/admin-pointage.md`** ; code legacy récupéré dans
 `~/.claude/plans/admin-pointage.md` § 7.
 
 - ⚠️ **Une heure se saisit « HH:MM » et c'est le serveur qui la place** (`lib/pointage-admin.ts`,
@@ -261,6 +262,8 @@ code WinDev ; le ratio de production est abandonné (2026-09-22). **Dossier : `c
   validée se rouvre. Lettres M/A/N/J/E → repas jour (M, A, E) / nuit (N) / aucun (J).
 - ⚠️ **Une Variable se saisit comme effet sur le solde et se stocke négée** (`info = −effet`, le signe du
   legacy) ; solde annuel = Σ lissage − Σ prev − Σ info ; « Initialiser l'année » refuse une année déjà remplie.
+- Paie : **un repas ne compte que si le jour lissé fait ≥ 6 h** (jour = M/A/E, nuit = N, rien pour J) ; heures
+  de nuit = Σ des jours N ; semaines validées seules.
 
 ## Production / deploy
 

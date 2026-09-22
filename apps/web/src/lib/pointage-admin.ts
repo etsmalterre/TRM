@@ -218,3 +218,27 @@ export const creerVariable = (body: { idSalarie: number; annee: number; soldeMin
 export const modifierVariable = (id: number, body: { soldeMin: number; commentaire: string }) =>
   apiFetch<Variable>(`/pointage-admin/previsionnel/variables/${id}`, { method: 'PUT', body: JSON.stringify(body) })
 export const supprimerVariable = (id: number) => apiFetch<void>(`/pointage-admin/previsionnel/variables/${id}`, { method: 'DELETE' })
+
+// ── Données paie ──
+export interface PaieSemaine {
+  numero: number
+  lundi: string
+  jours: { type: string; totalMin: number }[]
+  totalMin: number
+  nuitMin: number
+  paniersJour: number
+  paniersNuit: number
+}
+export interface PaieReponse {
+  idSalarie: number
+  annee: number
+  du: number
+  au: number
+  nbSemaines: number
+  semaines: PaieSemaine[]
+  totaux: { totalMin: number; nuitMin: number; paniersJour: number; paniersNuit: number }
+  /** Weeks of the range with no validated lissage yet. */
+  manquantes: number[]
+}
+export const fetchPaie = (salarie: number, annee: number, du: number, au: number) =>
+  apiFetch<PaieReponse>(`/pointage-admin/paie?salarie=${salarie}&annee=${annee}&du=${du}&au=${au}`)

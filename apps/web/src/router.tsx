@@ -119,6 +119,7 @@ import { RapportFinance } from '@etm/pages/RapportFinance'
 import { PointageHoraires } from '@/pages/PointageHoraires'
 import { PointageSemaines } from '@/pages/PointageSemaines'
 import { PointagePrevisionnel } from '@/pages/PointagePrevisionnel'
+import { PointagePaie } from '@/pages/PointagePaie'
 import { PointageSalaries } from '@/pages/PointageSalaries'
 
 // Settings
@@ -187,6 +188,7 @@ export const router = createBrowserRouter([
       { path: 'pointage/horaires', element: <PointageHoraires /> },
       { path: 'pointage/semaines', element: <PointageSemaines /> },
       { path: 'pointage/previsionnel', element: <PointagePrevisionnel /> },
+      { path: 'pointage/paie', element: <PointagePaie /> },
       { path: 'pointage/salaries', element: <PointageSalaries /> },
 
       // Settings (admin-only sub-routes)
