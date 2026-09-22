@@ -124,3 +124,60 @@ export function messageErreur(e: unknown): string {
   if (err?.status === 404) return 'Cet élément n’existe plus.'
   return 'Une erreur est survenue. Réessayez.'
 }
+
+// ── Semaines (Contrôles + Lissage) ──
+export interface CelluleSemaine {
+  numero: number
+  /** Monday, `YYYYMMDD`. */
+  lundi: string
+  /** Validated total, null when the week has no lissage row. */
+  cumulMin: number | null
+  /** In the validation window and not validated — the legacy's red cell. */
+  aValider: boolean
+}
+export interface BilanAnnee {
+  semaine: number
+  prevuMin: number
+  realiseMin: number
+  infos: { id: number; commentaire: string; min: number }[]
+  totalMin: number
+}
+export interface SemainesReponse {
+  annee: number
+  semMin: number
+  semMax: number
+  nbSemaines: number
+  semaines: CelluleSemaine[]
+  bilan: BilanAnnee
+}
+export interface JourSemaine {
+  libelle: string
+  jour: string
+  segments: { id: number; debutMs: number; finMs: number }[]
+  cumulMin: number
+  lisseMin: number
+  type: string
+}
+export interface SemaineDetail {
+  idSalarie: number
+  annee: number
+  numero: number
+  lundi: string
+  existe: boolean
+  jours: JourSemaine[]
+  cumulSemaineMin: number
+}
+export const TYPES_JOUR = ['M', 'A', 'N', 'J', 'E'] as const
+export const LIBELLE_TYPE: Record<string, string> = {
+  M: 'Matin (repas jour)',
+  A: 'Après-midi (repas jour)',
+  N: 'Nuit (repas nuit)',
+  J: 'Journée (sans repas)',
+  E: 'Journée bonnetier (repas jour)',
+}
+export const fetchSemaines = (salarie: number, annee: number) =>
+  apiFetch<SemainesReponse>(`/pointage-admin/lissage/semaines?salarie=${salarie}&annee=${annee}`)
+export const fetchSemaine = (salarie: number, annee: number, numero: number) =>
+  apiFetch<SemaineDetail>(`/pointage-admin/lissage/semaine?salarie=${salarie}&annee=${annee}&numero=${numero}`)
+export const validerSemaine = (body: { idSalarie: number; annee: number; numero: number; jours: { type: string; lisseMin: number }[] }) =>
+  apiFetch<SemaineDetail>('/pointage-admin/lissage/semaine', { method: 'PUT', body: JSON.stringify(body) })

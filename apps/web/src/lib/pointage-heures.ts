@@ -102,3 +102,24 @@ function finDeMois(premier: string): string {
   const dernier = new Date(Date.UTC(y, m, 0)).getUTCDate() // day 0 of next month
   return `${premier.slice(0, 6)}${String(dernier).padStart(2, '0')}`
 }
+
+/** Minutes as the legacy MinToFormat (COL_ProcéduresGlobales) writes them:
+ *  « HH:MM », hours on two digits at least, negatives « -HH:MM » — the lissage
+ *  totals and the annual balance. */
+export function heuresMinutes(min: number): string {
+  const total = Math.round(min)
+  const a = Math.abs(total)
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  return `${total < 0 ? '-' : ''}${p2(Math.floor(a / 60))}:${p2(a % 60)}`
+}
+
+/** « +23:00 » / « -02:30 » — a balance always carries its sign. */
+export function soldeSigne(min: number): string {
+  return min > 0 ? `+${heuresMinutes(min)}` : heuresMinutes(min)
+}
+
+/** « HH:MM » typed by hand → minutes, null when malformed. */
+export function minutesDepuisHM(v: string): number | null {
+  const m = /^\s*(\d{1,3}):([0-5]\d)\s*$/.exec(v)
+  return m ? +m[1] * 60 + +m[2] : null
+}

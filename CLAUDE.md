@@ -239,11 +239,11 @@ boutons. **Quatrième app**, port dev **5178**, hôte prévu `pointage.intra.ets
 ## Pointage — le menu de l'ERP (port d'Admin Pointage)
 
 Le bureau corrige ici ce que la tablette a pointé : menu **« Pointage »** (`screen_pointage`,
-fermé par défaut, **pas de seed**), écrans **Horaires** (`/pointage/horaires`) et **Salariés**
-(`/pointage/salaries`), tous deux sous `view_pointage` ; toute écriture sous `edit_pointage`.
-API **`/api/pointage-admin`** (`routes/pointage-admin.ts`), séparée de la tablette. Phase 1
-construite le 2026-09-21 ; phases 2–3 (Semaines / Lissage, Prévisionnel, Paie) attendent du code
-WinDev ; le ratio de production est abandonné (2026-09-22). **Dossier : `claude_doc/admin-pointage.md`** ; code legacy récupéré dans
+fermé par défaut, **pas de seed**), écrans **Horaires** (`/pointage/horaires`), **Semaines**
+(`/pointage/semaines`, grille de l'année + lissage) et **Salariés** (`/pointage/salaries`), tous sous `view_pointage` ; toute écriture sous `edit_pointage`.
+API **`/api/pointage-admin`** (`routes/pointage-admin.ts`), séparée de la tablette. Horaires et Salariés
+construits le 2026-09-21, Semaines le 2026-09-22 ; Prévisionnel, Paie et Tableau annuel attendent du
+code WinDev ; le ratio de production est abandonné (2026-09-22). **Dossier : `claude_doc/admin-pointage.md`** ; code legacy récupéré dans
 `~/.claude/plans/admin-pointage.md` § 7.
 
 - ⚠️ **Une heure se saisit « HH:MM » et c'est le serveur qui la place** (`lib/pointage-admin.ts`,
@@ -255,6 +255,9 @@ WinDev ; le ratio de production est abandonné (2026-09-22). **Dossier : `claude
   intact. Garde : `scripts/check-pointage-admin.ts` (copie de dev).
 - « Présence » = fin − début **brute**, pauses terminées seules (le SQL du legacy) ; un message
   vise **un** salarié ; le login (3 car.) est unique sur toutes les lignes, supprimées comprises.
+- ⚠️ **Lissage = plancher au quart d'heure** (`cumul − cumul mod 15`), pas « le plus proche » ; type
+  du jour proposé par l'heure du premier début (M < 07:00, J < 11:00, A < 16:00, sinon N) ; une semaine
+  validée se rouvre. Lettres M/A/N/J/E → repas jour (M, A, E) / nuit (N) / aucun (J).
 
 ## Production / deploy
 

@@ -41,3 +41,15 @@ describe('formatting', () => {
     expect(dureeHM(null)).toBe('—')
   })
 })
+
+describe('lissage figures', () => {
+  it('MinToFormat and the signed balance', async () => {
+    const { heuresMinutes, soldeSigne, minutesDepuisHM } = await import('./pointage-heures')
+    expect(heuresMinutes(2115)).toBe('35:15')
+    expect(heuresMinutes(-150)).toBe('-02:30')
+    expect(soldeSigne(1380)).toBe('+23:00')
+    expect(soldeSigne(0)).toBe('00:00')
+    expect(minutesDepuisHM('07:15')).toBe(435)
+    expect(minutesDepuisHM('7h')).toBeNull()
+  })
+})

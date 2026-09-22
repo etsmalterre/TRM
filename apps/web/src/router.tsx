@@ -117,6 +117,7 @@ import { RapportFinance } from '@etm/pages/RapportFinance'
 // shift grid + corrections, Salariés = the pointeuse's people and their
 // messages. Both behind view_pointage; writes behind edit_pointage.
 import { PointageHoraires } from '@/pages/PointageHoraires'
+import { PointageSemaines } from '@/pages/PointageSemaines'
 import { PointageSalaries } from '@/pages/PointageSalaries'
 
 // Settings
@@ -183,6 +184,7 @@ export const router = createBrowserRouter([
       // Pointage
       { path: 'pointage', element: <Navigate to="/pointage/horaires" replace /> },
       { path: 'pointage/horaires', element: <PointageHoraires /> },
+      { path: 'pointage/semaines', element: <PointageSemaines /> },
       { path: 'pointage/salaries', element: <PointageSalaries /> },
 
       // Settings (admin-only sub-routes)

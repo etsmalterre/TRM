@@ -15,11 +15,12 @@ ajoute : `lst_salarie.login` (3 car., **clé unique sur toutes les lignes, suppr
 ; `lst_message` (un message = **un salarié**, texte + `date_fin`) ; `lst_lissage`,
 `lst_prev`, `lst_info_sal_annee` (phases 2–3, non portées).
 
-## Phase 1 — livrée : Horaires · Salariés (+ messages)
+## Livré : Horaires · Semaines · Salariés (+ messages)
 
 | Écran | Route | Legacy fusionné |
 |---|---|---|
 | Horaires | `/pointage/horaires` (`PointageHoraires.tsx`) | `FEN_Accueil` (table « En poste »), `FEN_Horaires` (grille éditable), `FEN_Nouvel_horaire` |
+| Semaines | `/pointage/semaines` (`PointageSemaines.tsx`) | `FEN_Contrôles` (grille de l'année + « Détail »), `FEN_Lissage` (la semaine) |
 | Salariés | `/pointage/salaries` (`PointageSalaries.tsx`) | `FEN_Salariés`, `FEN_Nouveau_salarié`, `FEN_Messages`, `FEN_Message` |
 
 Patron §27 (tableau + tiroir), pièces partagées `components/pointage/parts.tsx`, client
@@ -32,6 +33,18 @@ Patron §27 (tableau + tiroir), pièces partagées `components/pointage/parts.ts
   les pauses ; le totaliseur ajoute « Hors pauses »). Tiroir : six heures en `<input type="time">`
   sous « Modifier » (`edit_pointage`), bilan, « Supprimer le poste » (confirmation §33), bandeau
   rouge sur un poste ouvert > 14 h. « Nouvel horaire » = dialogue §18.A.
+- **Semaines** (2026-09-22, code legacy lu, plan § 9.2–9.4) : salarié + année → une tuile par semaine
+  ISO (**rouge « à valider »** = dans la fenêtre `semMin < n ≤ semMax` sans ligne `lst_lissage`, verte
+  = validée avec son total, grise = hors plage), bandeau « Solde annuel » = le « Détail » du legacy
+  (Σ prev ≤ N, Σ lissage ≤ N, ajustements, total). Tiroir = `FEN_Lissage` : 7 jours lun→dim, horaires
+  = les postes fermés du jour (`fin − début` **brut**, pauses non déduites), cumul, **lissé proposé =
+  cumul arrondi au quart d'heure INFÉRIEUR** (`cumul − cumul mod 15`, le code, pas « le plus proche »
+  dit en réunion), **type proposé d'après l'heure du premier début** (< 07:00 M, < 11:00 J, < 16:00 A,
+  sinon N ; jour vide J), lettres M/A/N/J/E (repas : M, A, E = jour, N = nuit, J = aucun), les deux
+  corrigibles, « Valider » = `PUT /lissage/semaine` (création ou **mise à jour** : une semaine validée se
+  rouvre, comme le `HEnregistre` du legacy). Règles pures + tests : `lib/pointage-admin.ts`
+  (`lundiIso`, `semaineMaxControle`, `semaineMinControle`, `semaineDetail`, `typePropose`, `lissePropose`,
+  `cumulJourMin`).
 - **Salariés** : liste (supprimés masqués par défaut), tiroir = fiche éditable (nom, prénom,
   login, **bonnetier lié** = `id_mps`, choisi parmi `mps.bonnetier`) + carte « Messages
   sur la pointeuse » (créer / modifier / supprimer, expirés grisés) + « Supprimer le salarié ».
@@ -83,9 +96,9 @@ Un refus métier répond **400 `saisie_invalide` + message français**, affiché
   un orphelin que la pointeuse ne montrait jamais) ; colonnes de la fiche salarié éditables (le
   legacy les affichait seulement) ; pas de « temps hors prod » (table abandonnée le 2026-09-21).
 
-## Reste à faire (phases 2–3, plan § 6)
+## Reste à faire (plan § 6, réunion Leticia § 9)
 
-Semaines (Contrôles + Lissage), Prévisionnel + Variables, Paie + Tableau annuel + export xlsx.
+Prévisionnel + Variables, Données paie (repas jour / nuit par plage de semaines), Tableau annuel + export xlsx.
 **Le ratio de production est abandonné** (Vincent, 2026-09-22) : `useInRatio` n'est ni affiché ni
 modifiable (écrit à 1 à la création, colonne conservée). Chacune attend du code WinDev à coller (plan § 1, liste datée) ; la
 plus haute valeur est **l'alphabet des lettres de type** de `lst_lissage` (nuit, paniers, absences).
