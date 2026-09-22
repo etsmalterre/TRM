@@ -1618,7 +1618,10 @@ function ProgressionDrawer({
   // Launching from here writes an OF, so it needs the SAME key the OF screen
   // and `POST /of-trm` use — `edit_commandes_client` gates the order, not the
   // production. Without this the button would open the dialog and dead-end on
-  // a 403 at the last click.
+  // a 403 at the last click. The key also gates the SELECTION: ticking lots
+  // exists only to feed « Créer un OF », so a read-only user gets no checkbox
+  // column and no row toggle (same rule as `canShip` on the rolls) — a
+  // selection that can lead nowhere would just look like a broken button.
   const canCreateOf = useHasPermission('edit_of')
   const [createOfOpen, setCreateOfOpen] = useState(false)
   const [createdOfId, setCreatedOfId] = useState<number | null>(null)
@@ -1937,19 +1940,19 @@ function ProgressionDrawer({
                   : 'Aucun lot de fil en stock'
               }
               emptyIcon={BobineIcon}
-              onRowClick={(l, e) => toggleLot(l.id, e.shiftKey)}
-              selectedIds={selectedLots}
+              onRowClick={canCreateOf ? (l, e) => toggleLot(l.id, e.shiftKey) : undefined}
+              selectedIds={canCreateOf ? selectedLots : undefined}
               columns={[
-                {
-                  key: 'sel', label: '', align: 'left',
-                  render: (l) => (
+                ...(canCreateOf ? [{
+                  key: 'sel', label: '', align: 'left' as const,
+                  render: (l: StockFilLot) => (
                     <Checkbox
                       checked={selectedLots.has(l.id)}
                       onClick={(e) => { e.stopPropagation(); toggleLot(l.id, (e as React.MouseEvent).shiftKey) }}
                       title="Sélectionner ce lot (MAJ + clic pour une plage)"
                     />
                   ),
-                },
+                }] : []),
                 { key: 'lot', label: 'Lot', align: 'left', render: (l) => <span className="font-medium tabular-nums">{l.lot || '—'}</span> },
                 { key: 'ref', label: 'Référence', align: 'left', render: (l) => l.reference },
                 { key: 'col', label: 'Coloris', align: 'left', render: (l) => l.coloris || '—' },
@@ -1977,7 +1980,7 @@ function ProgressionDrawer({
                 is not knittable, so the footer says which yarn is still
                 missing instead of offering a button that would open a broken
                 dialog. */}
-            {selectedLots.size > 0 && (
+            {canCreateOf && selectedLots.size > 0 && (
               <div className="ml-auto flex items-center gap-2 min-w-0">
                 <span className="tabular-nums">
                   {selectedLots.size} lot{selectedLots.size > 1 ? 's' : ''} sélectionné{selectedLots.size > 1 ? 's' : ''}
@@ -1985,7 +1988,7 @@ function ProgressionDrawer({
                 <Button variant="ghost" size="sm" className="h-7 text-[11px]" onClick={clearLots}>
                   Aucun
                 </Button>
-                {!canCreateOf ? null : composantsManquants.length === 0 ? (
+                {composantsManquants.length === 0 ? (
                   <Button size="sm" className="h-7 text-[11px]" onClick={() => setCreateOfOpen(true)}>
                     <Factory className="h-3.5 w-3.5 mr-1.5" />Créer un OF
                   </Button>

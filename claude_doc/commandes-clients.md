@@ -48,6 +48,11 @@ composition qu'ils peuvent alimenter. Port du bouton legacy en bas à droite du 
 - **Le bouton est sous `edit_of`**, la clé de Production › Gestion des OF — pas
   `edit_commandes_client`, qui garde la commande et non la production. C'est la même clé que
   `POST /of-trm` exige, sinon le bouton ouvrirait le dialogue pour finir en 403.
+  **Et la sélection aussi** (2026-09-22) : sans `edit_of` l'onglet n'a ni colonne de cases ni
+  clic de ligne — cocher un lot ne sert qu'à créer l'OF, une sélection sans bouton passait
+  pour un bouton cassé. Même règle que les rouleaux de l'onglet Affectation, sélectionnables
+  seulement sous `edit_expeditions` (`canShip`). Un lecteur (sans les deux clés) voit les
+  deux onglets en pure lecture.
 - **Le bouton n'apparaît que si CHAQUE fil de la composition a un lot coché** (décision
   utilisateur du 2026-08-26) : un OF à qui il manque un de ses fils n'est pas tricotable, et
   le dialogue s'ouvrirait avec un composant sans lot. La couverture se teste contre
