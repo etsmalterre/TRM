@@ -13,7 +13,6 @@ import {
   Trash2,
   MessageSquare,
   IdCard,
-  Check,
   UserPlus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -59,14 +58,13 @@ import { DrawerCard, ErreurNote, INPUT_KV, KV, SortHeader, nomComplet, type Sort
 // shows on the tablet until its end date, today + 7 by default.
 // Reading needs view_pointage; every write hangs on edit_pointage.
 
-type SortKey = 'nom' | 'prenom' | 'login' | 'ratio' | 'bonnetier' | 'etat'
+type SortKey = 'nom' | 'prenom' | 'login' | 'bonnetier' | 'etat'
 
 const COLUMNS: { key: SortKey; label: string; width: string; align?: 'left' | 'right' }[] = [
-  { key: 'nom', label: 'Nom', width: '22%' },
-  { key: 'prenom', label: 'Prénom', width: '20%' },
-  { key: 'login', label: 'Login', width: '10%' },
-  { key: 'ratio', label: 'Ratio prod.', width: '12%' },
-  { key: 'bonnetier', label: 'Bonnetier lié', width: '26%' },
+  { key: 'nom', label: 'Nom', width: '26%' },
+  { key: 'prenom', label: 'Prénom', width: '24%' },
+  { key: 'login', label: 'Login', width: '12%' },
+  { key: 'bonnetier', label: 'Bonnetier lié', width: '28%' },
   { key: 'etat', label: '', width: '10%' },
 ]
 
@@ -78,8 +76,6 @@ function compareRows(a: SalarieAdmin, b: SalarieAdmin, key: SortKey): number {
       return a.prenom.localeCompare(b.prenom, 'fr') || a.nom.localeCompare(b.nom, 'fr')
     case 'login':
       return a.login.localeCompare(b.login)
-    case 'ratio':
-      return Number(a.useInRatio) - Number(b.useInRatio)
     case 'bonnetier':
       return (a.bonnetier ?? '').localeCompare(b.bonnetier ?? '', 'fr')
     case 'etat':
@@ -273,7 +269,6 @@ const SalarieRow = memo(function SalarieRow({ row, selected, onRowClick }: { row
       <td className="px-2 py-2 font-medium truncate">{row.nom || '—'}</td>
       <td className="px-2 py-2 truncate">{row.prenom || '—'}</td>
       <td className="px-2 py-2 font-mono text-xs">{row.login || '—'}</td>
-      <td className="px-2 py-2">{row.useInRatio ? <Check className="h-4 w-4 text-emerald-700" /> : <span className="text-muted-foreground">—</span>}</td>
       <td className="px-2 py-2 truncate text-muted-foreground">{row.bonnetier ?? '—'}</td>
       <td className="px-2 py-2">
         <SupprimeBadge row={row} />
@@ -298,7 +293,6 @@ const SalarieCard = memo(function SalarieCard({ row, selected, onRowClick }: { r
       </div>
       <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2">
         <CardKV label="Login" value={row.login || '—'} mono />
-        <CardKV label="Ratio prod." value={row.useInRatio ? 'Oui' : 'Non'} />
         <CardKV label="Bonnetier lié" value={row.bonnetier ?? '—'} />
       </div>
     </div>
@@ -308,9 +302,9 @@ const SalarieCard = memo(function SalarieCard({ row, selected, onRowClick }: { r
 // ── Drawer ─────────────────────────────────────────────
 
 type Draft = SaisieSalarie
-const draftDe = (s: SalarieAdmin): Draft => ({ nom: s.nom, prenom: s.prenom, login: s.login, useInRatio: s.useInRatio, idMps: s.idMps })
+const draftDe = (s: SalarieAdmin): Draft => ({ nom: s.nom, prenom: s.prenom, login: s.login, idMps: s.idMps })
 const memeDraft = (a: Draft, b: Draft) =>
-  a.nom === b.nom && a.prenom === b.prenom && a.login === b.login && a.useInRatio === b.useInRatio && a.idMps === b.idMps
+  a.nom === b.nom && a.prenom === b.prenom && a.login === b.login && a.idMps === b.idMps
 
 function bonnetierOptions(bonnetiers: { id: number; nom: string; prenom: string; archive: boolean }[]): PopoverSelectOption[] {
   return bonnetiers.map((b) => ({ id: b.id, primary: [b.prenom, b.nom].filter(Boolean).join(' '), secondary: b.archive ? 'archivé' : undefined }))
@@ -481,19 +475,6 @@ function SalarieDrawer({ row, canEdit, bonnetiers, onClose, onDirtyChange, saveR
                     <KV label="Nom" value={isEditing ? input('nom') : row.nom || '—'} />
                     <KV label="Prénom" value={isEditing ? input('prenom') : row.prenom || '—'} />
                     <KV label="Login (3 caractères)" value={isEditing ? input('login', 'w-20 font-mono uppercase') : <span className="font-mono">{row.login || '—'}</span>} />
-                    <KV
-                      label="Compte dans le ratio de production"
-                      value={
-                        isEditing && draft ? (
-                          <input
-                            type="checkbox"
-                            checked={draft.useInRatio}
-                            onChange={(e) => setDraft((d) => (d ? { ...d, useInRatio: e.target.checked } : d))}
-                            className="h-4 w-4 rounded border-input text-accent focus:ring-2 focus:ring-ring cursor-pointer"
-                          />
-                        ) : row.useInRatio ? 'Oui' : 'Non'
-                      }
-                    />
                     <KV
                       label="Bonnetier lié"
                       value={
@@ -709,11 +690,11 @@ function SalarieDialog({
   onCreated: (s: SalarieAdmin) => void
 }) {
   const queryClient = useQueryClient()
-  const [draft, setDraft] = useState<Draft>({ nom: '', prenom: '', login: '', useInRatio: true, idMps: 0 })
+  const [draft, setDraft] = useState<Draft>({ nom: '', prenom: '', login: '', idMps: 0 })
   const [erreur, setErreur] = useState<string | null>(null)
 
   useEffect(() => {
-    if (open) { setDraft({ nom: '', prenom: '', login: '', useInRatio: true, idMps: 0 }); setErreur(null) }
+    if (open) { setDraft({ nom: '', prenom: '', login: '', idMps: 0 }); setErreur(null) }
   }, [open])
 
   const options = useMemo(() => bonnetierOptions(bonnetiers), [bonnetiers])
@@ -764,15 +745,6 @@ function SalarieDialog({
             <label className="block text-xs font-medium text-muted-foreground mb-1">Bonnetier lié</label>
             <PopoverSelect options={options} value={draft.idMps} onChange={(v) => setDraft((d) => ({ ...d, idMps: v }))} emptyLabel="Aucun" />
           </div>
-          <label className="col-span-full flex items-center gap-2 text-sm cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={draft.useInRatio}
-              onChange={(e) => setDraft((d) => ({ ...d, useInRatio: e.target.checked }))}
-              className="h-4 w-4 rounded border-input text-accent focus:ring-2 focus:ring-ring cursor-pointer"
-            />
-            <span>Compte dans le ratio de production</span>
-          </label>
         </div>
         {erreur && (
           <div className="mt-3 flex items-center gap-2 text-sm text-destructive">

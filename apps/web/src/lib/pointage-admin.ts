@@ -16,7 +16,6 @@ export interface SalarieRef {
 
 export interface SalarieAdmin extends SalarieRef {
   login: string
-  useInRatio: boolean
   /** `mps.bonnetier` link, 0 = none. */
   idMps: number
   photo: boolean
@@ -28,7 +27,6 @@ export interface SaisieSalarie {
   nom: string
   prenom: string
   login: string
-  useInRatio: boolean
   idMps: number
 }
 

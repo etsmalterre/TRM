@@ -12,7 +12,7 @@ Commencé le 2026-09-21 (worktrees `TRM-admin-pointage` + `ETM-admin-pointage`).
 Même base HFSQL **`pointage`** que la tablette (`pointageDb`, jamais le client par défaut) —
 tables, colonnes et pièges dans `pointage-pwa.md` § « Les données ». Ce qu'Admin Pointage y
 ajoute : `lst_salarie.login` (3 car., **clé unique sur toutes les lignes, supprimées comprises**)
-et `useInRatio` ; `lst_message` (un message = **un salarié**, texte + `date_fin`) ; `lst_lissage`,
+; `lst_message` (un message = **un salarié**, texte + `date_fin`) ; `lst_lissage`,
 `lst_prev`, `lst_info_sal_annee` (phases 2–3, non portées).
 
 ## Phase 1 — livrée : Horaires · Salariés (+ messages)
@@ -33,7 +33,7 @@ Patron §27 (tableau + tiroir), pièces partagées `components/pointage/parts.ts
   sous « Modifier » (`edit_pointage`), bilan, « Supprimer le poste » (confirmation §33), bandeau
   rouge sur un poste ouvert > 14 h. « Nouvel horaire » = dialogue §18.A.
 - **Salariés** : liste (supprimés masqués par défaut), tiroir = fiche éditable (nom, prénom,
-  login, ratio, **bonnetier lié** = `id_mps`, choisi parmi `mps.bonnetier`) + carte « Messages
+  login, **bonnetier lié** = `id_mps`, choisi parmi `mps.bonnetier`) + carte « Messages
   sur la pointeuse » (créer / modifier / supprimer, expirés grisés) + « Supprimer le salarié ».
 
 ## L'API — `/api/pointage-admin` (`ETM/apps/api/src/routes/pointage-admin.ts`)
@@ -83,8 +83,9 @@ Un refus métier répond **400 `saisie_invalide` + message français**, affiché
   un orphelin que la pointeuse ne montrait jamais) ; colonnes de la fiche salarié éditables (le
   legacy les affichait seulement) ; pas de « temps hors prod » (table abandonnée le 2026-09-21).
 
-## Reste à faire (phases 2–4, plan § 6)
+## Reste à faire (phases 2–3, plan § 6)
 
-Semaines (Contrôles + Lissage), Prévisionnel + Variables, Paie + Tableau annuel + export xlsx,
-widget Ratio de production. Chacune attend du code WinDev à coller (plan § 1, liste datée) ; la
+Semaines (Contrôles + Lissage), Prévisionnel + Variables, Paie + Tableau annuel + export xlsx.
+**Le ratio de production est abandonné** (Vincent, 2026-09-22) : `useInRatio` n'est ni affiché ni
+modifiable (écrit à 1 à la création, colonne conservée). Chacune attend du code WinDev à coller (plan § 1, liste datée) ; la
 plus haute valeur est **l'alphabet des lettres de type** de `lst_lissage` (nuit, paniers, absences).

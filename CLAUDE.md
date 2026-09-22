@@ -242,8 +242,8 @@ Le bureau corrige ici ce que la tablette a pointé : menu **« Pointage »** (`s
 fermé par défaut, **pas de seed**), écrans **Horaires** (`/pointage/horaires`) et **Salariés**
 (`/pointage/salaries`), tous deux sous `view_pointage` ; toute écriture sous `edit_pointage`.
 API **`/api/pointage-admin`** (`routes/pointage-admin.ts`), séparée de la tablette. Phase 1
-construite le 2026-09-21 ; phases 2–4 (Semaines / Lissage, Prévisionnel, Paie, ratio) attendent
-du code WinDev. **Dossier : `claude_doc/admin-pointage.md`** ; code legacy récupéré dans
+construite le 2026-09-21 ; phases 2–3 (Semaines / Lissage, Prévisionnel, Paie) attendent du code
+WinDev ; le ratio de production est abandonné (2026-09-22). **Dossier : `claude_doc/admin-pointage.md`** ; code legacy récupéré dans
 `~/.claude/plans/admin-pointage.md` § 7.
 
 - ⚠️ **Une heure se saisit « HH:MM » et c'est le serveur qui la place** (`lib/pointage-admin.ts`,
