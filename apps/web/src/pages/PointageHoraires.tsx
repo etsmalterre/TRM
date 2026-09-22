@@ -124,7 +124,6 @@ export function PointageHoraires() {
   const [vue, setVue] = useState<Vue>('maintenant')
   const aujourdhui = useMemo(() => jourDe(Date.now()), [])
   const [perso, setPerso] = useState(() => bornesPeriode('semaine', aujourdhui))
-  const [salarieFiltre, setSalarieFiltre] = useState(0)
   const [sort, setSort] = useState<SortState<SortKey>>({ key: 'jour', dir: 'desc' })
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
@@ -136,8 +135,8 @@ export function PointageHoraires() {
 
   const { data: salaries } = useQuery({ queryKey: [...QK, 'salaries'], queryFn: fetchSalariesAdmin })
   const horaires = useQuery({
-    queryKey: [...QK, 'horaires', bornes?.du, bornes?.au, salarieFiltre],
-    queryFn: () => fetchHoraires(bornes!.du, bornes!.au, salarieFiltre),
+    queryKey: [...QK, 'horaires', bornes?.du, bornes?.au],
+    queryFn: () => fetchHoraires(bornes!.du, bornes!.au, 0),
     enabled: bornes !== null,
   })
   const enPoste = useQuery({
@@ -147,11 +146,9 @@ export function PointageHoraires() {
     refetchInterval: maintenant ? 60_000 : false,
   })
   const source = maintenant ? enPoste : horaires
-  const rows = useMemo(() => {
-    const all = source.data?.lignes ?? []
-    if (!maintenant) return all
-    return all.filter((r) => salarieFiltre === 0 || r.salarie.id === salarieFiltre)
-  }, [source.data, maintenant, salarieFiltre])
+  // No salarié dropdown (Vincent, 2026-09-22): the search bar is the filter —
+  // seven people, three letters find one, former ones included.
+  const rows = useMemo(() => source.data?.lignes ?? [], [source.data])
 
   const deferredSearch = useDeferredValue(searchQuery)
   const filteredSorted = useMemo(() => {
@@ -172,23 +169,6 @@ export function PointageHoraires() {
   const handleSort = useCallback((key: SortKey) => {
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
   }, [])
-
-  // The salarié filter lists the ACTIVE people (7 today) — the 38 former ones
-  // only when « Anciens » is ticked (Vincent, 2026-09-22). « Tous les salariés »
-  // stays the empty choice and never filters by that flag: a former salarié's
-  // shifts still show, as on the legacy board.
-  const [anciens, setAnciens] = useState(false)
-  const salarieOptions = useMemo<PopoverSelectOption[]>(
-    () =>
-      (salaries ?? [])
-        .filter((s) => !s.supprime || anciens || s.id === salarieFiltre)
-        .map((s) => ({
-          id: s.id,
-          primary: nomComplet(s),
-          secondary: s.supprime ? 'ancien' : undefined,
-        })),
-    [salaries, anciens, salarieFiltre],
-  )
 
   // Drawer dirty tracking (§28.3.c): the drawer owns its draft, the page guard
   // saves or discards it before a row switch, a dismissal or a route change.
@@ -233,7 +213,7 @@ export function PointageHoraires() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Rechercher un salarié…"
+            placeholder="Rechercher un salarié (nom, prénom)…"
             className="h-9 w-full pl-8 pr-3 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
@@ -269,18 +249,6 @@ export function PointageHoraires() {
                   />
                 </div>
           )}
-          <div className="w-52 flex-shrink-0 sm:order-5">
-            <PopoverSelect options={salarieOptions} value={salarieFiltre} onChange={setSalarieFiltre} emptyLabel="Tous les salariés" />
-          </div>
-          <label className="flex items-center gap-2 text-sm cursor-pointer select-none flex-shrink-0 sm:order-5" title="Proposer aussi les anciens salariés dans la liste">
-            <input
-              type="checkbox"
-              checked={anciens}
-              onChange={(e) => setAnciens(e.target.checked)}
-              className="h-4 w-4 rounded border-input text-accent focus:ring-2 focus:ring-ring cursor-pointer"
-            />
-            <span>Anciens</span>
-          </label>
         </div>
 
         {canEdit && (
