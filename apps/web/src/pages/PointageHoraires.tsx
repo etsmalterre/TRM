@@ -88,9 +88,11 @@ const COLUMNS: { key: SortKey; label: string; width: string; align?: 'left' | 'r
 
 /** What the table shows: the period's shifts, or the open ones (any day). */
 type Affichage = 1 | 2 | 3
+// « En poste maintenant » first and by default (Vincent, 2026-09-22): the
+// screen opens on the legacy FEN_Accueil board, the period grid is one pick away.
 const AFFICHAGES: PopoverSelectOption[] = [
-  { id: 1, primary: 'Postes de la période' },
   { id: 2, primary: 'En poste maintenant' },
+  { id: 1, primary: 'Postes de la période' },
   { id: 3, primary: 'Postes non fermés' },
 ]
 
@@ -124,7 +126,7 @@ const QK = ['pointage-admin'] as const
 
 export function PointageHoraires() {
   const [searchQuery, setSearchQuery] = useState('')
-  const [affichage, setAffichage] = useState<Affichage>(1)
+  const [affichage, setAffichage] = useState<Affichage>(2)
   const [periode, setPeriode] = useState<Periode>('semaine')
   const aujourdhui = useMemo(() => jourDe(Date.now()), [])
   const [perso, setPerso] = useState(() => bornesPeriode('semaine', aujourdhui))

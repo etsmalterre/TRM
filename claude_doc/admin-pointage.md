@@ -25,7 +25,7 @@ et `useInRatio` ; `lst_message` (un message = **un salarié**, texte + `date_fin
 Patron §27 (tableau + tiroir), pièces partagées `components/pointage/parts.tsx`, client
 `lib/pointage-admin.ts`, formats et périodes `lib/pointage-heures.ts` (testé).
 
-- **Horaires** : sélecteur « Postes de la période / En poste maintenant / Postes non fermés »,
+- **Horaires** : s'ouvre sur « En poste maintenant » (décision 2026-09-22), sélecteur « En poste maintenant / Postes de la période / Postes non fermés »,
   périodes prédéfinies (semaine lun→dim, mois, 30 jours, libre), filtre salarié, recherche.
   Colonnes = celles de `FEN_Horaires_1$Requête` : date, salarié, début, pause 1, pause 2, fin,
   pauses (**terminées seules**, min), **présence = fin − début BRUTE** (le legacy ne déduit pas
