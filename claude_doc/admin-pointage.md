@@ -26,7 +26,7 @@ Patron §27 (tableau + tiroir), pièces partagées `components/pointage/parts.ts
 `lib/pointage-admin.ts`, formats et périodes `lib/pointage-heures.ts` (testé).
 
 - **Horaires** : s'ouvre sur « En poste maintenant » (décision 2026-09-22), sélecteur « En poste maintenant / Postes de la période / Postes non fermés »,
-  périodes prédéfinies (semaine lun→dim, mois, 30 jours, libre), filtre salarié, recherche.
+  périodes prédéfinies (semaine lun→dim, mois, 30 jours, libre), filtre salarié (**actifs seuls**, case « Anciens » pour les 38 supprimés), recherche.
   Colonnes = celles de `FEN_Horaires_1$Requête` : date, salarié, début, pause 1, pause 2, fin,
   pauses (**terminées seules**, min), **présence = fin − début BRUTE** (le legacy ne déduit pas
   les pauses ; le totaliseur ajoute « Hors pauses »). Tiroir : six heures en `<input type="time">`

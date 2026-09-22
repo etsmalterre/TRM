@@ -178,14 +178,21 @@ export function PointageHoraires() {
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
   }, [])
 
+  // The salarié filter lists the ACTIVE people (7 today) — the 38 former ones
+  // only when « Anciens » is ticked (Vincent, 2026-09-22). « Tous les salariés »
+  // stays the empty choice and never filters by that flag: a former salarié's
+  // shifts still show, as on the legacy board.
+  const [anciens, setAnciens] = useState(false)
   const salarieOptions = useMemo<PopoverSelectOption[]>(
     () =>
-      (salaries ?? []).map((s) => ({
-        id: s.id,
-        primary: nomComplet(s),
-        secondary: s.supprime ? 'supprimé' : undefined,
-      })),
-    [salaries],
+      (salaries ?? [])
+        .filter((s) => !s.supprime || anciens || s.id === salarieFiltre)
+        .map((s) => ({
+          id: s.id,
+          primary: nomComplet(s),
+          secondary: s.supprime ? 'ancien' : undefined,
+        })),
+    [salaries, anciens, salarieFiltre],
   )
 
   // Drawer dirty tracking (§28.3.c): the drawer owns its draft, the page guard
@@ -275,6 +282,15 @@ export function PointageHoraires() {
           <div className="w-52 flex-shrink-0 sm:order-5">
             <PopoverSelect options={salarieOptions} value={salarieFiltre} onChange={setSalarieFiltre} emptyLabel="Tous les salariés" />
           </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none flex-shrink-0 sm:order-5" title="Proposer aussi les anciens salariés dans la liste">
+            <input
+              type="checkbox"
+              checked={anciens}
+              onChange={(e) => setAnciens(e.target.checked)}
+              className="h-4 w-4 rounded border-input text-accent focus:ring-2 focus:ring-ring cursor-pointer"
+            />
+            <span>Anciens</span>
+          </label>
         </div>
 
         {canEdit && (
