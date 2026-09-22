@@ -85,14 +85,20 @@ export function Consigne() {
   const notesQ = useQuery({
     queryKey: ['atelier', 'notes', ofId],
     queryFn: () => fetchNotesRef(ofId),
-    enabled: ofId > 0,
+    // The régleur's tab only (see `avecNotes` below).
+    enabled: ofId > 0 && regleur,
   })
   const of = ofQ.data
 
   // Landing tab, decided once the OF is known (the legacy's INT_Option init)
   // — unless the caller named one.
   const demande = (location.state as { onglet?: unknown } | null)?.onglet
-  const ongletDemande = ONGLETS.find((o) => o === demande) ?? null
+  // The notes are the régleur's (Vincent, 2026-09-22): the standing remarks of
+  // the reference are written at the desk for whoever sets the machine up, and
+  // a bonnetier keeps the legacy's two plans — consigne and messages. A
+  // bonnetier's phone never fetches them either.
+  const avecNotes = regleur
+  const ongletDemande = ONGLETS.find((o) => o === demande && (o !== 'notes' || avecNotes)) ?? null
   const [onglet, setOnglet] = useState<Onglet | null>(null)
 
   const titre = machine?.label ?? '—'
@@ -107,14 +113,14 @@ export function Consigne() {
 
   useEffect(() => {
     if (!of) return
-    if (onglet === 'messages' && !avecMessages) {
+    if ((onglet === 'messages' && !avecMessages) || (onglet === 'notes' && !avecNotes)) {
       setOnglet('consigne')
       return
     }
     if (onglet !== null) return
     const choisi = ongletDemande ?? (regleur || of.consigne ? 'consigne' : 'messages')
     setOnglet(choisi === 'messages' && !avecMessages ? 'consigne' : choisi)
-  }, [of, regleur, onglet, ongletDemande, avecMessages])
+  }, [of, regleur, onglet, ongletDemande, avecMessages, avecNotes])
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -158,7 +164,9 @@ export function Consigne() {
                 active={onglet === 'consigne'}
                 onClick={() => setOnglet('consigne')}
               />
-              <Segment label="Notes" count={nbNotes} active={onglet === 'notes'} onClick={() => setOnglet('notes')} />
+              {avecNotes && (
+                <Segment label="Notes" count={nbNotes} active={onglet === 'notes'} onClick={() => setOnglet('notes')} />
+              )}
               {avecMessages && (
                 <Segment
                   label="Messages"
@@ -183,7 +191,7 @@ export function Consigne() {
               </div>
             ))}
 
-          {onglet === 'notes' && (
+          {onglet === 'notes' && avecNotes && (
             <NotesReference
               notes={notesQ.data ?? []}
               chargement={notesQ.isLoading}

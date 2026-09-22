@@ -63,9 +63,13 @@ export interface EtatOf {
 }
 
 export function actionsDisponibles(of: EtatOf, estRegleur: boolean): ActionAtelier[] {
-  // An OF that has never started offers exactly one thing. The legacy also
-  // hides the info button here — there is no piece yet, so no procedure to read.
-  if (!of.demarre) return ['Lancement OF']
+  // An OF that has never started offers exactly one thing — and only to the
+  // régleur (2026-09-22). The legacy offered « Lancement OF » to both builds;
+  // here the launch is the end of the réglage sheet, which only a régleur
+  // reads, so a bonnetier on an unlaunched OF has nothing to record and the
+  // band says so. The legacy also hides the info button here — there is no
+  // piece yet, so no procedure to read.
+  if (!of.demarre) return estRegleur ? ['Lancement OF'] : []
 
   const actions: ActionAtelier[] = []
 

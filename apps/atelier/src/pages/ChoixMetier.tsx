@@ -171,20 +171,25 @@ const ETATS = {
 const pct = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 1 })
 const arrets = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 })
 
-/** The 2nd-choice pill only earns its place from 1 %: below that the figure
- *  rounds to « 0 % » or « 0,5 % » and tells the régleur nothing the bell has
- *  not already said (2026-09-14). The API zeroes it without an alert anyway. */
+/** The 2nd-choice pill earns its place from 1 %, for BOTH roles (Vincent,
+ *  2026-09-22): below that the figure rounds to « 0 % » or « 0,5 % » and says
+ *  nothing. The legacy showed it to the régleur only, and only under a lit
+ *  bell; a bonnetier who reads « 1,5 % » on their métier knits more carefully,
+ *  so the ratio now rides on every list (`of.pct_defaut`) and this threshold
+ *  is the only rule. */
 const SEUIL_PCT_DEFAUT = 0.01
 
 function MetierTile({ m, regleur, onOpen }: { m: Machine; regleur: boolean; onOpen: () => void }) {
   const of = m.of
   const r = m.regleur
   const alerte = !!r?.alerte
-  // The régleur figures get a row of their own, running under the glyph and
-  // the chevron: on a 360 px phone the middle column alone is ~140 px, not
-  // enough for the two pills side by side — and the defect pill must always
-  // sit left of the stops pill, never wrap under it (2026-09-14).
-  const figures = !!of && !!r && (alerte || r.arrets_piece.moyenne !== null)
+  const defauts = !!of && of.pct_defaut >= SEUIL_PCT_DEFAUT
+  // The figures get a row of their own, running under the glyph and the
+  // chevron: on a 360 px phone the middle column alone is ~140 px, not enough
+  // for the two pills side by side — and the defect pill must always sit left
+  // of the stops pill, never wrap under it (2026-09-14). A bonnetier's tile
+  // carries the defect pill alone; the stops pill is the régleur's.
+  const figures = !!of && (defauts || (!!r && r.arrets_piece.moyenne !== null))
   // The idle tile's pills: when the last OF stopped, and the one waiting.
   const dernier = !of ? (m.inactif?.dernier_of ?? null) : null
   const prochain = !of ? (m.inactif?.prochain_of ?? null) : null
@@ -238,14 +243,14 @@ function MetierTile({ m, regleur, onOpen }: { m: Machine; regleur: boolean; onOp
 
       {figures && (
         <span className="col-start-2 col-span-3 flex flex-nowrap gap-1.5 min-w-0 overflow-hidden">
-          {alerte && r.pct_defaut >= SEUIL_PCT_DEFAUT && (
-            // Just the figure: red and a percentage is enough for a régleur to
-            // read « 2nd choix » — the label crowded the tile (2026-09-14).
+          {defauts && of && (
+            // Just the figure: red and a percentage is enough to read
+            // « 2nd choix » — the label crowded the tile (2026-09-14).
             <Pastille rouge title="Poids de 2nd choix sur les derniers rouleaux de la référence">
-              {pct.format(r.pct_defaut)}
+              {pct.format(of.pct_defaut)}
             </Pastille>
           )}
-          {r.arrets_piece.moyenne !== null && (
+          {r && r.arrets_piece.moyenne !== null && (
             // Same colour as the tablet's pill for the same figure — the
             // ladder lives in lib/teinte-arrets.ts, tested against the TRS source.
             <Pastille

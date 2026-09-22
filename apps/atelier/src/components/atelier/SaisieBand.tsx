@@ -39,6 +39,7 @@ import {
   Brush,
   Check,
   CheckCheck,
+  Clock,
   Flag,
   Loader2,
   Pause,
@@ -165,7 +166,15 @@ export function SaisieBand({
 
   return (
     <div className="px-3 pb-3 space-y-2">
-      {lancement ? (
+      {!of.demarre && !lancement ? (
+        // A bonnetier on an OF the régleur has not launched yet: nothing to
+        // record, and the band says why rather than showing a launch button
+        // the server would refuse (lib/actions.ts, 2026-09-22).
+        <p className="flex items-center justify-center gap-2 h-16 rounded-xl border border-dashed border-border text-sm text-muted-foreground">
+          <Clock className="h-4 w-4 flex-shrink-0" />
+          OF non lancé — en attente du régleur
+        </p>
+      ) : lancement ? (
         <button
           type="button"
           disabled={bloque !== null}

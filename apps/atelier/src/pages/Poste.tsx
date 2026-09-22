@@ -143,12 +143,17 @@ export function Poste() {
                 >
                   <BobineIcon className="h-5 w-5" />
                 </BoutonIcone>
-                <BoutonIcone
-                  onClick={() => navigate(`/metier/${idMachine}/historique`)}
-                  label="Historique · pièces et visitage"
-                >
-                  <History className="h-5 w-5" />
-                </BoutonIcone>
+                {/* The history is the régleur's, as in the legacy (Vincent,
+                    2026-09-22): a bonnetier reads their productivity on the
+                    TRS wall, not here. */}
+                {regleur && (
+                  <BoutonIcone
+                    onClick={() => navigate(`/metier/${idMachine}/historique`)}
+                    label="Historique · pièces et visitage"
+                  >
+                    <History className="h-5 w-5" />
+                  </BoutonIcone>
+                )}
               </div>
             </div>
             <div className="mt-2 h-px w-24 bg-gradient-to-r from-gold to-transparent" />

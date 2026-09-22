@@ -21,17 +21,18 @@ export interface MachineOf {
   a_consigne: boolean
   demarre: boolean
   interrompu: boolean
+  /** Second-choice weight ratio over the recent rolls of the article (0–1),
+   *  raw, for both roles (2026-09-22) — the tile shows it from 1 %. */
+  pct_defaut: number
 }
 
 /** The régleur build's tile decorations (legacy FEN_Choix_Metier, Appli_Regleur):
  *  present only when the list was fetched with `regleur=1`, and only on a
- *  métier that has an OF. `pct_defaut` is zeroed by the server when there is
- *  no alert, exactly as the legacy tile does. */
+ *  métier that has an OF. */
 export interface MachineRegleur {
   etat: 'reglage' | 'pause' | 'marche'
+  /** Second choice above 2 % or more than one stop per piece — the red frame. */
   alerte: boolean
-  /** Second-choice weight ratio over the recent rolls of the article (0–1). */
-  pct_defaut: number
   /** The TRS tablet's number: mean unexplained stops per piece over the last
    *  3 finished pieces of the OF (`moyenne` null until there is one). Never
    *  zeroed — only its colour follows `alerte`. */

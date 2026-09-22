@@ -11,10 +11,11 @@
 //                number, date, weight, visiteuse, and the first/second-choice
 //                mark.
 //
-// Read-only. The legacy opens it from a régleur-only icon; here the poste's
-// link row shows it to both roles, because the screen writes nothing and a
-// bonnetier reading the productivity of their own métier is the point of the
-// TRS wall tablet already.
+// Read-only, and the régleur's — as in the legacy, which opens it from a
+// régleur-only icon. It was offered to both roles from 2026-09-15 to
+// 2026-09-22; Vincent took it back from the bonnetier (the poste hides the
+// icon, and this screen sends a bonnetier back to the poste should a stale
+// link land here).
 //
 // The % is the legacy's own arithmetic (ETM/apps/api/src/lib/historique-atelier-trm.ts),
 // NOT the ERP's approximation: an Android phone still in service next to this
@@ -73,6 +74,11 @@ export function Historique() {
   // swaps ofId under the screen), so a stale piece id is never queried.
   const [ouverte, setOuverte] = useState<number | null>(null)
   useEffect(() => setOuverte(null), [ofId])
+  // A bonnetier has no way in from the poste; a deep link or a stale history
+  // entry lands back on the poste of the same métier.
+  useEffect(() => {
+    if (identite && !regleur) navigate(`/metier/${idMachine}`, { replace: true })
+  }, [identite, regleur, idMachine, navigate])
 
   const titre = machine?.label ?? '—'
   const chargement = machinesQ.isLoading || (ofId > 0 && (ofQ.isLoading || histQ.isLoading))

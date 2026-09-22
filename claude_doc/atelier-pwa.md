@@ -244,6 +244,29 @@ maintenant en deux rangées (`components/atelier/SaisieBand.tsx`, ~130 px) :
   de saisie reste neutre** (§46.2) : on marque ce qui NOMME la consigne, jamais la zone où
   on la tape, qui se lirait comme une erreur de validation.
 
+## Le bonnetier voit moins que le régleur (2026-09-22)
+
+Quatre retraits demandés par Vincent le 2026-09-22, tous côté bonnetier, le régleur inchangé.
+Le rôle est celui du téléphone enrôlé (identité fixe = régleur), comme partout.
+
+- **Pas de « Lancement OF »** : `actionsFor()` (API, qui fait foi) et `actionsDisponibles()`
+  (web, `actions.test.ts`) rendent `[]` à un bonnetier sur un OF non lancé — le legacy
+  l'offrait aux deux builds, mais le lancement est la fin de la fiche de réglage, que seul
+  un régleur lit. La bande dit « OF non lancé — en attente du régleur » (`SaisieBand.tsx`) ;
+  l'API répond 409 `action_indisponible` à un ancien bundle qui l'enverrait quand même.
+- **Le % de 2nd choix se voit dès 1 %, par les deux rôles** : il voyage **brut** sur
+  `of.pct_defaut` de `GET /atelier/machines` (sans `?regleur=1`, `pctDefautDesOfs`, un
+  `TOP 100` par couple), et la tuile est seule à décider (`SEUIL_PCT_DEFAUT = 0,01`,
+  `ChoixMetier.tsx`). ⚠️ **La règle legacy « % remis à 0 sans alerte » est retirée** :
+  un 1,5 % s'affiche désormais sans cloche, aussi chez le régleur. `alerteRegleur()` ne
+  porte plus `pct_defaut` (le % est une entrée de l'alerte, pas une sortie) ; l'alerte
+  (liseré rouge) reste `% > 2 % ou arrêts/pièce > 1`, régleur seul.
+- **Pas d'Historique** (icône du coin de l'OF, `Poste.tsx`) — comme le legacy ; l'écran
+  renvoie un bonnetier au poste s'il y arrive par un lien (`Historique.tsx`).
+- **Pas d'onglet « Notes »** sur l'écran Consigne : un bonnetier garde les deux plans du
+  legacy (consigne, messages) ; `avecNotes = regleur`, la requête `obs_ref_ecru` n'est même
+  pas lancée, un `state.onglet = 'notes'` demandé est ignoré.
+
 ## L'OF actif — Consigne · Historique · Fils (2026-09-15)
 
 Demande de Vincent du 2026-09-15, photos du téléphone Android de Nicolas à l'appui : sur un
@@ -257,7 +280,8 @@ chacune un écran clé par le métier comme le reste.
   haut à droite de l'en-tête de l'OF (44 px, badge or = messages ; le libellé vit dans
   `title` / `aria-label`) — décision de Vincent : le régleur s'en sert tous les jours et
   apprend les icônes. La progression passe sous « réf · coloris » pour leur faire la place.
-  Ordre : Consigne (consigne, notes, messages) · Fils · Historique. **Réglage reste une
+  Ordre : Consigne (consigne, notes, messages) · Fils · Historique — **Historique et
+  l'onglet Notes sont au régleur seul depuis le 2026-09-22**. **Réglage reste une
   rangée `Lien` libellée** sous la consigne : conditionnelle, et elle mène au lancement.
   Le callout §46 de la consigne reste toujours affiché sur le poste quand il y en a une.
   L'icône Fils est la **bobine d'ETM** (`components/icons/BobineIcon.tsx`, miroir verbatim de
@@ -285,8 +309,8 @@ chacune un écran clé par le métier comme le reste.
     de l'ERP garde son approximation par `vitesse` ; l'adopter là-bas est un chantier
     séparé. Sans fiche `ref_ecru_machine` : « — » partout, pas un mur de rouge (le
     legacy stocke 0 min et peint tout en rouge).
-  - Écart assumé : le legacy n'offre l'Historique qu'au régleur ; ici les deux rôles le
-    voient (lecture seule, et le mur TRS montre déjà ces chiffres à tout l'atelier).
+  - Régleur seul, comme le legacy — offert aux deux rôles du 2026-09-15 au 2026-09-22,
+    puis repris au bonnetier par Vincent (le mur TRS lui montre déjà ces chiffres).
     La jointure interne du legacy sur `bonnetier` perdait les événements sans auteur ;
     ici ils restent, prénom vide.
 - **Fils** (`FilsOf.tsx`, port de `FEN_Fils_OF`, les deux builds) :
@@ -328,13 +352,13 @@ Ce que le build régleur ajoute, et ce qui en est porté :
 
 | Legacy (gen) | Porté | Où |
 |---|---|---|
-| Combo : « Interrompre OF » / « Relancer OF » | oui (dès le 27/08) | `actionsFor()` / `actions.ts` |
-| Choix Métier : icône d'état (réglage / pause / marche), fréquence d'arrêt, % 2nd choix, **alerte** ; Inactifs = métiers **sans OF** | oui | `GET /atelier/machines?regleur=1`, `lib/atelier-regleur-trm.ts` (pur, testé), `ChoixMetier.tsx` |
+| Combo : « Interrompre OF » / « Relancer OF » — et **« Lancement OF », régleur seul depuis le 2026-09-22** (le legacy l'offrait aux deux builds) | oui (dès le 27/08) | `actionsFor()` / `actions.ts` |
+| Choix Métier : icône d'état (réglage / pause / marche), fréquence d'arrêt, % 2nd choix, **alerte** ; Inactifs = métiers **sans OF** | oui — le % 2nd choix est **aux deux rôles** depuis le 2026-09-22 (`of.pct_defaut`, brut) | `GET /atelier/machines?regleur=1`, `lib/atelier-regleur-trm.ts` (pur, testé), `ChoixMetier.tsx` |
 | Choix Métier : taper un OF non lancé → contrôle d'éligibilité → `FEN_Reglage_Machine` | oui | route `/metier/:id/reglage`, `GET /atelier/of/:id/reglage`, `ReglageMachine.tsx` |
 | `FEN_Reglage_Machine` : repères par tour (LFA précédente / LFA / repère), réglages, fils, consigne, **« Lancer OF »** | oui — le lancement passe par l'événement `Lancement OF` existant (une seule voie d'écriture) | idem |
 | `FEN_Consigne` plan 3 : le régleur **écrit** `ordre_fabrication.observations` | oui — **et depuis la fiche de réglage** (2026-09-15 : Modifier / Supprimer, `ConsigneSheet` ; une neuve par l'icône Consigne) | `PUT /atelier/of/:id/consigne`, `Consigne.tsx`, `ReglageMachine.tsx` |
 | `FEN_Consigne` plan 2 : fil `message_of` (les deux rôles), suppression de **ses** messages | oui | `GET/POST/DELETE /atelier/of/:id/messages[/:msgId]` |
-| Icône Historique → `FEN_Historique` (pièces, durée, productivité vs durée mini ; événements d'une pièce ; rouleaux visités) | oui (2026-09-15, aux deux rôles) | `GET /atelier/of/:id/historique`, `/pieces/:pieceId/evenements`, `Historique.tsx` — voir « L'OF actif » |
+| Icône Historique → `FEN_Historique` (pièces, durée, productivité vs durée mini ; événements d'une pièce ; rouleaux visités) | oui (2026-09-15 ; régleur seul depuis le 2026-09-22) | `GET /atelier/of/:id/historique`, `/pieces/:pieceId/evenements`, `Historique.tsx` — voir « L'OF actif » |
 | `MAJ_auto` (version par configuration), `notif_token` / push | non (sans objet / à venir) | — |
 
 Les règles du legacy, verbatim dans l'en-tête de `lib/atelier-regleur-trm.ts` :
@@ -356,13 +380,16 @@ Les règles du legacy, verbatim dans l'en-tête de `lib/atelier-regleur-trm.ts` 
 - **% 2nd choix** = poids 2nd choix / poids total sur les rouleaux récents du couple
   (référence, coloris) — tous OF, tous métiers — `TOP 100`, arrêt au rouleau qui passe 1 000 kg.
 - **Alerte** = `% > 2 % ou arrêts/pièce > 1` (le palier ambre de la tablette,
-  `SEUIL_ARRETS_PIECE`) ; le % est **remis à 0** sans alerte, comme la tuile legacy — donc
-  un 1,2 % ne s'affiche que sous une cloche allumée par les arrêts, jamais seul — et
-  **jamais sous 1 %** (`SEUIL_PCT_DEFAUT`, 2026-09-14). Le chiffre d'arrêts n'est jamais
+  `SEUIL_ARRETS_PIECE`). C'est l'état d'attention §41 de la liste (liseré rouge).
+  ⚠️ Le « % remis à 0 sans alerte » du legacy (gardé jusqu'au 2026-09-21, avec la pastille
+  **dès 1 %** sous cloche seulement) est **retiré le 2026-09-22** : le % voyage brut sur
+  `of.pct_defaut` pour les deux rôles et la pastille rouge s'affiche dès 1 %, cloche ou
+  non — voir « Le bonnetier voit moins que le régleur ». Le chiffre d'arrêts n'est jamais
   remis à 0 et **sa pastille porte la couleur de la tablette** (≤ 1 vert · ≤ 3 ambre · > 3
   rouge, `lib/teinte-arrets.ts`, test de parité qui importe `apps/trs/src/lib/affichage.ts`
-  — décision 2026-09-14). C'est l'état d'attention §41 de la liste (liseré rouge).
-- Le calcul n'est fait que sur `?regleur=1` : le lecteur arrêts/pièce (cache par OF, une
+  — décision 2026-09-14).
+- Seuls l'état, l'éligibilité et le lecteur arrêts/pièce sont réservés à `?regleur=1` (le
+  `TOP 100` par couple du % est payé par toute liste depuis le 2026-09-22) : (cache par OF, une
   lecture `piece_production` par appel) + un `TOP 100` par couple + une lecture
   `ref_ecru_machine` ; la liste bonnetier ne paie rien.
 
@@ -395,7 +422,7 @@ l'historique des notes de l'OF**. Le legacy y arrivait par l'icône `IMG_Consign
   (OF, réglage, liste des métiers) vivent une fois dans **`lib/consigne.ts`**
   (`useEcrireConsigne`), partagée avec l'éditeur plein écran de `Consigne.tsx`.
 - **« Notes »** (rangée `Lien`, compteur « n notes · n messages » — pas « Historique », ce mot est l'écran pièces/visitage du poste) ouvre l'écran Consigne
-  sur un **troisième segment « Notes »** : les observations durables de la référence
+  sur un **troisième segment « Notes », régleur seul depuis le 2026-09-22** : les observations durables de la référence
   (`obs_ref_ecru`, les « Commentaires historiques » de l'ERP, filtrées par le métier et le
   coloris de l'OF), **lues sur la route de l'ERP** `GET /of-trm/:id/observations-ref`
   (lecture ouverte, même prédicat legacy — pas de second lecteur). Lecture seule : elles
