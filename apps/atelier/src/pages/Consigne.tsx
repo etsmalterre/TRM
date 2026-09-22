@@ -26,6 +26,11 @@
 //
 // Messages are what a bonnetier leaves for the next shift on this OF. The
 // server, not the button, decides whose message can be deleted.
+//
+// A BONNETIER gets the messages alone, full height, no segmented control
+// (Vincent, 2026-09-22): the consigne is already the red callout on the poste
+// they come from, so a « Consigne » segment here was the same text twice, and
+// the notes are the régleur's. The segments are the régleur's screen only.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -113,6 +118,10 @@ export function Consigne() {
 
   useEffect(() => {
     if (!of) return
+    if (!regleur) {
+      if (onglet !== 'messages') setOnglet('messages')
+      return
+    }
     if ((onglet === 'messages' && !avecMessages) || (onglet === 'notes' && !avecNotes)) {
       setOnglet('consigne')
       return
@@ -155,6 +164,7 @@ export function Consigne() {
             <div className="mt-2 h-px w-24 bg-gradient-to-r from-gold to-transparent" />
           </div>
 
+          {regleur && (
           <div className="flex-shrink-0 p-2 mt-1 bg-zinc-200/50 border-y border-border">
             <div className="flex gap-1 rounded-lg bg-background p-1">
               <Segment
@@ -177,6 +187,10 @@ export function Consigne() {
               )}
             </div>
           </div>
+          )}
+          {/* Without the segments the thread starts under a hairline, not
+              glued to the OF title. */}
+          {!regleur && <div className="flex-shrink-0 mt-3 border-t border-border" />}
 
           {onglet === 'consigne' &&
             (regleur ? (

@@ -129,9 +129,9 @@ export function Poste() {
                 <BoutonIcone
                   onClick={() => navigate(`/metier/${idMachine}/consigne`)}
                   label={
-                    of.nb_messages > 0
-                      ? `Consigne, notes et messages · ${of.nb_messages} message${of.nb_messages > 1 ? 's' : ''}`
-                      : 'Consigne, notes et messages'
+                    // A bonnetier's screen is the messages alone (Consigne.tsx).
+                    (regleur ? 'Consigne, notes et messages' : 'Messages') +
+                    (of.nb_messages > 0 ? ` · ${of.nb_messages} message${of.nb_messages > 1 ? 's' : ''}` : '')
                   }
                   badge={of.nb_messages > 0 ? of.nb_messages : undefined}
                 >

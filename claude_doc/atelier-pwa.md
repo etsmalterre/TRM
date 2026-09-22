@@ -271,9 +271,12 @@ Le rôle est celui du téléphone enrôlé (identité fixe = régleur), comme pa
   pastille dès 1 %, liseré au-delà de 2 %.
 - **Pas d'Historique** (icône du coin de l'OF, `Poste.tsx`) — comme le legacy ; l'écran
   renvoie un bonnetier au poste s'il y arrive par un lien (`Historique.tsx`).
-- **Pas d'onglet « Notes »** sur l'écran Consigne : un bonnetier garde les deux plans du
-  legacy (consigne, messages) ; `avecNotes = regleur`, la requête `obs_ref_ecru` n'est même
-  pas lancée, un `state.onglet = 'notes'` demandé est ignoré.
+- **L'écran Consigne est les messages seuls** (Vincent, 2026-09-22, plus tard le même jour) :
+  pas de segments du tout, le fil prend toute la hauteur. La consigne est déjà le callout
+  rouge du poste d'où il vient — un segment « Consigne » la répétait. Pas de Notes non plus
+  (`avecNotes = regleur`, la requête `obs_ref_ecru` n'est même pas lancée) ; tout
+  `state.onglet` demandé est ignoré, l'onglet est forcé à `messages`. Libellé du bouton du
+  poste : « Messages ». Le régleur garde Consigne · Notes · Messages.
 
 ## L'OF actif — Consigne · Historique · Fils (2026-09-15)
 
