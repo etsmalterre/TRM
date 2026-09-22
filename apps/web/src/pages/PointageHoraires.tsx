@@ -384,10 +384,24 @@ export function PointageHoraires() {
 
 // ── Cells ──────────────────────────────────────────────
 
-/** « 10:00 – 10:15 », « 10:00 – … » while running, « — » when not taken. */
-function pause(debutMs: number | null, finMs: number | null): string {
-  if (debutMs == null) return '—'
-  return `${heure(debutMs)} – ${finMs == null ? '…' : heure(finMs)}`
+/** A pause as a pill (Vincent, 2026-09-22 — more readable than two times in
+ *  muted text): zinc when finished, amber while running (« 10:00 – … », the
+ *  tablet's colour for « En pause »), a muted dash when not taken. */
+function PausePill({ debutMs, finMs }: { debutMs: number | null; finMs: number | null }) {
+  if (debutMs == null) return <span className="text-muted-foreground">—</span>
+  const enCours = finMs == null
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs tabular-nums whitespace-nowrap',
+        enCours ? 'bg-amber-500/15 text-amber-800 border-amber-500/30' : 'bg-zinc-100 text-zinc-700 border-zinc-300/70',
+      )}
+    >
+      {heure(debutMs)}
+      <span className={enCours ? 'text-amber-800/60' : 'text-zinc-400'}>–</span>
+      {enCours ? '…' : heure(finMs)}
+    </span>
+  )
 }
 
 /** `surNavy`: inside the drawer's navy band the pastel chip loses its text —
@@ -425,8 +439,8 @@ const HoraireRow = memo(function HoraireRow({ row, selected, onRowClick }: { row
         {nomComplet(row.salarie)}
       </td>
       <td className="px-2 py-2 tabular-nums">{heure(row.debutMs)}</td>
-      <td className="px-2 py-2 tabular-nums text-muted-foreground truncate">{pause(row.debutPause1Ms, row.finPause1Ms)}</td>
-      <td className="px-2 py-2 tabular-nums text-muted-foreground truncate">{pause(row.debutPause2Ms, row.finPause2Ms)}</td>
+      <td className="px-2 py-1.5 truncate"><PausePill debutMs={row.debutPause1Ms} finMs={row.finPause1Ms} /></td>
+      <td className="px-2 py-1.5 truncate"><PausePill debutMs={row.debutPause2Ms} finMs={row.finPause2Ms} /></td>
       <td className="px-2 py-2 tabular-nums">{heure(row.finMs)}</td>
       <td className="px-2 py-2 tabular-nums text-right text-muted-foreground">{row.pausesMin > 0 ? `${row.pausesMin} min` : '—'}</td>
       <td className="px-2 py-2 tabular-nums text-right font-medium">{dureeHM(row.presenceMin)}</td>
@@ -455,8 +469,8 @@ const HoraireCard = memo(function HoraireCard({ row, selected, onRowClick }: { r
       <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2">
         <CardKV label="Début" value={heure(row.debutMs)} mono strong />
         <CardKV label="Fin" value={heure(row.finMs)} mono strong />
-        <CardKV label="Pause 1" value={pause(row.debutPause1Ms, row.finPause1Ms)} mono />
-        <CardKV label="Pause 2" value={pause(row.debutPause2Ms, row.finPause2Ms)} mono />
+        <CardKV label="Pause 1" value={<PausePill debutMs={row.debutPause1Ms} finMs={row.finPause1Ms} />} />
+        <CardKV label="Pause 2" value={<PausePill debutMs={row.debutPause2Ms} finMs={row.finPause2Ms} />} />
         <CardKV label="Pauses" value={row.pausesMin > 0 ? `${row.pausesMin} min` : '—'} mono />
         <CardKV label="Présence" value={dureeHM(row.presenceMin)} mono />
       </div>
