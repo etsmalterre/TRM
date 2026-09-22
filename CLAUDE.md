@@ -702,6 +702,11 @@ Key invariants (full detail in the skill):
   deux applications (les écrans §27 d'ETM ont exactement le même piège, non traité à ce
   jour). Ne pas le poser à l'aveugle sur les listes courtes : le hook coûte un rendu de
   plus au franchissement du breakpoint.
+- **`accent` IS the gold, so a ghost/outline button that forces `hover:text-accent` goes gold
+  on gold** — `variant="ghost"` hovers `bg-accent` (solid gold) + `text-accent-foreground`,
+  and the override keeps the text gold: the label vanishes (LIVA #1180, « Non expédiées »).
+  Pair it with `hover:bg-accent/10` (the design system's « + Nouveau » footer pattern). ETM
+  still has two (`TariffsSection.tsx`, the délai clock in `SousTraitantsCommandes.tsx`).
 - **`<Badge className="badge-warning">` renders navy, not amber.** The `.badge-*` helpers live in `@layer components` while the Badge's own `bg-primary` is a plain utility, and utilities beat components — the helper silently loses. For a coloured badge, pass `variant="outline"` plus explicit utilities (`bg-amber-500/15 text-amber-800 border-amber-500/30`). Applies to ETM's copy of `badge.tsx` too.
 
 ## Versioning
