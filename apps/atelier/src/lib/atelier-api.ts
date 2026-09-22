@@ -24,6 +24,8 @@ export interface MachineOf {
   /** Second-choice weight ratio over the recent rolls of the article (0–1),
    *  raw, for both roles (2026-09-22) — the tile shows it from 1 %. */
   pct_defaut: number
+  /** Above the legacy's 2 % — the red frame, one trigger for both roles. */
+  alerte_defaut: boolean
 }
 
 /** The régleur build's tile decorations (legacy FEN_Choix_Metier, Appli_Regleur):

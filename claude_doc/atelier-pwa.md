@@ -264,8 +264,11 @@ Le rôle est celui du téléphone enrôlé (identité fixe = régleur), comme pa
   `TOP 100` par couple), et la tuile est seule à décider (`SEUIL_PCT_DEFAUT = 0,01`,
   `ChoixMetier.tsx`). ⚠️ **La règle legacy « % remis à 0 sans alerte » est retirée** :
   un 1,5 % s'affiche désormais sans cloche, aussi chez le régleur. `alerteRegleur()` ne
-  porte plus `pct_defaut` (le % est une entrée de l'alerte, pas une sortie) ; l'alerte
-  (liseré rouge) reste `% > 2 % ou arrêts/pièce > 1`, régleur seul.
+  porte plus `pct_defaut` (le % est une entrée de l'alerte, pas une sortie). **Le liseré
+  rouge a le même déclencheur pour les deux rôles** (Vincent, 2026-09-22, capture 2H/3B) :
+  `of.alerte_defaut = % > 2 %` (`alerteDefaut()`, seuil legacy, côté serveur) sur toute
+  liste ; le régleur y ajoute les arrêts/pièce > 1 (`regleur.alerte`). Deux paliers donc :
+  pastille dès 1 %, liseré au-delà de 2 %.
 - **Pas d'Historique** (icône du coin de l'OF, `Poste.tsx`) — comme le legacy ; l'écran
   renvoie un bonnetier au poste s'il y arrive par un lien (`Historique.tsx`).
 - **Pas d'onglet « Notes »** sur l'écran Consigne : un bonnetier garde les deux plans du
@@ -385,7 +388,8 @@ Les règles du legacy, verbatim dans l'en-tête de `lib/atelier-regleur-trm.ts` 
 - **% 2nd choix** = poids 2nd choix / poids total sur les rouleaux récents du couple
   (référence, coloris) — tous OF, tous métiers — `TOP 100`, arrêt au rouleau qui passe 1 000 kg.
 - **Alerte** = `% > 2 % ou arrêts/pièce > 1` (le palier ambre de la tablette,
-  `SEUIL_ARRETS_PIECE`). C'est l'état d'attention §41 de la liste (liseré rouge).
+  `SEUIL_ARRETS_PIECE`). C'est l'état d'attention §41 de la liste (liseré rouge) — **la
+  moitié « % > 2 % » vaut aussi pour le bonnetier** depuis le 2026-09-22 (`of.alerte_defaut`).
   ⚠️ Le « % remis à 0 sans alerte » du legacy (gardé jusqu'au 2026-09-21, avec la pastille
   **dès 1 %** sous cloche seulement) est **retiré le 2026-09-22** : le % voyage brut sur
   `of.pct_defaut` pour les deux rôles et la pastille rouge s'affiche dès 1 %, cloche ou

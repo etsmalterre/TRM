@@ -143,7 +143,8 @@ depuis un téléphone enrôlé. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   (`actionsFor()` API + `actions.ts` rendent `[]`, bande « en attente du régleur », et le
   métier est **inactif** pour lui — `estInactif`, tuile sans barre), pas d'icône Historique, pas d'onglet Notes sur l'écran Consigne. **Le % de 2nd choix est
   aux deux rôles dès 1 %** : brut sur `of.pct_defaut` de `GET /atelier/machines` (sans
-  `?regleur=1`) ; ⚠️ la règle legacy « % remis à 0 sans alerte » est retirée, ne pas la
+  `?regleur=1`), **liseré rouge au-delà de 2 % pour les deux** (`of.alerte_defaut`, seuil
+  serveur) ; ⚠️ la règle legacy « % remis à 0 sans alerte » est retirée, ne pas la
   réintroduire. Dossier § « Le bonnetier voit moins que le régleur ».
 - **L'OF actif porte Consigne · Historique · Fils** (2026-09-15, ports de `FEN_Consigne`,
   `FEN_Historique`, `FEN_Fils_OF`) : ⚠️ « Pièce N° i » est une **position** à rebours, pas

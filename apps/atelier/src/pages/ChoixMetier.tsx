@@ -187,7 +187,10 @@ const SEUIL_PCT_DEFAUT = 0.01
 function MetierTile({ m, regleur, onOpen }: { m: Machine; regleur: boolean; onOpen: () => void }) {
   const of = m.of
   const r = m.regleur
-  const alerte = !!r?.alerte
+  // The red frame: second choice above the server's 2 % for both roles
+  // (`alerte_defaut`, Vincent 2026-09-22 — same trigger as the régleur), plus
+  // the stops for a régleur (`regleur.alerte`).
+  const alerte = !!of?.alerte_defaut || !!r?.alerte
   const defauts = !!of && of.pct_defaut >= SEUIL_PCT_DEFAUT
   // The figures get a row of their own, running under the glyph and the
   // chevron: on a 360 px phone the middle column alone is ~140 px, not enough
@@ -208,7 +211,7 @@ function MetierTile({ m, regleur, onOpen }: { m: Machine; regleur: boolean; onOp
         'grid grid-cols-[auto_1fr_auto_auto] items-center gap-x-3 gap-y-2 active:bg-muted transition-colors',
         of ? 'border-border' : 'border-border/60',
         // §41: the frame colour is reserved for "needs my attention now" —
-        // and on the régleur list that is exactly what the legacy alert means.
+        // exactly what the legacy alert means, now for both roles.
         alerte && 'border-destructive/50 bg-destructive/5',
       )}
     >
