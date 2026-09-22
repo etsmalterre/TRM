@@ -101,6 +101,7 @@ warnings that would bite in the first hour) with a pointer to the dossier.
 | `claude_doc/dashboard-widgets.md` | Widgets finance, « Poids des pièces », « Pièces à visiter » |
 | `claude_doc/pointage-pwa.md` | `apps/pointage`, la tablette pointeuse (base `pointage`, boutons, enrôlement) |
 | `claude_doc/admin-pointage.md` | Menu Pointage de l'ERP : Horaires, Salariés + messages (port d'Admin Pointage, corrections suivies dans la jumelle et le journal TRS) |
+| `claude_doc/rapports-pointage-email.md` | Rapports de pointage par email (ex-n8n) : onglet Notifications, règles, minuterie de l'API |
 
 ## Atelier — la PWA mobile de l'atelier (`apps/atelier`)
 
@@ -271,6 +272,21 @@ abandonnés (2026-09-22). **Dossier : `claude_doc/admin-pointage.md`** ; code le
   legacy) ; solde annuel = Σ lissage − Σ prev − Σ info ; « Initialiser l'année » refuse une année déjà remplie.
 - Paie : **un repas ne compte que si le jour lissé fait ≥ 6 h** (jour = M/A/E, nuit = N, rien pour J) ; heures
   de nuit = Σ des jours N ; semaines validées seules.
+
+## Rapports de pointage par email (ex-n8n) — onglet Notifications
+
+Deux emails remplacent les workflows n8n « pointage » et « Bilan des Heures Annualisées »
+(2026-09-22) : **Rapport de pointage** (lun–ven 9 h, la veille ; le lundi vendredi → dimanche)
+et **Bilan des heures annualisées** (mardi 9 h). Abonnement par utilisateur dans Paramètres ›
+Utilisateurs › **Notifications** (catalogue et store propres à TRM, `/api/notifications-trm`),
+réservé à qui a `view_pointage`. **Dossier : `claude_doc/rapports-pointage-email.md`.**
+
+- ⚠️ **La minuterie vit dans l'API et ne tourne qu'en production** (`NODE_ENV=production`,
+  `lib/rapports-pointage-envoi.ts`) : un API de dev ou de worktree n'envoie jamais rien ; journal
+  écrit avant l'envoi = une fois par jour au plus. Expéditeur `tricotbot@etsmalterre.com`.
+- Règles dans `lib/rapport-pointage.ts` (pur, testé) : **en équipe** = une ligne
+  `planning_bonnetier` ce jour-là (± 5 min, 20 min de pause), sinon **journée** 09:00–12:00 /
+  14:00–18:00 (± 5 min) ; une sortie oubliée entre deux lignes est signalée. Lu sur `lst_horaire`.
 
 ## Production / deploy
 
