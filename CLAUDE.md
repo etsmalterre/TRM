@@ -465,7 +465,7 @@ apps). **Dossier : `claude_doc/clients-gestion.md`.**
 ### Production › Ordres de fabrication (`/production/of`) — port of FEN_Gestion_des_OF.wdw
 
 Fiche + pill §29, `ProductionOf.tsx`, API `routes/of-trm.ts` (`/api/of-trm` — les tables OF
-n'ont **pas d'`IDsociete`**). Droit `edit_of` sur les neuf routes d'écriture. Dossier plan :
+n'ont **pas d'`IDsociete`**). Droit `edit_of` sur toutes les routes d'écriture. Dossier plan :
 `~/.claude/plans/golden-petting-shell.md`.
 **Dossier complet : `claude_doc/production-of.md`** (mapping du formulaire, file d'attente,
 recherche, onglets, Observations régleur).
@@ -477,6 +477,9 @@ recherche, onglets, Observations régleur).
   reliquat « En attente » et le visitage ouvrait l'ancien OF (LIVA #1128) ;
   `healHandedOverOfs()` le ferme à la lecture (OF, visitage). Ne jamais écrire
   `est_actif` / `est_termine` / `priorite` ailleurs.
+- **« Réactiver l'OF »** (LIVA #1197) : un OF terminé revient « En attente » en tête de
+  file, jamais « en cours » — `reactiverOf()`, même module. ⚠️ Il **vide `arret_prod`**,
+  sinon `healHandedOverOfs()` le referme ; refusé sur une commande soldée (409).
 - **Un métier est libellé par `machine.emplacement`, `nom` en repli** (`machineLabel()`,
   API + `lib/machine.ts` ; LIVA #1102 : le 1G s'affichait « Beck »). Les autres écrans
   TRM (Stock TM, Expéditions, Commandes, Maintenance) restent sur `nom`.

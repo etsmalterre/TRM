@@ -39,7 +39,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity, AlertCircle, Award, Bell, Check, CheckCircle2, ChevronDown,
   ChevronUp, ClipboardList, Clock, Eye, Factory, Info, Layers, Loader2,
-  MessageSquare, Pencil, Plus, Printer, RefreshCw, Save, Search, Trash2, X,
+  MessageSquare, Pencil, Plus, Printer, RefreshCw, RotateCcw, Save, Search, Trash2, X,
 } from 'lucide-react'
 import { MasterDetailLayout } from '@/components/layout/MasterDetailLayout'
 import { Badge } from '@/components/ui/badge'
@@ -522,7 +522,7 @@ function DefautsDonut({ slices }: { slices: Array<{ label: string; value: number
 // ── §29.4 status pill (Attente → En cours → Terminé) ───
 
 function StatutPill({
-  etat, arrete, onActiver, onTerminer, isChanging, disabled, canEdit,
+  etat, arrete, onActiver, onTerminer, onReactiver, isChanging, disabled, canEdit,
 }: {
   etat: OfEtat
   /** The OF carries an arret_prod: it ran and was stopped. A waiting OF in that
@@ -532,6 +532,7 @@ function StatutPill({
   arrete: boolean
   onActiver: () => void
   onTerminer: () => void
+  onReactiver: () => void
   isChanging: boolean
   disabled: boolean
   canEdit: boolean
@@ -551,7 +552,8 @@ function StatutPill({
   }, [menuOpen])
 
   // The pill offers only the REACHABLE transitions: a waiting OF can start, a
-  // running OF can finish, a finished OF is final.
+  // running OF can finish, a finished OF can come back to the queue — never
+  // straight « en cours » (LIVA #1197, see reactiverOf in the API).
   // Without edit_of the pill still states where the OF stands — that is the
   // read-only half of §29 — it just offers no way to move it.
   const transitions = !canEdit
@@ -563,7 +565,7 @@ function StatutPill({
         ]
       : etat === 'encours'
         ? [{ key: 'terminer', label: 'Terminer l’OF', icon: CheckCircle2, run: onTerminer }]
-        : []
+        : [{ key: 'reactiver', label: 'Réactiver l’OF', icon: RotateCcw, run: onReactiver }]
 
   return (
     <div ref={rootRef} className="flex-shrink-0 relative">
@@ -732,12 +734,13 @@ export function ProductionOf() {
   // Read stays open to whoever holds the Production menu — the atelier and
   // the poste de visitage next door consult the queue, the consigne and the
   // declared pieces all day. `edit_of` is what turns the screen writable, and
-  // it is the server that enforces it: the nine write routes of /of-trm 403
+  // it is the server that enforces it: the write routes of /of-trm 403
   // without it. Hiding the affordances here only spares a dead button.
   const canEdit = useHasPermission('edit_of')
   const [createOpen, setCreateOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [terminerConfirmOpen, setTerminerConfirmOpen] = useState(false)
+  const [reactiverConfirmOpen, setReactiverConfirmOpen] = useState(false)
   const [printOpen, setPrintOpen] = useState(false)
   const [writeError, setWriteError] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -875,6 +878,21 @@ export function ProductionOf() {
     onSuccess: () => { setTerminerConfirmOpen(false); invalidateAll() },
     onError: () => { setTerminerConfirmOpen(false); setWriteError('Impossible de terminer cet OF.') },
   })
+  // The reopened OF leaves the Terminés bucket: follow it into En attente
+  // rather than letting the list auto-select some other terminé OF.
+  const reactiverMut = useMutation({
+    mutationFn: (id: number) => apiFetch(`/of-trm/${id}/reactiver`, { method: 'POST' }),
+    onSuccess: (_d, id) => {
+      setReactiverConfirmOpen(false)
+      invalidateAll()
+      setStatusFilter('attente')
+      setSelectedId(id)
+    },
+    onError: (err: Error & { body?: { message?: string } }) => {
+      setReactiverConfirmOpen(false)
+      setWriteError(err.body?.message ?? 'Impossible de réactiver cet OF.')
+    },
+  })
   const activerMut = useMutation({
     mutationFn: (id: number) => apiFetch(`/of-trm/${id}/activer`, { method: 'POST' }),
     onSuccess: invalidateAll,
@@ -963,7 +981,8 @@ export function ProductionOf() {
             isEditing={isEditing}
             onActiver={() => activerMut.mutate(detail.id)}
             onTerminer={() => setTerminerConfirmOpen(true)}
-            isChanging={activerMut.isPending || terminerMut.isPending}
+            onReactiver={() => setReactiverConfirmOpen(true)}
+            isChanging={activerMut.isPending || terminerMut.isPending || reactiverMut.isPending}
             canEdit={canEdit}
           />
         ) : null}
@@ -1008,6 +1027,17 @@ export function ProductionOf() {
         isPending={terminerMut.isPending}
         onCancel={() => setTerminerConfirmOpen(false)}
         onConfirm={() => { if (selectedId !== null) terminerMut.mutate(selectedId) }}
+      />
+
+      <ConfirmDialog
+        open={reactiverConfirmOpen}
+        variant="default"
+        title="Réactiver l'OF"
+        description="L'OF repassera « En attente », en tête de la file du métier, juste après l'OF en cours. Il ne démarre pas tout seul : passez-le en cours quand le métier est prêt."
+        confirmLabel="Réactiver"
+        isPending={reactiverMut.isPending}
+        onCancel={() => setReactiverConfirmOpen(false)}
+        onConfirm={() => { if (selectedId !== null) reactiverMut.mutate(selectedId) }}
       />
 
       <ConfirmDialog
@@ -2096,13 +2126,14 @@ function Meter({
 type SidebarTab = 'observations' | 'production' | 'visitage' | 'qualite' | 'performance'
 
 function OfSidebar({
-  detail, etat, isEditing, onActiver, onTerminer, isChanging, canEdit,
+  detail, etat, isEditing, onActiver, onTerminer, onReactiver, isChanging, canEdit,
 }: {
   detail: OfDetail
   etat: OfEtat
   isEditing: boolean
   onActiver: () => void
   onTerminer: () => void
+  onReactiver: () => void
   isChanging: boolean
   canEdit: boolean
 }) {
@@ -2154,6 +2185,7 @@ function OfSidebar({
         arrete={!!detail.arret_prod}
         onActiver={onActiver}
         onTerminer={onTerminer}
+        onReactiver={onReactiver}
         isChanging={isChanging}
         disabled={isEditing}
         canEdit={canEdit}

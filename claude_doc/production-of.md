@@ -50,6 +50,17 @@ event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell
     refusé métier occupé). Règle pure `handedOverLeftovers()`, testée ; sonde
     `probe-of-handover-trm.ts`. Côté web la pastille offre aussi « Terminer l'OF » sur
     un OF en attente qui porte un `arret_prod` (filet, prop `arrete`).
+  - **« Réactiver l'OF » (LIVA #1197, décision Vincent du 2026-09-23)** : la pastille d'un
+    OF terminé l'offre (sous `edit_of`, confirmation), `POST /of-trm/:id/reactiver` →
+    `reactiverOf()` du même module. L'OF revient **« En attente », en tête de file**,
+    juste derrière l'OF en cours, **jamais « en cours »** (le métier est souvent passé au
+    suivant : deux OF en cours = le désordre de #1128) ; le régleur le relance par
+    « Passer en cours ». ⚠️ `arret_prod` est **vidé** (`''`, l'écriture « Relancer OF »
+    du legacy) : laissé posé, l'OF rouvert derrière un OF en cours EST la signature que
+    `healHandedOverOfs()` referme à la lecture suivante. ⚠️ **Refusé sur une commande
+    soldée** (409 `commande_soldee`, message affiché tel quel) — on ne la rouvre pas pour
+    l'utilisateur : sur un miroir, ETM a peut-être déjà clôturé la sienne après « Soldée
+    par TRM ». L'écran suit l'OF dans l'onglet Attente. Garde : `check-of-trm.ts`.
 - **Form mapping**: consigne = `observations`; Ouvert au large = `ouvert_visiteuse`;
   1/2 Nettoyages = `Nettoyage` (capital N); Visitage int = 1 « 2 premières pièces et
   toutes les 3 pièces » / 2 « Toutes les pièces » (0 = 20 legacy rows, shown « — »);
