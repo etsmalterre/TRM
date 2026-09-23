@@ -111,6 +111,17 @@ le dépôt TRS, la vitrine vit ici.
   Tailwind ne servent à rien ici, il n'y a qu'un écran et il doit remplir la dalle. Les
   petits libellés ont un plancher de 9 px (`max(9px, …)`).
 - **Bandeau** : le mot-symbole, l'équipe au centre, le TRS atelier à droite, puis le ⓘ — rien d'autre. Le nom « TRS · Atelier » et les trois compteurs du parc ont été retirés (demande utilisateur du 2026-08-28) ; le `parc` de l'API les porte toujours.
+- **Bandeau, ajouts du 2026-09-23 (LIVA #1194)** : à droite du logo, **les visages des
+  personnes pointées en ce moment** (`enPoste` de `GET /trs/atelier`, `enPosteA()` de
+  `lib/trs-trm.ts` sur `mps.pointage` : la dernière ligne ≤ maintenant est une entrée ;
+  ordre d'arrivée), en `components/Visage.tsx` dimensionné en `--u` (3,7u), **sans libellé
+  « En poste »** (retiré à la demande de l'utilisateur) ; et à gauche du TRS la
+  **production de l'équipe en kg** (`production`), en blanc et plus petit que le TRS doré.
+  Ce kg est **la carte « Production » de Production › TRS** — `kpiEquipe()` sur les pièces
+  dont `date_fin` tombe dans ]début, fin] de l'équipe, au **poids nominal** — pas le poids
+  pesé au visitage. Lecteur `chargerBandeau()` (`lib/trs-equipe-trm.ts`), trois lectures
+  bornées par poll. En dev, `pointage` s'arrête en mars : `seed-en-poste-dev.ts` (API,
+  `--clean`) pointe quatre bonnetiers dont un dépointé, `seed-visitage-pieces.ts` donne des kg.
 - **Le ⓘ ouvre « Comment le TRS est calculé »** (`components/InfoTrsDialog.tsx`, dialogue
   bandé §18.D fait main — pas de Radix ici — en `--u`), écrit pour les gens de l'atelier :
   la formule (une seule ligne, « TRS = temps de marche réel ÷ temps de production

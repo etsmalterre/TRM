@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { teinteTrs, teinteArrets, teinteVitesse, teinteDepuis, fmtArrets, fmtDuree, fmtPct } from './affichage'
+import { teinteTrs, teinteArrets, teinteVitesse, teinteDepuis, fmtArrets, fmtDuree, fmtKg, fmtPct } from './affichage'
 
 describe('teinteTrs — FI_TRS ladder', () => {
   it('is red up to 80 %, amber up to 90 %, green above', () => {
@@ -62,5 +62,11 @@ describe('formatting', () => {
     expect(fmtPct(null)).toBe('—')
     expect(fmtPct(1.064)).toBe('106 %')
     expect(fmtPct(0.895)).toBe('90 %')
+  })
+  it('formats the shift production as whole kilos, French thousands', () => {
+    expect(fmtKg(0)).toBe('0 kg')
+    expect(fmtKg(258.4)).toBe('258 kg')
+    expect(fmtKg(1240.6)).toBe('1 241 kg')
+    expect(fmtKg(-3)).toBe('0 kg')
   })
 })

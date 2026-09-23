@@ -75,6 +75,15 @@ export function fmtPct(ratio: number | null): string {
   return `${Math.round(ratio * 100)} %`
 }
 
+/** « 1 240 kg » — whole kilos, French thousands separator (a narrow no-break
+ *  space, by hand: Node's ICU and a tablet's WebView do not agree on which
+ *  space `toLocaleString('fr-FR')` emits). The band's production figure is
+ *  read across the atelier: no decimals on a wall. */
+export function fmtKg(kg: number): string {
+  const entier = String(Math.round(Math.max(0, kg)))
+  return `${entier.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} kg`
+}
+
 export function fmtHeure(iso: string | null | undefined, secondes = false): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleTimeString('fr-FR', {

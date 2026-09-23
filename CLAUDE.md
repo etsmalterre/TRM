@@ -220,6 +220,9 @@ tuile, barèmes, ⓘ, bandeau, logo, `--u`).
   importe directement `ETM/apps/api/src/lib/trs-trm.ts`.
 - En dev les chiffres sont faux (instantané de mars) : juger la parité sur la prod avec
   `scripts/probe-trs-trm.ts`.
+- **Bandeau (LIVA #1194, 2026-09-23)** : visages des pointés à droite du logo, sans libellé,
+  et kg de l'équipe à gauche du TRS. ⚠️ Ce kg est la carte « Production » de l'ERP (pièces
+  terminées dans l'équipe, **poids nominal**, même `kpiEquipe()`), pas le poids pesé au visitage.
 
 ## Pointage — la tablette pointeuse (`apps/pointage`)
 

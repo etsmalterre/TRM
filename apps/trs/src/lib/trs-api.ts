@@ -52,7 +52,20 @@ export interface TrsAtelier {
     arret: number
     inactifs: number
   }
+  /** What the shift has produced so far — the ERP's « Production » card
+   *  (pieces whose tricotage ended in the shift, nominal kg), from the same
+   *  API function, so the wall and Production › TRS never disagree. */
+  production: { pieces: number; kg: number; kgParHeure: number | null }
+  /** Who is clocked in right now (`pointage`), earliest arrival first. */
+  enPoste: BonnetierEnPoste[]
   machines: TrsMachine[]
+}
+
+export interface BonnetierEnPoste {
+  id: number
+  prenom: string
+  nom: string
+  regleur: boolean
 }
 
 export function fetchAtelier(): Promise<TrsAtelier> {
