@@ -13,7 +13,7 @@
 //     without typing wiped the bonnetier's declaration. Empty must mean
 //     "leave it alone"; zero is reachable by typing zero.
 import { describe, expect, it } from 'vitest'
-import { createLatch, qteCommit, qteDigits } from './ProductionVisitage'
+import { createLatch, entreeOuvreValidation, qteCommit, qteDigits } from './ProductionVisitage'
 
 describe('qteDigits', () => {
   it('keeps the digits', () => {
@@ -51,8 +51,8 @@ describe('qteCommit', () => {
   })
 })
 
-// The single-flight latch in front of POST /valider. Both triggers (button,
-// Ctrl+Entrée) go through it because `isPending` is render-derived and lags
+// The single-flight latch in front of POST /valider. Both triggers (click,
+// Entrée) go through it because `isPending` is render-derived and lags
 // `mutate()` by a macrotask — on 2026-08-28 two identical POSTs left the poste
 // in the same second and piece 40751 came back as four rolls.
 
@@ -75,5 +75,44 @@ describe('createLatch', () => {
     const latch = createLatch()
     latch.release()
     expect(latch.take()).toBe(true)
+  })
+})
+
+// LIVA #1195 — Entrée is the Valider button: it opens the confirmation, and a
+// second Entrée (on the focused « Valider ») confirms. The dangerous case is a
+// HELD key: its repeats must never count as the second press.
+
+describe('entreeOuvreValidation', () => {
+  const enter = { key: 'Enter', repeat: false, isComposing: false, defaultPrevented: false, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false }
+
+  it('opens on a bare Entrée anywhere on the poste', () => {
+    expect(entreeOuvreValidation(enter, 'poste')).toBe(true)
+  })
+
+  it('ignores a key repeat — two presses, never one held key', () => {
+    expect(entreeOuvreValidation({ ...enter, repeat: true }, 'poste')).toBe(false)
+  })
+
+  it('leaves a field that already handled its Entrée alone', () => {
+    // the defect quantity commits on Entrée and prevents the default
+    expect(entreeOuvreValidation({ ...enter, defaultPrevented: true }, 'poste')).toBe(false)
+  })
+
+  it('never fires from a dialog or dropdown, the confirmation included', () => {
+    expect(entreeOuvreValidation(enter, 'ailleurs')).toBe(false)
+    expect(entreeOuvreValidation({ ...enter, ctrlKey: true }, 'ailleurs')).toBe(false)
+  })
+
+  it('keeps Entrée as a new line in the observations, Ctrl+Entrée still validates', () => {
+    expect(entreeOuvreValidation(enter, 'texte')).toBe(false)
+    expect(entreeOuvreValidation({ ...enter, ctrlKey: true }, 'texte')).toBe(true)
+    expect(entreeOuvreValidation({ ...enter, metaKey: true }, 'texte')).toBe(true)
+  })
+
+  it('ignores other keys, modified Entrée and IME composition', () => {
+    expect(entreeOuvreValidation({ ...enter, key: 'a' }, 'poste')).toBe(false)
+    expect(entreeOuvreValidation({ ...enter, shiftKey: true }, 'poste')).toBe(false)
+    expect(entreeOuvreValidation({ ...enter, altKey: true }, 'poste')).toBe(false)
+    expect(entreeOuvreValidation({ ...enter, isComposing: true }, 'poste')).toBe(false)
   })
 })

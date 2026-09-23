@@ -15,7 +15,9 @@
 //   5. Historique      les rouleaux déjà passés sur ce métier
 //
 // Target is a desk PC with keyboard + mouse (user decision): standard h-9
-// controls, Tab/Entrée flow, Ctrl+Entrée to validate. No touch sizing.
+// controls, Tab/Entrée flow. Entrée anywhere on the poste = the Valider button
+// (LIVA #1195): both open a confirmation, and a second Entrée validates and
+// prints — see `entreeOuvreValidation`. No touch sizing.
 //
 // Deliberate deltas vs the legacy, each with its reason:
 //  - The métier list also shows métiers holding a stray piece with no active
@@ -205,6 +207,43 @@ export function createLatch() {
   }
 }
 
+/** Where a keydown landed, as far as the Entrée shortcut cares.
+ *  - `poste`: the poste itself (a field, a button, or nothing focused);
+ *  - `texte`: a multi-line field, where a bare Entrée is a new line;
+ *  - `ailleurs`: anything portaled out of the poste — a dialog (the
+ *    confirmation itself included), a dropdown, the visiteur faces — which
+ *    owns its own Entrée. */
+export type CibleEntree = 'poste' | 'texte' | 'ailleurs'
+
+export function cibleEntree(target: EventTarget | null, poste: HTMLElement | null): CibleEntree {
+  const el = target instanceof HTMLElement ? target : null
+  if (!el || el === document.body) return 'poste'
+  if (!poste || !poste.contains(el)) return 'ailleurs'
+  return el.tagName === 'TEXTAREA' ? 'texte' : 'poste'
+}
+
+/** Does this keydown open the Valider confirmation? (LIVA #1195)
+ *
+ *  Entrée anywhere on the poste is the Valider button — on a focused button
+ *  too, whose own activation is suppressed: the visiteuse's hands are on the
+ *  keyboard, and a leftover focus on « 2nd choix » or « Couper » must not turn
+ *  her Entrée into a second toggle or a phantom roll. Ctrl+Entrée (the old
+ *  shortcut) still works, and is the only way out of the observations field.
+ *
+ *  Never on a key REPEAT: a held Entrée would otherwise open the confirmation
+ *  and, one repeat later, confirm it — the two presses must be two presses.
+ *  Never when a field already handled it (`defaultPrevented`: the defect
+ *  quantity commits on Entrée), nor mid-IME composition. */
+export function entreeOuvreValidation(
+  e: Pick<KeyboardEvent, 'key' | 'repeat' | 'isComposing' | 'defaultPrevented' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>,
+  cible: CibleEntree,
+): boolean {
+  if (e.key !== 'Enter' || e.repeat || e.isComposing || e.defaultPrevented) return false
+  if (e.altKey || e.shiftKey || cible === 'ailleurs') return false
+  if (cible === 'texte') return e.ctrlKey || e.metaKey
+  return true
+}
+
 /** How long the "défaut supprimé — Annuler" strip stays up. A misclick is
  *  noticed immediately, so the window only has to cover the glance-and-react;
  *  past that the strip is just a band eating room in the card. */
@@ -217,6 +256,7 @@ export function ProductionVisitage() {
   const [forceVisitage, setForceVisitage] = useState<boolean | null>(null)
   const [rouleaux, setRouleaux] = useState<RouleauDraft[]>([])
   const loadedPieceRef = useRef(0)
+  const posteRef = useRef<HTMLDivElement>(null)
 
   // The station belongs to one person — remember them (§ deltas).
   useEffect(() => {
@@ -528,27 +568,40 @@ export function ProductionVisitage() {
     },
   })
 
-  // The ONLY way a validation is fired — button and shortcut both come here,
-  // and the latch is what makes a second trigger in the same macrotask a no-op
-  // (see createLatch). `isPending` stays as the render-time affordance.
+  // The ONLY way a validation is fired — the confirmation's button (clicked or
+  // Entrée'd) comes here, and the latch is what makes a second trigger in the
+  // same macrotask a no-op (see createLatch). `isPending` stays as the
+  // render-time affordance.
   const { mutate: validerMutate } = valider
   const lancerValidation = useCallback(() => {
     if (!validerLatch.take()) return
     validerMutate()
   }, [validerLatch, validerMutate])
 
-  // Ctrl+Entrée validates from anywhere on the poste — the hands are on the
-  // keyboard between two weighings.
+  // Valider never writes straight away (LIVA #1195): the button and Entrée
+  // both open a confirmation first, and its « Valider » — focused, so a second
+  // Entrée is the confirm — is what sends the piece and prints the label.
+  const [confirmValider, setConfirmValider] = useState(false)
+  const demanderValidation = useCallback(() => {
+    if (canValider && !valider.isPending) setConfirmValider(true)
+  }, [canValider, valider.isPending])
+  // A refetch can take the piece away while the question is up (another poste
+  // validated it): drop the question rather than let it reappear later.
+  useEffect(() => { if (!canValider) setConfirmValider(false) }, [canValider])
+
+  // Entrée from anywhere on the poste — the hands are on the keyboard between
+  // two weighings. The rules (fields, repeat, dialogs) are in
+  // entreeOuvreValidation.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && canValider && !valider.isPending) {
-        e.preventDefault()
-        lancerValidation()
-      }
+      if (confirmValider || !entreeOuvreValidation(e, cibleEntree(e.target, posteRef.current))) return
+      if (!canValider || valider.isPending) return
+      e.preventDefault()
+      setConfirmValider(true)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [canValider, valider.isPending, lancerValidation])
+  }, [confirmValider, canValider, valider.isPending])
 
   // Just the métier. The list only holds métiers that have work, so a
   // "1 pièce à visiter" caption on every row said nothing that picking the
@@ -578,7 +631,7 @@ export function ProductionVisitage() {
 
 
   return (
-    <div className="h-full flex flex-col gap-3 min-h-0">
+    <div ref={posteRef} className="h-full flex flex-col gap-3 min-h-0">
       {/* ── Bande 1 · barre poste ───────────────────────── */}
       <div className="flex-shrink-0 flex items-center gap-3 rounded-lg bg-zinc-200/50 px-3 py-2">
         <span className="text-sm font-medium text-muted-foreground">Métier</span>
@@ -834,13 +887,13 @@ export function ProductionVisitage() {
                 variant="gold"
                 size="sm"
                 disabled={!canValider || valider.isPending}
-                onClick={lancerValidation}
+                onClick={demanderValidation}
                 title={
                   !canSaisir ? 'Droit « Saisir le visitage » requis'
                     : !identified ? 'Identifiez-vous d\'abord'
                     : !piece ? 'Aucune pièce à visiter'
                     : !poidsOk ? 'Chaque rouleau doit avoir un poids'
-                    : 'Valider la pièce (Ctrl+Entrée)'
+                    : 'Valider la pièce (Entrée)'
                 }
               >
                 {valider.isPending
@@ -944,6 +997,20 @@ export function ProductionVisitage() {
         }}
       />
 
+      <ValiderDialog
+        open={confirmValider && canValider}
+        ofId={of?.id ?? 0}
+        pieceLabel={piece?.label ?? ''}
+        aVisiter={aVisiter}
+        rouleaux={rouleaux}
+        numeros={numeros}
+        onCancel={() => setConfirmValider(false)}
+        onConfirm={() => {
+          setConfirmValider(false)
+          lancerValidation()
+        }}
+      />
+
       <ConfirmDialog
         open={confirmDelete !== null}
         title="Voulez-vous vraiment supprimer ce défaut ?"
@@ -957,6 +1024,80 @@ export function ProductionVisitage() {
         onCancel={() => setConfirmDelete(null)}
       />
     </div>
+  )
+}
+
+// ── Confirmation de la validation (LIVA #1195) ─────────
+
+/** The last look before the piece is written and its labels printed: what is
+ *  about to become stock — each roll with its number, weight and choix — so a
+ *  misweighed or mis-toggled roll is caught here rather than on the label.
+ *
+ *  « Valider » is focused on open, so the visiteuse validates with Entrée,
+ *  Entrée: the first opens this, the second confirms. A held key must not do
+ *  both (a repeat never activates the button); Échap or « Annuler » goes back
+ *  to the poste with nothing written. */
+function ValiderDialog({ open, ofId, pieceLabel, aVisiter, rouleaux, numeros, onCancel, onConfirm }: {
+  open: boolean
+  ofId: number
+  pieceLabel: string
+  aVisiter: boolean
+  rouleaux: RouleauDraft[]
+  numeros: string[]
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const poids = (r: RouleauDraft) => parseFloat(r.poids.replace(',', '.')) || 0
+  const total = rouleaux.reduce((s, r) => s + poids(r), 0)
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
+      <DialogContent
+        className="sm:max-w-md"
+        onKeyDown={(e) => { if (e.key === 'Enter' && e.repeat) e.preventDefault() }}
+      >
+        <DialogHeader>
+          <DialogTitle>Valider la pièce ?</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 pt-1">
+          <p className="text-sm text-muted-foreground">
+            OF n° {ofId}{pieceLabel ? ` · ${pieceLabel}` : ''} · {aVisiter ? 'visitage complet' : 'pesée simple'}
+          </p>
+          <div className="rounded-md border divide-y">
+            {rouleaux.map((r, i) => (
+              <div key={r._key} className="flex items-center gap-3 px-3 py-2 text-sm">
+                <span className="font-medium tabular-nums">{numeros[i] ?? ''}</span>
+                {r.second_choix && (
+                  <Badge variant="outline" className="text-xs bg-amber-500/15 text-amber-800 border-amber-500/30">
+                    2nd choix
+                  </Badge>
+                )}
+                <span className="flex-1" />
+                <span className="tabular-nums">{fmtNum(poids(r), 2)} Kg</span>
+              </div>
+            ))}
+            {rouleaux.length > 1 && (
+              <div className="flex items-center px-3 py-2 text-sm bg-zinc-100/80">
+                <span className="text-muted-foreground">Total</span>
+                <span className="flex-1" />
+                <span className="font-medium tabular-nums">{fmtNum(total, 2)} Kg</span>
+              </div>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+            <Printer className="h-3.5 w-3.5" />
+            {rouleaux.length > 1 ? 'Les étiquettes partent' : "L'étiquette part"} à l&apos;imprimante.
+          </p>
+        </div>
+        {/* DialogFooter carries no spacing of its own — explicit mt-4, as in
+            AjoutDefautDialog. */}
+        <DialogFooter className="mt-4">
+          <Button variant="outline" size="sm" onClick={onCancel}>Annuler</Button>
+          <Button variant="gold" size="sm" onClick={onConfirm} autoFocus>
+            <Check className="h-3.5 w-3.5 mr-1.5" />Valider
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

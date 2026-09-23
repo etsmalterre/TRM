@@ -33,7 +33,7 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
   deux événements réécrits, `stock_fil` intact).
   - Côté web, `valider.isPending` ne suffit PAS : TanStack notifie React par
     `setTimeout(0)`, donc pendant une macrotâche après `mutate()` le bouton et
-    Ctrl+Entrée lisent encore « libre ». D'où un verrou synchrone dans le handler,
+    le raccourci clavier lisent encore « libre ». D'où un verrou synchrone dans le handler,
     relâché par `onSettled` — `isPending` reste l'affordance de rendu, pas la garde.
   - Côté API le verrou est **global, pas par pièce** : les PK MAX+1 sont partagées
     entre pièces, deux pièces validées au même instant se marcheraient dessus aussi.
@@ -42,6 +42,17 @@ les requêtes SQL y survivent en clair) + une sonde de la base. Dossier complet 
   - ⚠️ Le même patron « check, MAX+1, INSERT » sans verrou existe dans les autres routes
     d'écriture TRM (`of-trm`, `expeditions-trm`, `maintenance-trm`…) : même exposition
     à un double envoi, non traitée — `createSerialLock` est là pour ça.
+- **Valider se confirme, et Entrée = Valider** (LIVA #1195, 2026-09-23). Le bouton **et** la
+  touche Entrée ouvrent une confirmation (`ValiderDialog` : chaque rouleau avec son numéro, son
+  poids et son choix, total si coupe) ; son « Valider » a le focus, donc **Entrée, Entrée**
+  valide et imprime. Règles dans `entreeOuvreValidation` (testé) : Entrée partout sur le poste,
+  **y compris sur un bouton focalisé** (son activation est supprimée — un focus resté sur
+  « 1er choix » ou « Couper » ne doit pas basculer / couper) ; **jamais sur une répétition de
+  touche** (une touche tenue ouvrirait puis confirmerait) ; pas depuis un dialogue ou une liste
+  déroulante (portés hors du poste) ; pas si le champ a déjà traité son Entrée (quantité d'un
+  défaut) ; dans les observations Entrée = retour à la ligne, **Ctrl+Entrée** y valide.
+  ⚠️ Non vérifié : si la balance du poste tape le poids suivi d'un Entrée, la confirmation
+  s'ouvrira à chaque pesée.
 - **Deux séquences de numérotation par OF** : 1er choix `num_piece_OF < 1000`, déclassé
   `1000+` — et le **premier déclassé d'un OF est 1001**, pas 1000 (438 OF vivants contre 167).
 - ⚠️ **Un déclassé sort du visitage SANS réservation** (`IDLigne_Commande_TRM = 0`) ; seul
