@@ -22,6 +22,7 @@ import {
   type PrevSemaine,
   type PrevisionnelReponse,
   type Variable,
+  ACCES_POINTAGE,
 } from '@/lib/pointage-admin'
 import { heuresMinutes, jourCourt, jourDe, minutesDepuisHM, minutesSignees, soldeSigne } from '@/lib/pointage-heures'
 import { DrawerCard, ErreurNote, KV, nomComplet } from '@/components/pointage/parts'
@@ -38,14 +39,14 @@ import { DrawerCard, ErreurNote, KV, nomComplet } from '@/components/pointage/pa
 // Variable. The balance everybody reads (tablet « Solde annuel », Semaines)
 // is done − planned − adjustments, so a Variable is typed here as its EFFECT
 // on that balance (+10:00 = ten hours in credit); the API stores the legacy's
-// sign. Reading needs view_pointage, every write edit_pointage.
+// sign. Reading and writing both need the menu « Pointage » (LIVA #1196).
 
 const QK = ['pointage-admin'] as const
 const DEFAUT_HEBDO = '35:00'
 const JOUR_MIN = 7 * 60
 
 export function PointagePrevisionnel() {
-  const canEdit = useHasPermission('edit_pointage')
+  const canEdit = useHasPermission(ACCES_POINTAGE)
   const aujourdhui = useMemo(() => jourDe(Date.now()), [])
   const anneeCourante = +aujourdhui.slice(0, 4)
   const [annee, setAnnee] = useState(anneeCourante)

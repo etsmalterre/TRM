@@ -33,7 +33,7 @@ Patron §27 (tableau + tiroir), pièces partagées `components/pointage/parts.ts
   Colonnes = celles de `FEN_Horaires_1$Requête` : date, salarié, début, pause 1, pause 2, fin,
   pauses (**terminées seules**, min), **présence = fin − début BRUTE** (le legacy ne déduit pas
   les pauses ; le totaliseur ajoute « Hors pauses »). Tiroir : six heures en `<input type="time">`
-  sous « Modifier » (`edit_pointage`), bilan, « Supprimer le poste » (confirmation §33), bandeau
+  sous « Modifier », bilan, « Supprimer le poste » (confirmation §33), bandeau
   rouge sur un poste ouvert > 14 h. « Nouvel horaire » = dialogue §18.A.
 - **Semaines** (2026-09-22, code legacy lu, plan § 9.2–9.4) : salarié + année → une tuile par semaine
   ISO (**rouge « à valider »** = dans la fenêtre `semMin < n ≤ semMax` sans ligne `lst_lissage`, verte
@@ -72,8 +72,8 @@ Patron §27 (tableau + tiroir), pièces partagées `components/pointage/parts.ts
 ## L'API — `/api/pointage-admin` (`ETM/apps/api/src/routes/pointage-admin.ts`)
 
 Routeur **séparé** de `/api/pointage` (la tablette garde son cookie `mps_pointeuse` et ses deux
-gardes) : session `mps_uid` + clés TRM **`view_pointage`** (toute lecture) / **`edit_pointage`**
-(toute écriture), `trmUserHasPermission`, admin effectif compris. Routes en tête du fichier.
+gardes) : session `mps_uid` + **le grant du menu `screen_pointage`** sur toute route, lecture comme
+écriture (`trmUserHasMenu`, admin effectif compris) — LIVA #1196, 2026-09-23. Routes en tête du fichier.
 Un refus métier répond **400 `saisie_invalide` + message français**, affiché tel quel.
 
 - Règles pures dans **`lib/pointage-admin.ts`** (testé) : `appliquerSaisie` = la règle du legacy
@@ -104,10 +104,13 @@ Un refus métier répond **400 `saisie_invalide` + message français**, affiché
 ## Droits et menu
 
 - Menu `screen_pointage` (grant, fermé par défaut, **pas de seed** : s'accorde à la main) déclaré
-  dans `navigation.ts` **et** `ETM/.../screen-keys-trm.ts` ; les deux entrées portent
-  `permission: 'view_pointage'`, donc sans la clé le menu disparaît (précédent Rapports).
-- Catalogue `permission-keys-trm.ts`, catégorie « Pointage » : `view_pointage`, `edit_pointage`
-  (sous-clé). Après déploiement : accorder les trois clés aux personnes du bureau.
+  dans `navigation.ts` **et** `ETM/.../screen-keys-trm.ts`.
+- ⚠️ **Le menu est tout le droit** (LIVA #1196, décision du 2026-09-23) : `view_pointage` et
+  `edit_pointage` sont retirés du catalogue — ils ne faisaient que doubler le grant du menu.
+  Qui a le menu lit et corrige tout ; l'API vérifie `screen_pointage` elle-même (seul menu TRM
+  dont le grant est une garde serveur : les heures sont des données personnelles). Côté web,
+  `ACCES_POINTAGE` (`lib/pointage-admin.ts`) porte les boutons d'écriture. Les anciens grants
+  restés dans `permissions-trm.json` sont inertes.
 
 ## Deltas assumés vis-à-vis du legacy
 

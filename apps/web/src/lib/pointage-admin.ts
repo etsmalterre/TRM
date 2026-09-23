@@ -3,6 +3,12 @@
 // epoch ms (null = not stamped) and are typed back as « HH:MM » — the server
 // places them on the day (legacy after-midnight rule) and checks their order.
 import { apiFetch } from '@/lib/api'
+import { menuAccessKey } from '@/config/navigation'
+
+/** The one right of the whole menu (LIVA #1196): whoever has the menu
+ *  « Pointage » reads and corrects everything in it, and the API checks the
+ *  same grant on every route. Replaces view_pointage / edit_pointage. */
+export const ACCES_POINTAGE = menuAccessKey('/pointage')
 
 export type ColonneHeure = 'debut' | 'debut_pause1' | 'fin_pause1' | 'debut_pause2' | 'fin_pause2' | 'fin'
 export const COLONNES_HEURE: readonly ColonneHeure[] = ['debut', 'debut_pause1', 'fin_pause1', 'debut_pause2', 'fin_pause2', 'fin']

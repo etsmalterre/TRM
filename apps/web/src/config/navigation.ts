@@ -248,20 +248,20 @@ export const mainNavigation: MainMenuItem[] = [
   },
   {
     // Pointage — the office's side of the time clock (port of the WinDev Admin
-    // Pointage, 2026-09-21). Hours are personal data and the legacy had no
-    // login: both screens carry view_pointage on top of the menu grant, so a
-    // viewer without the key loses the whole menu, like Rapports. Mirrored in
+    // Pointage, 2026-09-21). The menu grant is the whole right (LIVA #1196):
+    // whoever has the menu reads and corrects everything in it, and the API
+    // checks the same grant on every /api/pointage-admin route. Mirrored in
     // ETM's screen-keys-trm.ts (check-screen-access-trm.ts).
     id: 'pointage',
     title: 'Pointage',
     icon: Clock,
     href: '/pointage',
     submenus: [
-      { title: 'Horaires', href: '/pointage/horaires', permission: 'view_pointage' },
-      { title: 'Semaines', href: '/pointage/semaines', permission: 'view_pointage' },
-      { title: 'Prévisionnel', href: '/pointage/previsionnel', permission: 'view_pointage' },
-      { title: 'Paie', href: '/pointage/paie', permission: 'view_pointage' },
-      { title: 'Salariés', href: '/pointage/salaries', permission: 'view_pointage' },
+      { title: 'Horaires', href: '/pointage/horaires' },
+      { title: 'Semaines', href: '/pointage/semaines' },
+      { title: 'Prévisionnel', href: '/pointage/previsionnel' },
+      { title: 'Paie', href: '/pointage/paie' },
+      { title: 'Salariés', href: '/pointage/salaries' },
     ],
   },
 ]

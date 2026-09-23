@@ -19,8 +19,8 @@ twice — a second Gmail node). They are now **subscriptions**, ticked per user.
 ## Where the code lives
 
 - API (`ETM/apps/api/src`):
-  - `lib/notification-keys-trm.ts` — TRM's catalog; each entry may `require` a TRM permission
-    (both reports: `view_pointage`).
+  - `lib/notification-keys-trm.ts` — TRM's catalog; each entry may `require` a stored TRM key,
+    permission or menu grant (both reports: the menu `screen_pointage`, LIVA #1196).
   - `lib/notifications-trm.ts` — TRM's store `data/notifications-trm.json`, built by
     `createNotificationStore()` in `lib/notifications.ts` (ETM's store is the same factory).
   - `lib/rapport-pointage.ts` — **pure rules**, tested (`rapport-pointage.test.ts`).
@@ -44,7 +44,7 @@ Pointage »), impersonated through the Gmail domain-wide delegation;
 
 ## Recipients
 
-Subscribed **and** holding `view_pointage` (or the admin) **and** having an address in
+Subscribed **and** holding the menu « Pointage » (`screen_pointage`, or the admin) **and** having an address in
 `user-emails.json`. The tab locks the switch without the right (a lock line names it), the
 PUT refuses a NEW subscription without it (409 `permission_requise`, switching off always
 allowed), and the sender skips a subscriber who lost it (logged). No admin bypass on

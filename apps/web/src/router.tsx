@@ -115,7 +115,7 @@ import { RapportFinance } from '@etm/pages/RapportFinance'
 // The office's side of the time clock — port of the WinDev Admin Pointage
 // over the legacy `pointage` database (/api/pointage-admin). Horaires = the
 // shift grid + corrections, Salariés = the pointeuse's people and their
-// messages. Both behind view_pointage; writes behind edit_pointage.
+// messages. The menu grant is the whole right, reads and writes (LIVA #1196).
 import { PointageHoraires } from '@/pages/PointageHoraires'
 import { PointageSemaines } from '@/pages/PointageSemaines'
 import { PointagePrevisionnel } from '@/pages/PointagePrevisionnel'

@@ -40,6 +40,7 @@ import {
   type MessageSalarie,
   type SaisieSalarie,
   type SalarieAdmin,
+  ACCES_POINTAGE,
 } from '@/lib/pointage-admin'
 import { inputVersJour, jourDe, jourNum, jourVersInput } from '@/lib/pointage-heures'
 import { DrawerCard, ErreurNote, INPUT_KV, KV, SortHeader, nomComplet, type SortState } from '@/components/pointage/parts'
@@ -56,7 +57,7 @@ import { DrawerCard, ErreurNote, INPUT_KV, KV, SortHeader, nomComplet, type Sort
 // link to a bonnetier (`id_mps`) is what gives the tablet its photo and the TRS
 // its presence journal. A message names ONE salarié (decision, 2026-09-21) and
 // shows on the tablet until its end date, today + 7 by default.
-// Reading needs view_pointage; every write hangs on edit_pointage.
+// Reading and every write need the menu « Pointage » (LIVA #1196).
 
 type SortKey = 'nom' | 'prenom' | 'login' | 'bonnetier' | 'etat'
 
@@ -92,7 +93,7 @@ export function PointageSalaries() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const isDesktop = useIsDesktop()
-  const canEdit = useHasPermission('edit_pointage')
+  const canEdit = useHasPermission(ACCES_POINTAGE)
 
   const { data: rows, isLoading, isError, error } = useQuery({ queryKey: [...QK, 'salaries'], queryFn: fetchSalariesAdmin })
   const { data: bonnetiers } = useQuery({ queryKey: [...QK, 'bonnetiers'], queryFn: fetchBonnetiers, enabled: canEdit })

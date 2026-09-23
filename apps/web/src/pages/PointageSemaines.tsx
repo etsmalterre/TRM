@@ -19,6 +19,7 @@ import {
   type BilanAnnee,
   type CelluleSemaine,
   type SemaineDetail,
+  ACCES_POINTAGE,
 } from '@/lib/pointage-admin'
 import { heure, heuresMinutes, jourCourt, jourDe, minutesDepuisHM, soldeSigne } from '@/lib/pointage-heures'
 import { DrawerCard, ErreurNote, KV, nomComplet } from '@/components/pointage/parts'
@@ -35,12 +36,12 @@ import { DrawerCard, ErreurNote, KV, nomComplet } from '@/components/pointage/pa
 // its stored values and can be validated again (the legacy's HEnregistre).
 // The « Détail » balance of the legacy (planned vs done up to last week, the
 // yearly adjustments, the total) sits above the grid; it is the tablet's
-// « Solde annuel ». Reading needs view_pointage, validating edit_pointage.
+// « Solde annuel ». Reading and validating need the menu « Pointage ».
 
 const QK = ['pointage-admin'] as const
 
 export function PointageSemaines() {
-  const canEdit = useHasPermission('edit_pointage')
+  const canEdit = useHasPermission(ACCES_POINTAGE)
   const aujourdhui = useMemo(() => jourDe(Date.now()), [])
   const anneeCourante = +aujourdhui.slice(0, 4)
   const [annee, setAnnee] = useState(anneeCourante)

@@ -74,7 +74,8 @@ interface NotificationDef {
   label: string
   description: string
   category: string
-  /** TRM permission the subscriber must hold (the pointage reports: view_pointage). */
+  /** Stored TRM key the subscriber must hold: a permission, or a menu grant
+   *  (the pointage reports: the menu « Pointage », `screen_pointage`). */
   requires?: string
 }
 
@@ -640,11 +641,12 @@ function DetailBody({
 
 // ── Notifications tab ──────────────────────────────────
 // TRM's email subscriptions. Opt-in for everyone, admin included (no bypass,
-// unlike permissions). A notification that `requires` a permission — the
-// pointage reports carry working hours, so view_pointage — keeps its switch
-// locked until that right is granted in Permissions; the API refuses the
-// subscription too (409 permission_requise), and skips a subscriber who lost
-// the right at send time. Switching one OFF is always allowed.
+// unlike permissions). A notification that `requires` a key — a permission, or
+// a menu grant: the pointage reports carry working hours, so the menu
+// « Pointage » (LIVA #1196) — keeps its switch locked until that key is granted
+// (Permissions or Écrans tab); the API refuses the subscription too (409
+// permission_requise), and skips a subscriber who lost the right at send time.
+// Switching one OFF is always allowed.
 //
 // « Aperçu » opens the report as it would go out now; « M’envoyer un test »
 // sends it to the viewing admin's own address, whoever is selected.
@@ -703,7 +705,12 @@ function NotificationsTab({
     return Array.from(g.entries())
   }, [defs])
 
-  const permLabel = (key: string) => permissionKeys.find((k) => k.key === key)?.label ?? key
+  const requisLabel = (key: string) => {
+    const menu = mainNavigation.find((m) => menuAccessKey(m.href) === key)
+    if (menu) return `Demande l’accès au menu « ${menu.title} » (onglet Écrans).`
+    const label = permissionKeys.find((k) => k.key === key)?.label ?? key
+    return `Demande le droit « ${label} » (onglet Permissions).`
+  }
   const allowed = (d: NotificationDef) => !d.requires || isVin || grantedSet.has(d.requires)
   const toggle = (key: string, on: boolean) => {
     const next = new Set(subscribed)
@@ -772,7 +779,7 @@ function NotificationsTab({
                       {locked && d.requires && (
                         <p className="flex items-center gap-1.5 text-xs text-amber-800 mt-1.5">
                           <Lock className="h-3 w-3 flex-shrink-0" />
-                          Demande le droit « {permLabel(d.requires)} » (onglet Permissions).
+                          {requisLabel(d.requires)}
                         </p>
                       )}
                     </div>

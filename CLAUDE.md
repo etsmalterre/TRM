@@ -250,7 +250,9 @@ Le bureau corrige ici ce que la tablette a pointé : menu **« Pointage »** (`s
 fermé par défaut, **pas de seed**), écrans **Horaires** (`/pointage/horaires`), **Semaines**
 (`/pointage/semaines`, grille de l'année + lissage), **Prévisionnel** (`/pointage/previsionnel`, heures prévues +
 Variables), **Paie** (`/pointage/paie`, repas et heures de nuit d'une plage de semaines, export xlsx) et
-**Salariés** (`/pointage/salaries`), tous sous `view_pointage` ; toute écriture sous `edit_pointage`.
+**Salariés** (`/pointage/salaries`). ⚠️ **Le menu est tout le droit** (LIVA #1196, 2026-09-23) : qui a
+`screen_pointage` lit et corrige tout, et l'API vérifie ce même grant sur chaque route (`trmUserHasMenu`) —
+`view_pointage` / `edit_pointage` retirés, ne pas les réintroduire.
 API **`/api/pointage-admin`** (`routes/pointage-admin.ts`), séparée de la tablette. Horaires et Salariés
 construits le 2026-09-21, Semaines, Prévisionnel et Paie le 2026-09-22 ; Tableau annuel et ratio de production
 abandonnés (2026-09-22). **Dossier : `claude_doc/admin-pointage.md`** ; code legacy récupéré dans
@@ -279,7 +281,7 @@ Deux emails remplacent les workflows n8n « pointage » et « Bilan des Heures A
 (2026-09-22) : **Rapport de pointage** (lun–ven 9 h, la veille ; le lundi vendredi → dimanche)
 et **Bilan des heures annualisées** (mardi 9 h). Abonnement par utilisateur dans Paramètres ›
 Utilisateurs › **Notifications** (catalogue et store propres à TRM, `/api/notifications-trm`),
-réservé à qui a `view_pointage`. **Dossier : `claude_doc/rapports-pointage-email.md`.**
+réservé à qui a le menu « Pointage » (`screen_pointage`). **Dossier : `claude_doc/rapports-pointage-email.md`.**
 
 - ⚠️ **La minuterie vit dans l'API et ne tourne qu'en production** (`NODE_ENV=production`,
   `lib/rapports-pointage-envoi.ts`) : un API de dev ou de worktree n'envoie jamais rien ; journal

@@ -41,6 +41,7 @@ import {
   type Horaire,
   type SaisieHeures,
   type SalarieAdmin,
+  ACCES_POINTAGE,
 } from '@/lib/pointage-admin'
 import {
   PERIODES,
@@ -65,8 +66,8 @@ import { DrawerCard, ErreurNote, INPUT_KV, KV, SortHeader, SyncNote, nomComplet,
 // One row = one `lst_horaire` line: a salarié's shift on its day, six stamps
 // (start, two pauses, end). The legacy listed the whole history newest first;
 // here the toolbar picks a period (or the open shifts, whatever their day).
-// Reading needs view_pointage; « Nouveau », « Modifier » and « Supprimer »
-// hang on edit_pointage. A correction is typed as « HH:MM » and PLACED BY THE
+// The menu « Pointage » is the whole right (LIVA #1196): « Nouveau », « Modifier »
+// and « Supprimer » hang on it. A correction is typed as « HH:MM » and PLACED BY THE
 // SERVER: an hour not after the start goes to the next day (the legacy
 // after-midnight rule) and the stamps must stay in order — the refusal comes
 // back as a French sentence shown in the drawer. Every correction also moves
@@ -128,7 +129,7 @@ export function PointageHoraires() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const isDesktop = useIsDesktop()
-  const canEdit = useHasPermission('edit_pointage')
+  const canEdit = useHasPermission(ACCES_POINTAGE)
 
   const maintenant = vue === 'maintenant'
   const bornes = vue === 'maintenant' ? null : vue === 'perso' ? perso : bornesPeriode(vue, aujourdhui)
