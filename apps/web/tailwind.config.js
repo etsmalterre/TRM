@@ -8,6 +8,8 @@ export default {
     // vite.config.ts). List each shared screen explicitly — globbing all of
     // ETM's pages would bloat the CSS with classes TRM never renders.
     "../../../ETM/apps/web/src/pages/TombeMetierReferences.tsx",
+    // Its Rectiligne mode (LIVA #1185), a sibling file it imports relatively.
+    "../../../ETM/apps/web/src/pages/tombe-metier/RectiligneReferences.tsx",
     "../../../ETM/apps/web/src/pages/FilsReferences.tsx",
     "../../../ETM/apps/web/src/pages/FilsGestion.tsx",
     "../../../ETM/apps/web/src/pages/RapportFinance.tsx",

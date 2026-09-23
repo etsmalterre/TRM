@@ -52,6 +52,7 @@ import {
   AtSign,
   CalendarClock,
   Hourglass,
+  Spline,
 } from 'lucide-react'
 import { TmRollIcon } from '@/components/icons/TmRollIcon'
 import { BobineIcon } from '@/components/icons/BobineIcon'
@@ -89,6 +90,10 @@ interface CommandeListRow {
   phase: TrmPhase
   total_eur: number
   total_qte: number
+  /** Ordered quantity split by unit: écru in Kgs, rectiligne (cols /
+   *  bandes, LIVA #1185) in pieces. */
+  total_kgs: number
+  total_pieces: number
   produit: number
   nb_lignes: number
   earliest_delivery: string | null
@@ -110,7 +115,9 @@ function commandeUrgency(row: CommandeListRow): 'late' | 'soon' | null {
 interface LigneCommande {
   IDligne_commande_client: number
   IDcommande_client: number
+  /** 1 = écru (tombé métier), 4 = rectiligne (cols / bandes, LIVA #1185). */
   type: number
+  kind?: 'ecru' | 'rectiligne'
   IDreference: number
   IDcolori: number
   quantite: number
@@ -222,6 +229,11 @@ interface ClientLite { IDclient: number; nom: string; IDmode_paiement?: number; 
 interface ModePaiement { IDmode_paiement: number; libelle: string }
 interface Echeance { IDecheance: number; libelle: string }
 interface RefEcru { IDref_ecru: number; reference: string; designation: string; prix: number }
+/** A rectiligne reference (GET /references-rectiligne). */
+interface RefRectiligne { IDref_rectiligne: number; reference: string; designation: string; prix: number; unite: number }
+/** ligne_commande_client.TYPE of a rectiligne line — cols / bandes knitted
+ *  flat, counted in pieces, no OF / pièce / expédition (legacy parity). */
+const LINE_TYPE_RECTILIGNE = 4
 interface ColoriEcru { IDcolori_ecru: number; reference: string }
 
 interface DefautQualite {
@@ -912,7 +924,12 @@ function CommandeList({
               <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground">
                 {row.date_commande && <span>{formatHfsqlDate(row.date_commande)}</span>}
                 <span className="ml-auto text-muted-foreground/70 tabular-nums">
-                  {fmtNum(row.produit)} / {fmtNum(row.total_qte)} Kgs
+                  {/* A rectiligne order counts pieces and produces nothing
+                      trackable — no « produit / commandé » gauge for it. */}
+                  {row.total_kgs > 0 || row.total_pieces === 0
+                    ? `${fmtNum(row.produit)} / ${fmtNum(row.total_kgs)} Kgs`
+                    : null}
+                  {row.total_pieces > 0 && `${row.total_kgs > 0 ? ' · ' : ''}${fmtNum(row.total_pieces)} U`}
                 </span>
                 {row.total_eur > 0 && (
                   <span className="px-1.5 py-0.5 rounded bg-accent/10 font-medium text-foreground tabular-nums">
@@ -1365,7 +1382,10 @@ function LineCard({
   onOpenProgression: (lineId: number | null) => void
 }) {
   const { border, iconBg, iconColor } = lineCardColors(line)
-  const clickable = !isEditing
+  // A rectiligne line (cols / bandes) has no production to follow: no OF, no
+  // piece, no shipment (legacy parity) — so no Progression drawer, no gauge.
+  const isRecti = line.type === LINE_TYPE_RECTILIGNE
+  const clickable = !isEditing && !isRecti
   const target = Number(line.quantite) || 0
   const pct = target > 0 ? Math.min(100, (line.produit / target) * 100) : 0
 
@@ -1383,7 +1403,9 @@ function LineCard({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <div className={cn('h-7 w-7 rounded-md flex items-center justify-center flex-shrink-0', iconBg)}>
-            <TmRollIcon className={cn('h-3.5 w-3.5', iconColor)} />
+            {isRecti
+              ? <Spline className={cn('h-3.5 w-3.5', iconColor)} />
+              : <TmRollIcon className={cn('h-3.5 w-3.5', iconColor)} />}
           </div>
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">
@@ -1391,9 +1413,9 @@ function LineCard({
               {line.colori_reference ? <span className="text-muted-foreground"> / {line.colori_reference}</span> : null}
             </p>
             {/* Contexture + designation — the legacy card's second line. */}
-            {(line.contexture || line.ref_designation) && (
+            {(isRecti || line.contexture || line.ref_designation) && (
               <p className="text-[11px] text-muted-foreground truncate">
-                {[line.contexture, line.ref_designation].filter(Boolean).join(' · ')}
+                {[isRecti ? 'Rectiligne' : line.contexture, line.ref_designation].filter(Boolean).join(' · ')}
               </p>
             )}
           </div>
@@ -1415,17 +1437,21 @@ function LineCard({
       {/* Stat row — same vocabulary as the legacy line band (Prix / marge,
           Commandé, Produit, Expédié), delivery date pinned right. */}
       <div className="mt-2 ml-9 flex flex-wrap items-end gap-x-6 gap-y-1.5">
-        <LineStat label="Commandé" value={`${fmtNum(line.quantite, 1)} ${line.unite_label}`} />
-        <LineStat
-          label="Produit"
-          value={`${fmtNum(line.produit, 1)} ${line.unite_label}`}
-          valueClass={target > 0 && line.produit >= target - 0.001 ? 'text-green-600' : undefined}
-        />
-        <LineStat
-          label="Expédié"
-          value={`${fmtNum(line.expedie, 1)} ${line.unite_label}`}
-          valueClass={target > 0 && line.expedie >= target - 0.001 ? 'text-green-600' : undefined}
-        />
+        <LineStat label="Commandé" value={`${fmtNum(line.quantite, isRecti ? 0 : 1)} ${line.unite_label}`} />
+        {!isRecti && (
+          <>
+            <LineStat
+              label="Produit"
+              value={`${fmtNum(line.produit, 1)} ${line.unite_label}`}
+              valueClass={target > 0 && line.produit >= target - 0.001 ? 'text-green-600' : undefined}
+            />
+            <LineStat
+              label="Expédié"
+              value={`${fmtNum(line.expedie, 1)} ${line.unite_label}`}
+              valueClass={target > 0 && line.expedie >= target - 0.001 ? 'text-green-600' : undefined}
+            />
+          </>
+        )}
         {line.prix > 0 && (
           <div>
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Prix u.</p>
@@ -1506,8 +1532,9 @@ function LineCard({
         </div>
       )}
 
-      {/* Production gauge — what the machines dropped vs what was ordered. */}
-      <div className="mt-2 ml-9 flex items-center gap-2">
+      {/* Production gauge — what the machines dropped vs what was ordered.
+          None on a rectiligne line: nothing is produced through an OF. */}
+      {!isRecti && <div className="mt-2 ml-9 flex items-center gap-2">
         <div className="h-1.5 flex-1 rounded-full bg-zinc-200 overflow-hidden">
           <div
             className={cn('h-full rounded-full transition-all', pct >= 99.9 ? 'bg-green-500' : 'bg-accent')}
@@ -1518,7 +1545,7 @@ function LineCard({
           Produit {fmtNum(line.produit, 1)} / {fmtNum(line.quantite, 1)} {line.unite_label}
           {line.nb_pieces > 0 ? ` · ${line.nb_pieces} pièce${line.nb_pieces > 1 ? 's' : ''}` : ''}
         </span>
-      </div>
+      </div>}
     </div>
   )
 }
@@ -2333,9 +2360,14 @@ function LineFormDialog({
   onSuccess: () => void
 }) {
   const [form, setForm] = useState(emptyLineForm)
+  // Circulaire (écru, type 1) or rectiligne (cols / bandes, type 4) — the
+  // legacy line editor's SEL_TypeRef. Chosen on a new line, fixed afterwards.
+  const [kind, setKind] = useState<'circulaire' | 'rectiligne'>('circulaire')
+  const isRecti = kind === 'rectiligne'
 
   useEffect(() => {
     if (!open) return
+    setKind(line?.type === LINE_TYPE_RECTILIGNE ? 'rectiligne' : 'circulaire')
     setForm(line ? {
       IDreference: line.IDreference,
       IDcolori: line.IDcolori,
@@ -2353,13 +2385,26 @@ function LineFormDialog({
   const { data: refs } = useQuery<RefEcru[]>({
     queryKey: ['trm-refs-ecru'],
     queryFn: () => apiFetch('/commandes-trm/lookups/refs-ecru'),
-    enabled: open,
+    enabled: open && !isRecti,
   })
   const { data: coloris } = useQuery<ColoriEcru[]>({
     queryKey: ['trm-colori-ecru', form.IDreference],
     queryFn: () => apiFetch(`/commandes-trm/lookups/colori-ecru?ref_ecru=${form.IDreference}`),
-    enabled: open && form.IDreference > 0,
+    enabled: open && !isRecti && form.IDreference > 0,
   })
+  // Rectiligne catalog (non-archived, like the legacy combo) + its coloris.
+  const { data: refsRecti } = useQuery<RefRectiligne[]>({
+    queryKey: ['refs-rectiligne', 'en_cours'],
+    queryFn: () => apiFetch('/references-rectiligne?archived=0'),
+    enabled: open && isRecti,
+  })
+  const { data: colorisRecti } = useQuery<Array<{ IDcoloris_rectiligne: number; coloris: string }>>({
+    queryKey: ['rectiligne-coloris', form.IDreference],
+    queryFn: () => apiFetch(`/references-rectiligne/lookups/coloris?ref=${form.IDreference}`),
+    enabled: open && isRecti && form.IDreference > 0,
+  })
+  const rectiRef = isRecti ? (refsRecti ?? []).find((r) => r.IDref_rectiligne === form.IDreference) : undefined
+  const unitLabel = isRecti ? (({ 1: 'Kg', 3: 'Ml', 5: 'm²' } as Record<number, string>)[rectiRef?.unite ?? 4] ?? 'U') : 'Kgs'
 
   // Suggested price — max(prix de revient / 0,7, ref_ecru.prix): the base is
   // a floor on the sale price, retained flat when it wins — the same rule the
@@ -2372,12 +2417,14 @@ function LineFormDialog({
   }>({
     queryKey: ['trm-line-price', form.IDreference, qteNum],
     queryFn: () => apiFetch(`/commandes-trm/lookups/line-price?ref=${form.IDreference}&quantite=${qteNum}`),
-    enabled: open && form.IDreference > 0 && qteNum > 0,
+    // The knitting cost model is circular-only: no suggestion on a col.
+    enabled: open && !isRecti && form.IDreference > 0 && qteNum > 0,
   })
 
   const saveMut = useMutation({
     mutationFn: () => {
       const body = JSON.stringify({
+        type: isRecti ? LINE_TYPE_RECTILIGNE : 1,
         IDreference: form.IDreference,
         IDcolori: form.IDcolori,
         quantite: Number(form.quantite) || 0,
@@ -2399,27 +2446,62 @@ function LineFormDialog({
       <DialogContent className="max-w-lg" onClose={onClose}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <TmRollIcon className="h-5 w-5 text-accent" />
+            {isRecti ? <Spline className="h-5 w-5 text-accent" /> : <TmRollIcon className="h-5 w-5 text-accent" />}
             {line ? 'Modifier la ligne' : 'Ajouter une ligne'}
           </DialogTitle>
         </DialogHeader>
         <div className="mt-4 space-y-3">
+          {!line && (
+            <div className="flex gap-1">
+              {([['circulaire', 'Circulaire (tombé métier)'], ['rectiligne', 'Rectiligne (cols, bandes)']] as const).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => { if (k !== kind) { setKind(k); setForm((f) => ({ ...f, IDreference: 0, IDcolori: 0, prix: '' })) } }}
+                  className={cn(
+                    'flex-1 px-2 py-1 text-xs rounded-md transition-colors',
+                    kind === k ? 'bg-accent text-accent-foreground shadow-sm font-medium' : 'text-muted-foreground hover:bg-accent/10',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Référence tombé métier</label>
-            <SearchableCombobox<RefEcru>
-              options={refs ?? []}
-              value={form.IDreference}
-              onChange={(id) => setForm((f) => ({ ...f, IDreference: id, IDcolori: 0 }))}
-              getId={(r) => r.IDref_ecru}
-              getPrimary={(r) => r.reference}
-              getSecondary={(r) => r.designation}
-              placeholder="Choisir une référence"
-            />
+            <label className="text-xs font-medium text-muted-foreground">{isRecti ? 'Référence rectiligne' : 'Référence tombé métier'}</label>
+            {isRecti ? (
+              <SearchableCombobox<RefRectiligne>
+                options={refsRecti ?? []}
+                value={form.IDreference}
+                // The reference brings its price per piece (legacy behaviour).
+                onChange={(id) => {
+                  const r = (refsRecti ?? []).find((x) => x.IDref_rectiligne === id)
+                  setForm((f) => ({ ...f, IDreference: id, IDcolori: 0, prix: r && r.prix > 0 ? String(r.prix) : f.prix }))
+                }}
+                getId={(r) => r.IDref_rectiligne}
+                getPrimary={(r) => r.reference}
+                getSecondary={(r) => r.designation}
+                placeholder="Choisir un col / une bande"
+              />
+            ) : (
+              <SearchableCombobox<RefEcru>
+                options={refs ?? []}
+                value={form.IDreference}
+                onChange={(id) => setForm((f) => ({ ...f, IDreference: id, IDcolori: 0 }))}
+                getId={(r) => r.IDref_ecru}
+                getPrimary={(r) => r.reference}
+                getSecondary={(r) => r.designation}
+                placeholder="Choisir une référence"
+              />
+            )}
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Coloris</label>
             <PopoverSelect
-              options={(coloris ?? []).map((c) => ({ id: c.IDcolori_ecru, primary: c.reference }))}
+              options={isRecti
+                ? (colorisRecti ?? []).map((c) => ({ id: c.IDcoloris_rectiligne, primary: c.coloris }))
+                : (coloris ?? []).map((c) => ({ id: c.IDcolori_ecru, primary: c.reference }))}
               value={form.IDcolori}
               onChange={(id) => setForm((f) => ({ ...f, IDcolori: id }))}
               emptyLabel="—"
@@ -2429,7 +2511,7 @@ function LineFormDialog({
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Quantité (Kgs)</label>
+              <label className="text-xs font-medium text-muted-foreground">Quantité ({unitLabel})</label>
               <input
                 type="number" step="0.01" value={form.quantite}
                 onChange={(e) => setForm((f) => ({ ...f, quantite: e.target.value }))}
@@ -2437,7 +2519,7 @@ function LineFormDialog({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Prix (€/Kg)</label>
+              <label className="text-xs font-medium text-muted-foreground">Prix (€/{isRecti ? unitLabel : 'Kg'})</label>
               <input
                 type="number" step="0.01" value={form.prix}
                 onChange={(e) => setForm((f) => ({ ...f, prix: e.target.value }))}

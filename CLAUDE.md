@@ -340,7 +340,8 @@ All other screens are `PagePlaceholder`s for now. Legacy references for each dom
 ### Commandes clients data model (legacy, shared HFSQL)
 
 `commande_client` / `ligne_commande_client` scopés `IDsociete = 2` ; une ligne TRM est
-`TYPE = 1` en Kg. Suivi par la production : `ordre_fabrication.IDligne_commande_client` →
+`TYPE = 1` en Kg (écru) ou **`TYPE = 4` en pièces (rectiligne : cols / bandes, `ref_rectiligne`,
+LIVA #1185 — pas d'OF, pas de pièce, pas d'expédition ; l'API refuse en 409 `ligne_rectiligne`)**. Suivi par la production : `ordre_fabrication.IDligne_commande_client` →
 `stock_ecru.IDLigne_Commande_TRM` → `ligne_expedition` via `IDligne_expedition_TRM`.
 **Dossier complet : `claude_doc/commandes-clients.md`** (modèle, tarif, tiroir Progression,
 « Créer un OF », confirmation Imprimer / Email).
