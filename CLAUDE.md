@@ -533,6 +533,9 @@ avant de toucher `POST /valider`, la carte rouleau ou l'étiquette.
   (`createLatch`)** depuis l'incident du 2026-08-28 (double POST → rouleaux en double).
   `isPending` ne suffit pas. Le même patron « check, MAX+1, INSERT » sans verrou existe
   dans les autres routes d'écriture TRM.
+- **Valider se confirme ; Entrée = Valider** (LIVA #1195) : bouton et Entrée ouvrent
+  `ValiderDialog`, Entrée, Entrée valide et imprime. ⚠️ Une touche tenue ne confirme jamais
+  (répétitions ignorées, `entreeOuvreValidation`, testé) — ne pas l'assouplir.
 - Deux séquences par OF (1er choix `< 1000`, déclassé dès **1001**) ; pièce isolée offerte
   7 jours (`ORPHAN_MAX_AGE_DAYS`, dur) ; quantité d'un défaut corrigible au poste, **champ
   vide = ne touche à rien, jamais 0** (`qteDigits` / `qteCommit`, testés).
