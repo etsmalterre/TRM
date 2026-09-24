@@ -73,6 +73,11 @@ Two populations:
   pointée ». The lunch gap is **not** a pause.
 - Both: an open line followed by another line = « sortie non pointée entre X et Y » (n8n
   hid it and inflated the day); an open last line = « fin de poste non pointée ».
+- Both, **since 2026-09-24**: arriving more than **10 min early** or leaving more than
+  **10 min late** is red too (`DEBORD_MAX_MIN`, « 15 min d’avance » / « 15 min plus tard »)
+  — Vincent: the overlap is time the company pays for and does not need, and shift workers
+  who hand over early are meant to change the habit. Start and end of the day only; the
+  lunch keeps its late-return rule alone. Exactly 10 min is in order (like 5 min late).
 
 « Vincent: we'll improve as we go » — expect these to move. Known gap: a bonnetier on shift
 missing from the planning is judged on day hours (the report then shows odd alerts).
