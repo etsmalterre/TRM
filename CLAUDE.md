@@ -484,8 +484,9 @@ recherche, onglets, Observations régleur).
   file, jamais « en cours » — `reactiverOf()`, même module. ⚠️ Il **vide `arret_prod`**,
   sinon `healHandedOverOfs()` le referme ; refusé sur une commande soldée (409).
 - **Un métier est libellé par `machine.emplacement`, `nom` en repli** (`machineLabel()`,
-  API + `lib/machine.ts` ; LIVA #1102 : le 1G s'affichait « Beck »). Les autres écrans
-  TRM (Stock TM, Expéditions, Commandes, Maintenance) restent sur `nom`.
+  API + `lib/machine.ts` ; LIVA #1102 : le 1G s'affichait « Beck »). **Sur tous les
+  écrans TRM depuis LIVA #1199 (2026-09-24)** : toute route lit le libellé via
+  `resolveMachineLabels()` (`lib/production-trm.ts`), jamais `machine.nom` seul.
 - **Recherche identique dans les trois onglets** ; Terminés via `?q=`, `searchTermineIds`
   en JS (LIKE HFSQL ne replie pas les accents). ⚠️ Un nombre est à la fois n° d'OF et
   référence plausible : l'OF exact en tête, puis les libellés.
