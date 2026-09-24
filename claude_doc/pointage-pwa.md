@@ -101,6 +101,24 @@ prod, `--replace` pour reconstruire). Détails pilote : `ETM/claude_doc/hfsql_od
   - format = `MinToFormat` du legacy (`heuresMinutes`) : « HH:MM », heures sur deux
     chiffres au moins, négatif « -HH:MM » (« 36:15 », « -02:30 »).
 
+### « 7 derniers jours » (2026-09-24, pas dans le legacy)
+
+Sous le statut (colonne de gauche, après les messages), `components/DerniersJours.tsx` : les
+derniers jours travaillés du salarié **jugés par les règles du rapport de pointage email**
+(`rapports-pointage-email.md`), rouge là où l'email rougit, la raison en mots dessous.
+`GET /api/pointage/salaries/:id/journees` (même garde que `/etat`) → `analyserJours(jours, id)`
+de `lib/rapports-pointage-envoi.ts`, **le lecteur de l'email lui-même** — ne jamais recopier la
+boucle. Décisions de Vincent : jour travaillé = une ligne pointée **ou** une ligne de planning
+(un jour de semaine sans rien n'est pas listé, l'email non plus) ; 30 jours de recherche ;
+**jusqu'à hier** (le poste du jour n'est pas jugé). Lu une fois par visite
+(`refetchInterval: false`, les jours passés ne bougent pas en 30 s).
+- ⚠️ Les cartes de la colonne portent `flex-shrink-0` : sans lui, messages + tableau se
+  compriment l'un l'autre au lieu de laisser la colonne défiler.
+- ⚠️ Premier essai posé par erreur dans le tiroir ERP Pointage › Salariés, retiré le jour
+  même : **c'est un écran de la tablette**, pour le salarié qui vient de pointer.
+- Données de dev : `seed-journees-pointage-dev.ts --write` (API, scripts) pose 8 jours de
+  semaine + le planning des trois postés, chaque défaut de l'email au moins une fois.
+
 ## Deltas assumés vis-à-vis du legacy
 
 - **pas de « temps hors prod du jour »** (COMBO_Temps_hors_prod_du_jour, table `hors_prod`) :

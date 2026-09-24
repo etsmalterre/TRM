@@ -75,3 +75,9 @@ export function phraseStatut(statut: Statut, ligne: Ligne | null): string {
   if (statut === 'en_pause') return t ? `En pause depuis ${heure(t)}` : 'En pause'
   return 'Pas au travail'
 }
+
+/** A duration as the daily pointage email writes it (API `dureeTexte`):
+ *  « 20 min » under an hour, « 2 h 08 » from one. */
+export function dureeTexte(min: number): string {
+  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`
+}

@@ -246,6 +246,9 @@ boutons. **Quatrième app**, port dev **5178**, hôte prévu `pointage.intra.ets
 - ⚠️ **Pas de « temps hors prod »** (retiré des deux côtés le 2026-09-21, mesure abandonnée) ;
   **plein écran demandé au premier tap** (`lib/plein-ecran.ts`) car un « Installer » sur
   `localhost` n'est pas un WebAPK et garde la barre d'état.
+- **« 7 derniers jours » sous le salarié** (2026-09-24) : ses jours jugés par **les règles du rapport
+  email**, via le même `analyserJours()` que l'email (jamais une copie), jusqu'à hier. Écran de la
+  tablette, **pas** de l'ERP (essayé dans le tiroir Salariés, retiré).
 
 ## Pointage — le menu de l'ERP (port d'Admin Pointage)
 

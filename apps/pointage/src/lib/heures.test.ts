@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { debutStatut, heure, heuresMinutes, jourCourt, jourLong, phraseStatut, soldeClasse, soldeSigne } from './heures'
+import { debutStatut, dureeTexte, heure, heuresMinutes, jourCourt, jourLong, phraseStatut, soldeClasse, soldeSigne } from './heures'
 import type { Ligne } from './pointage-api'
 
 const at = (h: number, m: number) => Date.UTC(2026, 8, 15, h - 2, m) // Paris = UTC+2 in September
@@ -58,5 +58,12 @@ describe('phraseStatut', () => {
 
   it('says nothing about a time when out of work', () => {
     expect(phraseStatut('hors_poste', null)).toBe('Pas au travail')
+  })
+})
+
+describe('dureeTexte — the pointage email duration', () => {
+  it('minutes under an hour, « h » from one', () => {
+    expect(dureeTexte(20)).toBe('20 min')
+    expect(dureeTexte(128)).toBe('2 h 08')
   })
 })

@@ -18,6 +18,11 @@ twice — a second Gmail node). They are now **subscriptions**, ticked per user.
 
 ## Where the code lives
 
+⚠️ **The daily rules have a second reader** (2026-09-24): the pointage tablet shows a
+salarié's last 7 worked days judged by them (`GET /api/pointage/salaries/:id/journees`). Both
+go through `analyserJours(jours, idSalarie?)` in `lib/rapports-pointage-envoi.ts` — change a
+rule once, both follow. Dossier `pointage-pwa.md` § « 7 derniers jours ».
+
 - API (`ETM/apps/api/src`):
   - `lib/notification-keys-trm.ts` — TRM's catalog; each entry may `require` a stored TRM key,
     permission or menu grant (both reports: the menu `screen_pointage`, LIVA #1196).

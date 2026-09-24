@@ -111,3 +111,31 @@ export const pointer = (id: number, body: { action: ActionPointage; ligneId: num
 
 /** 2x the displayed size, so the face stays crisp on the tablet's DPR. */
 export const photoUrl = (id: number, size: number) => `${API_URL}/pointage/salaries/${id}/photo?size=${size * 2}`
+
+// ── Last worked days (GET /salaries/:id/journees) ──
+
+export interface PlageHM {
+  debut: string
+  fin: string
+}
+
+/** One day judged by the daily pointage email's rules (API `analyserJournee`),
+ *  times already « HH:MM » Paris. */
+export interface Journee {
+  jour: string
+  /** 'equipe' = judged against its planning row, 'journee' = day hours. */
+  regime: 'equipe' | 'journee'
+  prevu: PlageHM | null
+  debut: string | null
+  fin: string | null
+  pauses: PlageHM[]
+  repas: PlageHM[]
+  pauseMin: number
+  repasMin: number
+  enPosteMin: number | null
+  /** What is wrong, in words — empty when the day is in order. */
+  alertes: string[]
+  rouge: { debut: boolean; fin: boolean; pause: boolean; repas: boolean }
+}
+
+export const fetchJournees = (id: number) => apiFetch<Journee[]>(`/pointage/salaries/${id}/journees`)

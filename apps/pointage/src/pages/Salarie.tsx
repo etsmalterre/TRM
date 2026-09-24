@@ -30,6 +30,7 @@ import { CONFIRMATION_MS, INACTIVITE_MS } from '@/lib/rafraichissement'
 import { heure, heuresMinutes, jourLong, phraseStatut, soldeClasse, soldeSigne } from '@/lib/heures'
 import { Horloge } from '@/components/Horloge'
 import { SalariePhoto } from '@/components/SalariePhoto'
+import { DerniersJours } from '@/components/DerniersJours'
 import { cn } from '@/lib/utils'
 
 const ICONE: Record<ActionPointage, LucideIcon> = {
@@ -183,7 +184,7 @@ export function Salarie() {
               on Vincent's decision, 2026-09-21. */}
 
           {e.messages.length > 0 && (
-            <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+            <div className="flex-shrink-0 rounded-xl border border-border bg-white shadow-sm overflow-hidden">
               <div className="px-4 py-2 bg-sand border-b border-border">
                 <span className="text-xs font-semibold uppercase tracking-wide text-accent">Messages</span>
               </div>
@@ -194,6 +195,8 @@ export function Salarie() {
               </div>
             </div>
           )}
+
+          <DerniersJours idSalarie={e.salarie.id} />
         </div>
 
         <div className="min-h-0 flex flex-col gap-4">
