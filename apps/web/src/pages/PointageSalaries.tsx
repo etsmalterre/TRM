@@ -302,10 +302,25 @@ const SalarieCard = memo(function SalarieCard({ row, selected, onRowClick }: { r
 
 // ── Drawer ─────────────────────────────────────────────
 
-type Draft = SaisieSalarie
-const draftDe = (s: SalarieAdmin): Draft => ({ nom: s.nom, prenom: s.prenom, login: s.login, idMps: s.idMps })
-const memeDraft = (a: Draft, b: Draft) =>
+// The fiche and its one message are edited together and saved by the same
+// « Enregistrer »: `message` / `messageFin` mirror the salarié's current (not
+// expired) message, an empty text meaning « no message ».
+type Draft = SaisieSalarie & { message: string; messageFin: string }
+// the legacy defaulted a new message's end date to today + 7
+const finParDefaut = () => jourDe(Date.now() + 7 * 86_400_000)
+const draftDe = (s: SalarieAdmin, m: MessageSalarie | null): Draft => ({
+  nom: s.nom,
+  prenom: s.prenom,
+  login: s.login,
+  idMps: s.idMps,
+  message: m?.texte ?? '',
+  messageFin: m?.dateFin ?? finParDefaut(),
+})
+const memeFiche = (a: Draft, b: Draft) =>
   a.nom === b.nom && a.prenom === b.prenom && a.login === b.login && a.idMps === b.idMps
+const memeMessage = (a: Draft, b: Draft) =>
+  a.message.trim() === b.message.trim() && (!a.message.trim() || a.messageFin === b.messageFin)
+const memeDraft = (a: Draft, b: Draft) => memeFiche(a, b) && memeMessage(a, b)
 
 function bonnetierOptions(bonnetiers: { id: number; nom: string; prenom: string; archive: boolean }[]): PopoverSelectOption[] {
   return bonnetiers.map((b) => ({ id: b.id, primary: [b.prenom, b.nom].filter(Boolean).join(' '), secondary: b.archive ? 'archivé' : undefined }))
@@ -334,8 +349,6 @@ function SalarieDrawer({ row, canEdit, bonnetiers, onClose, onDirtyChange, saveR
   const originalRef = useRef<Draft | null>(null)
   const [erreur, setErreur] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [messageDialog, setMessageDialog] = useState<{ open: boolean; message: MessageSalarie | null }>({ open: false, message: null })
-  const [messageASupprimer, setMessageASupprimer] = useState<MessageSalarie | null>(null)
 
   useEffect(() => { setIsEditing(false); setErreur(null) }, [id])
 
@@ -344,23 +357,38 @@ function SalarieDrawer({ row, canEdit, bonnetiers, onClose, onDirtyChange, saveR
     queryFn: () => fetchMessages(id!),
     enabled: id !== null,
   })
+  // newest end date first: the first one still showing is THE message
+  const courant = useMemo(() => (messages.data ?? []).find((m) => !m.expire) ?? null, [messages.data])
 
   const startEdit = useCallback(() => {
-    if (!row) return
-    const d = draftDe(row)
+    if (!row || messages.isLoading) return
+    const d = draftDe(row, courant)
     originalRef.current = d
     setDraft(d)
     setErreur(null)
     setIsEditing(true)
-  }, [row])
+  }, [row, courant, messages.isLoading])
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!row || !draft) return
-      return modifierSalarie(row.id, draft)
+      const orig = originalRef.current
+      if (!row || !draft || !orig) return
+      const texte = draft.message.trim()
+      if (texte && !draft.messageFin) throw new Error('La date de fin d’affichage est obligatoire.')
+      if (!memeFiche(draft, orig)) {
+        const { nom, prenom, login, idMps } = draft
+        await modifierSalarie(row.id, { nom, prenom, login, idMps })
+      }
+      if (!memeMessage(draft, orig)) {
+        const saisie = { texte, dateFin: draft.messageFin }
+        if (!texte) { if (courant) await supprimerMessage(courant.id) }
+        else if (courant) await modifierMessage(courant.id, saisie)
+        else await creerMessage(row.id, saisie)
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [...QK, 'salaries'] })
+      queryClient.invalidateQueries({ queryKey: [...QK, 'messages', id] })
       setErreur(null)
       setIsEditing(false)
     },
@@ -375,15 +403,6 @@ function SalarieDrawer({ row, canEdit, bonnetiers, onClose, onDirtyChange, saveR
       onClose()
     },
     onError: (e) => { setConfirmOpen(false); setErreur(messageErreur(e)) },
-  })
-
-  const deleteMessageMutation = useMutation({
-    mutationFn: (m: MessageSalarie) => supprimerMessage(m.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [...QK, 'messages', id] })
-      setMessageASupprimer(null)
-    },
-    onError: (e) => { setMessageASupprimer(null); setErreur(messageErreur(e)) },
   })
 
   const isDirty = useMemo(() => !!(isEditing && draft && originalRef.current && !memeDraft(draft, originalRef.current)), [isEditing, draft])
@@ -494,49 +513,42 @@ function SalarieDrawer({ row, canEdit, bonnetiers, onClose, onDirtyChange, saveR
                   )}
                 </DrawerCard>
 
-                <DrawerCard
-                  icon={<MessageSquare className="h-4 w-4 text-accent" />}
-                  title="Messages sur la pointeuse"
-                  highlight={isEditing}
-                  action={
-                    editable && !isEditing ? (
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setMessageDialog({ open: true, message: null })}>
-                        <Plus className="h-3.5 w-3.5 mr-1" />
-                        Nouveau
-                      </Button>
-                    ) : undefined
-                  }
-                >
-                  {messages.isLoading ? (
+                <DrawerCard icon={<MessageSquare className="h-4 w-4 text-accent" />} title="Message sur la pointeuse" highlight={isEditing}>
+                  {isEditing && draft ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={draft.message}
+                        onChange={(e) => setDraft((d) => (d ? { ...d, message: e.target.value } : d))}
+                        rows={3}
+                        maxLength={4000}
+                        placeholder="Aucun message"
+                        className="w-full px-2 py-1.5 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      {!!draft.message.trim() && (
+                        <KV
+                          label="Affiché jusqu’au"
+                          value={
+                            <input
+                              type="date"
+                              value={jourVersInput(draft.messageFin)}
+                              onChange={(e) => setDraft((d) => (d ? { ...d, messageFin: inputVersJour(e.target.value) } : d))}
+                              className={cn(INPUT_KV, 'w-40')}
+                            />
+                          }
+                        />
+                      )}
+                    </div>
+                  ) : messages.isLoading ? (
                     <div className="flex justify-center py-3">
                       <Loader2 className="h-4 w-4 animate-spin text-accent" />
                     </div>
-                  ) : (messages.data ?? []).length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Aucun message.</p>
+                  ) : courant ? (
+                    <>
+                      <p className="text-sm whitespace-pre-line break-words">{courant.texte}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">Affiché jusqu’au {jourNum(courant.dateFin)}</p>
+                    </>
                   ) : (
-                    <ul className="space-y-2">
-                      {(messages.data ?? []).map((m) => (
-                        <li key={m.id} className={cn('rounded-md border border-border/60 bg-zinc-50 px-2.5 py-2', m.expire && 'opacity-60')}>
-                          <div className="flex items-start gap-2">
-                            <p className="flex-1 min-w-0 text-sm whitespace-pre-line break-words">{m.texte}</p>
-                            {editable && !isEditing && (
-                              <div className="flex items-center gap-0.5 flex-shrink-0">
-                                <Button variant="ghost" size="icon" className="h-6 w-6" title="Modifier le message" onClick={() => setMessageDialog({ open: true, message: m })}>
-                                  <Pencil className="h-3 w-3" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" title="Supprimer le message" onClick={() => setMessageASupprimer(m)}>
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                          <p className="mt-1 text-[11px] text-muted-foreground">
-                            {m.expire ? 'Expiré le ' : 'Affiché jusqu’au '}
-                            {jourNum(m.dateFin)}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
+                    <p className="text-xs text-muted-foreground">Aucun message.</p>
                   )}
                 </DrawerCard>
 
@@ -567,23 +579,6 @@ function SalarieDrawer({ row, canEdit, bonnetiers, onClose, onDirtyChange, saveR
         onConfirm={() => { setIsEditing(false); deleteMutation.mutate() }}
       />
 
-      <ConfirmDialog
-        open={messageASupprimer !== null}
-        title="Supprimer le message"
-        description={messageASupprimer ? `« ${messageASupprimer.texte.slice(0, 80)}${messageASupprimer.texte.length > 80 ? '…' : ''} » ne sera plus affiché sur la pointeuse.` : undefined}
-        isPending={deleteMessageMutation.isPending}
-        onCancel={() => setMessageASupprimer(null)}
-        onConfirm={() => { if (messageASupprimer) deleteMessageMutation.mutate(messageASupprimer) }}
-      />
-
-      {row && (
-        <MessageDialog
-          open={messageDialog.open}
-          onOpenChange={(o) => setMessageDialog((s) => ({ ...s, open: o }))}
-          salarie={row}
-          message={messageDialog.message}
-        />
-      )}
     </>
   )
 }
@@ -636,7 +631,7 @@ function MessageDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-accent" />
-            {message ? 'Modifier le message' : 'Nouveau message'}
+            {message ? 'Modifier le message' : 'Ajouter un message'}
           </DialogTitle>
         </DialogHeader>
         <div className="mt-4 space-y-3">
@@ -691,7 +686,7 @@ function SalarieDialog({
   onCreated: (s: SalarieAdmin) => void
 }) {
   const queryClient = useQueryClient()
-  const [draft, setDraft] = useState<Draft>({ nom: '', prenom: '', login: '', idMps: 0 })
+  const [draft, setDraft] = useState<SaisieSalarie>({ nom: '', prenom: '', login: '', idMps: 0 })
   const [erreur, setErreur] = useState<string | null>(null)
 
   useEffect(() => {

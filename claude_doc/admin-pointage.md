@@ -66,8 +66,13 @@ Patron §27 (tableau + tiroir), pièces partagées `components/pointage/parts.ts
   silence), « Exporter » = classeur xlsx de la même table. Règles pures + tests : `paieSemaine`,
   `totauxPaie` (API). **Tableau annuel : pas porté** (Vincent, 2026-09-22).
 - **Salariés** : liste (supprimés masqués par défaut), tiroir = fiche éditable (nom, prénom,
-  login, **bonnetier lié** = `id_mps`, choisi parmi `mps.bonnetier`) + carte « Messages
-  sur la pointeuse » (créer / modifier / supprimer, expirés grisés) + « Supprimer le salarié ».
+  login, **bonnetier lié** = `id_mps`, choisi parmi `mps.bonnetier`) + carte « Message
+  sur la pointeuse » + « Supprimer le salarié ». ⚠️ **Le message est UN champ de la fiche**
+  (Vincent, 2026-09-24) : lecture seule hors mode édition, saisi en mode édition (texte +
+  « Affiché jusqu'au », J+7 par défaut) et écrit par le même « Enregistrer » — texte vidé =
+  message supprimé. « Le message » = le premier non expiré (`date_fin` décroissante) ; les
+  autres lignes de `lst_message` ne sont plus montrées. Ne pas réintroduire de bouton
+  « Nouveau » ni de dialogue de message.
 
 ## L'API — `/api/pointage-admin` (`ETM/apps/api/src/routes/pointage-admin.ts`)
 
