@@ -23,6 +23,12 @@ so the ETM screen could not simply take a `societe` param. TRM has its own scree
 `resolveClientReservations` is **exported** from `stock-ecru.ts` and reused rather than
 duplicated — same for `fetchDefectsByEcru` / `defautSummary`.
 
+**Recherche à critères (2026-09-24)** : la barre de recherche est le `SmartSearchInput`
+d'ETM (copie verbatim dans `components/stock/`, déjà utilisée par Fils › Stock) — des
+critères limités à une colonne (« Client : … », « Métier : … ») combinés en ET avec le texte
+libre. `SEARCH_FIELDS` déclare les colonnes proposées ; l'OF reste cherchable en texte libre
+via `rowHaystacks` (pas de colonne à lui).
+
 The screen is read-only: pieces are created and closed by the production/visitage flow,
 never edited from here. **Une exception : le tiroir réimprime l'étiquette Dymo du
 rouleau** (bouton imprimante de l'en-tête), sur le même

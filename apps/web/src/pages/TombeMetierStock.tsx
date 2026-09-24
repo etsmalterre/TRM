@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Boxes,
-  Search,
   Loader2,
   AlertCircle,
   X,
@@ -29,6 +28,11 @@ import { apiFetch, API_URL } from '@/lib/api'
 import { printPdf } from '@/lib/print'
 import { PopoverSelect } from '@/components/ui/popover-select'
 import { CardKV, MobileSortRow } from '@/components/stock/StockCardParts'
+import {
+  SmartSearchInput,
+  filterRowsByChips,
+  type SearchChip,
+} from '@/components/stock/SmartSearchInput'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { useHasPermission } from '@/contexts/PermissionsContext'
 import { UnsavedChangesDialog } from '@/components/shared/UnsavedChangesDialog'
@@ -212,10 +216,49 @@ function compareRows(a: StockEcruTrmRow, b: StockEcruTrmRow, key: SortKey): numb
   return ROW_COLLATOR.compare(String(va), String(vb))
 }
 
+// ── Field-scoped search chips ──────────────────────────
+// The toolbar search accepts field-scoped chips ("Client : Ets Malterre") on
+// top of the free-text multi-term search — the same smart search as ETM's
+// Tombé Métier › Stock. Widget + chip semantics live in the shared
+// `SmartSearchInput`; this screen only declares which columns can be scoped.
+const SEARCH_FIELDS = [
+  { key: 'ref_ecru', label: 'Référence' },
+  { key: 'coloris_reference', label: 'Coloris' },
+  { key: 'numero', label: 'Numéro' },
+  { key: 'machine_nom', label: 'Métier' },
+  { key: 'commande_numero', label: 'N° Cmd' },
+  { key: 'client_nom', label: 'Client' },
+  { key: 'visiteur', label: 'Visiteur' },
+  { key: 'observations', label: 'Observations' },
+  { key: 'defauts', label: 'Défauts' },
+] as const
+type SearchFieldKey = (typeof SEARCH_FIELDS)[number]['key']
+
+/** Lower-cased text columns of a row, for the any-column match. The OF id is
+ *  searchable as free text although it has no column (it prefixes numero). */
+function rowHaystacks(r: StockEcruTrmRow): string[] {
+  return [
+    r.ref_ecru,
+    r.coloris_reference,
+    r.numero,
+    r.machine_nom,
+    r.commande_numero,
+    r.client_nom,
+    r.visiteur,
+    r.observations,
+    r.defauts,
+    r.IDordre_fabrication ? String(r.IDordre_fabrication) : null,
+  ]
+    .filter((f): f is string => !!f)
+    .map((f) => f.toLowerCase())
+}
+
 // ── Main Page ──────────────────────────────────────────
 
 export function TombeMetierStock() {
   const [searchQuery, setSearchQuery] = useState('')
+  // Field-scoped chips (see SEARCH_FIELDS above).
+  const [searchChips, setSearchChips] = useState<SearchChip<SearchFieldKey>[]>([])
   const [statut, setStatut] = useState<StatutCode>(1)
   const [secondChoix, setSecondChoix] = useState(false)
   const [sort, setSort] = useState<SortState>({ key: 'date_saisie', dir: 'desc' })
@@ -233,24 +276,13 @@ export function TombeMetierStock() {
   const deferredSearch = useDeferredValue(searchQuery)
 
   const filteredSorted = useMemo(() => {
-    let out = rows ?? []
+    // Field-scoped chips first (each chip ANDs, restricted to its column),
+    // then the free text: every term must match SOME column.
+    let out = filterRowsByChips(rows ?? [], searchChips, rowHaystacks)
     const terms = deferredSearch.trim().toLowerCase().split(/\s+/).filter(Boolean)
     if (terms.length > 0) {
       out = out.filter((r) => {
-        const haystacks = [
-          r.ref_ecru,
-          r.coloris_reference,
-          r.numero,
-          r.machine_nom,
-          r.commande_numero,
-          r.client_nom,
-          r.visiteur,
-          r.observations,
-          r.defauts,
-          r.IDordre_fabrication ? String(r.IDordre_fabrication) : null,
-        ]
-          .filter((f): f is string => !!f)
-          .map((f) => f.toLowerCase())
+        const haystacks = rowHaystacks(r)
         return terms.every((t) => haystacks.some((h) => h.includes(t)))
       })
     }
@@ -259,7 +291,7 @@ export function TombeMetierStock() {
       return sort.dir === 'asc' ? cmp : -cmp
     })
     return out
-  }, [rows, deferredSearch, sort])
+  }, [rows, deferredSearch, searchChips, sort])
 
   const handleSort = useCallback((key: SortKey) => {
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
@@ -296,16 +328,15 @@ export function TombeMetierStock() {
           (§40.5 wrapper rule). At sm+ display:contents dissolves the wrapper and
           both children rejoin the toolbar flex. */}
       <div className="flex-shrink-0 flex flex-wrap items-center gap-3">
-        <div className="relative order-1 flex-1 min-w-0">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Rechercher (réf, coloris, numéro, OF, métier, client, visiteur, observations…)"
-            className="h-9 w-full pl-8 pr-3 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
+        <SmartSearchInput<SearchFieldKey>
+          className="order-1 flex-1 min-w-0"
+          value={searchQuery}
+          onValueChange={setSearchQuery}
+          chips={searchChips}
+          onChipsChange={setSearchChips}
+          fields={SEARCH_FIELDS}
+          placeholder="Rechercher (réf, coloris, numéro, OF, métier, client, visiteur, observations…)"
+        />
 
         <div className="order-2 w-full flex items-center gap-3 sm:contents">
           <div className="w-40 flex-shrink-0 sm:order-2">
