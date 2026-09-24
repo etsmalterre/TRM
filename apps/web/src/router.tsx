@@ -63,6 +63,9 @@ import { TombeMetierReferences } from '@etm/pages/TombeMetierReferences'
 // ETM, which buys its écru and has no métiers. The shared file takes the whole
 // editable panel as a prop rather than being forked or learning a TRM endpoint.
 import { ObsOfEditor } from '@/components/of/ObsRefEcru'
+// `client` is partitioned by IDsociete: the Client picker lists TRM's ledger
+// (the Commandes lookup), not ETM's (LIVA #1201).
+const TRM_CLIENTS_LOOKUP = '/commandes-trm/lookups/clients'
 const TmEchantillonsPage = createPlaceholder('Échantillons', 'Échantillons tombé métier', Layers)
 // Stock is NOT shared with ETM: `stock_ecru` is partitioned by IDsociete and the
 // two halves are different objects (TRM pieces come off an OF on a métier; ETM
@@ -154,7 +157,7 @@ export const router = createBrowserRouter([
 
       // Tombé Métier
       { path: 'tombe-metier', element: <Navigate to="/tombe-metier/references" replace /> },
-      { path: 'tombe-metier/references', element: <TombeMetierReferences obsOfEditor={ObsOfEditor} /> },
+      { path: 'tombe-metier/references', element: <TombeMetierReferences obsOfEditor={ObsOfEditor} clientsLookupPath={TRM_CLIENTS_LOOKUP} /> },
       { path: 'tombe-metier/echantillons', element: <TmEchantillonsPage /> },
       { path: 'tombe-metier/stock', element: <TombeMetierStock /> },
 
