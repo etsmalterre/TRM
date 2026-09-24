@@ -112,6 +112,9 @@ boucle. Décisions de Vincent : jour travaillé = une ligne pointée **ou** une 
 (un jour de semaine sans rien n'est pas listé, l'email non plus) ; 30 jours de recherche ;
 **jusqu'à hier** (le poste du jour n'est pas jugé). Lu une fois par visite
 (`refetchInterval: false`, les jours passés ne bougent pas en 30 s).
+- **Vert quand tout va bien** (Vincent, 2026-09-24 : « plus positif, qu’ils visent le tout-vert ») :
+  un jour en ordre a son liseré et sa coche verts, l’en-tête compte « N / 7 au vert » avant le
+  rouge « à vérifier ». Ne pas revenir à un tableau neutre qui ne montre que les fautes.
 - ⚠️ Les cartes de la colonne portent `flex-shrink-0` : sans lui, messages + tableau se
   compriment l'un l'autre au lieu de laisser la colonne défiler.
 - ⚠️ Premier essai posé par erreur dans le tiroir ERP Pointage › Salariés, retiré le jour
