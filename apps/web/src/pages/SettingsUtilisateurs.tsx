@@ -40,7 +40,7 @@ import { useUser } from '@/contexts/UserContext'
 import { usePermissions } from '@/contexts/PermissionsContext'
 import { MasterDetailLayout } from '@/components/layout/MasterDetailLayout'
 import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst'
-import { mainNavigation, menuAccessKey, screenHideKey } from '@/config/navigation'
+import { mainNavigation, menuAccessKey, screenAccessMenus, screenHideKey, type MainMenuItem } from '@/config/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
@@ -829,11 +829,19 @@ function apiMessage(err: unknown): string | null {
 
 // ── Écrans tab: the navigation tree as a checkbox tree ─────────────────
 //
-// Built from `mainNavigation` itself, so it can never drift from the real nav
-// (and the menu icons come for free). Storage runs in two directions — a menu
+// Built from `mainNavigation` + Paramètres (`screenAccessMenus`) itself, so it
+// can never drift from the real nav (and the menu icons come for free).
+// Admin-only entries (Utilisateurs) are left out: ticking them could open
+// nothing. « Tout » never grants Paramètres — it is given person by person.
+// Storage runs in two directions — a menu
 // is a grant, a screen is a hide — but the UI shows plain "visible" toggles in
 // both cases, so the admin never has to think about it. See the § Screen access
 // header of config/navigation.ts for why.
+
+const ECRANS_MENUS: MainMenuItem[] = screenAccessMenus().map((m) => ({
+  ...m,
+  submenus: m.submenus.filter((s) => !s.adminOnly),
+}))
 
 function EcransTab({
   isVin, isUpdating, grantedSet, onGrantedChange,
@@ -846,13 +854,13 @@ function EcransTab({
   const menuOn = (href: string) => isVin || grantedSet.has(menuAccessKey(href))
   const screenOn = (href: string) => isVin || !grantedSet.has(screenHideKey(href))
 
-  const grantedMenus = mainNavigation.filter((m) => menuOn(m.href)).length
+  const grantedMenus = ECRANS_MENUS.filter((m) => menuOn(m.href)).length
 
   // Granting a menu means "the whole menu": any leftover per-screen hides are
   // cleared, so re-granting never resurrects an invisible exclusion the admin
   // set months ago. Revoking clears them too — inert keys just clutter the file.
   const toggleMenu = (href: string, next: boolean) => {
-    const item = mainNavigation.find((m) => m.href === href)
+    const item = ECRANS_MENUS.find((m) => m.href === href)
     onGrantedChange((s) => {
       if (next) s.add(menuAccessKey(href))
       else s.delete(menuAccessKey(href))
@@ -869,7 +877,7 @@ function EcransTab({
 
   const setAllMenus = (next: boolean) => {
     onGrantedChange((s) => {
-      for (const m of mainNavigation) {
+      for (const m of next ? mainNavigation : ECRANS_MENUS) {
         if (next) s.add(menuAccessKey(m.href))
         else s.delete(menuAccessKey(m.href))
         for (const sub of m.submenus) s.delete(screenHideKey(sub.href))
@@ -896,7 +904,7 @@ function EcransTab({
           being one of them. */}
       <div className="flex items-center gap-2 px-1">
         <p className="text-xs text-muted-foreground">
-          {grantedMenus} menu{grantedMenus !== 1 ? 's' : ''} sur {mainNavigation.length}
+          {grantedMenus} menu{grantedMenus !== 1 ? 's' : ''} sur {ECRANS_MENUS.length}
         </p>
         {!isVin && (
           <div className="flex items-center gap-1 ml-auto">
@@ -925,7 +933,7 @@ function EcransTab({
       {/* One card per menu, read like the permission category cards of the
           neighbouring tab — except the disclosure IS the menu toggle: a menu
           that isn't granted has no screens to show. */}
-      {mainNavigation.map((item) => {
+      {ECRANS_MENUS.map((item) => {
         const Icon = item.icon
         const on = menuOn(item.href)
         const visibleScreens = on ? item.submenus.filter((s) => screenOn(s.href)).length : 0
