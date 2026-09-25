@@ -155,6 +155,9 @@ export const settingsItem: MainMenuItem = {
   href: '/settings',
   submenus: [
     { title: 'Utilisateurs', href: '/settings/utilisateurs', adminOnly: true },
+    // Import de la balance Sage — ETM's screen through `@etm`, TRM's books
+    // (API /outils-trm/import-sage). A permission, not adminOnly.
+    { title: 'Outils', href: '/settings/outils', permission: 'import_compta_sage' },
   ],
 }
 
@@ -324,4 +327,5 @@ export const routeTitles: Record<string, string> = {
   // Settings
   '/settings': 'Paramètres',
   '/settings/utilisateurs': 'Utilisateurs',
+  '/settings/outils': 'Outils',
 }

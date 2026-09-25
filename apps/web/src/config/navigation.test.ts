@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   mainNavigation,
+  settingsItem,
   visibleMainNavigation,
   visibleSubmenus,
   canOpenScreen,
@@ -130,5 +131,21 @@ describe('screen access — a shop-floor viewer', () => {
     const wanted = ['/production', '/atelier', '/qualite'].map(menuAccessKey)
     const v = viewer(ALL_MENUS.filter((k) => wanted.includes(k)))
     expect(ids(visibleMainNavigation(v))).toEqual(['production', 'atelier', 'qualite'])
+  })
+})
+
+describe('Paramètres', () => {
+  const titles = (v: NavAccess) => visibleSubmenus(settingsItem.submenus, v).map((s) => s.title)
+
+  it('shows Outils to a non-admin holding import_compta_sage, and nothing else', () => {
+    expect(titles(viewer(['import_compta_sage']))).toEqual(['Outils'])
+  })
+
+  it('hides the whole menu from a non-admin without the key', () => {
+    expect(titles(viewer([]))).toEqual([])
+  })
+
+  it('shows both entries to the effective admin', () => {
+    expect(titles(admin())).toEqual(['Utilisateurs', 'Outils'])
   })
 })

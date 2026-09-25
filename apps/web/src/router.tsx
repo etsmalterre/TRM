@@ -131,6 +131,11 @@ import { PointageSalaries } from '@/pages/PointageSalaries'
 // over TRM's own catalog (/api/permissions-trm). Écrans / notifications
 // toggles arrive with the features that need them.
 import { SettingsUtilisateurs } from '@/pages/SettingsUtilisateurs'
+// Outils — ETM's screen, handed TRM's endpoint (`/outils-trm/import-sage`, the
+// import router factory mounted on société 2) and company name. Edit it in ETM.
+// SettingsIndex reads THIS app's settingsItem (its `@/` imports resolve here).
+import { SettingsOutils } from '@etm/pages/SettingsOutils'
+import { SettingsIndex } from '@etm/pages/SettingsIndex'
 
 export const router = createBrowserRouter([
   {
@@ -195,8 +200,12 @@ export const router = createBrowserRouter([
       { path: 'pointage/salaries', element: <PointageSalaries /> },
 
       // Settings (admin-only sub-routes)
-      { path: 'settings', element: <Navigate to="/settings/utilisateurs" replace /> },
+      { path: 'settings', element: <SettingsIndex /> },
       { path: 'settings/utilisateurs', element: <SettingsUtilisateurs /> },
+      {
+        path: 'settings/outils',
+        element: <SettingsOutils basePath="/outils-trm/import-sage" societeNom="Tricotage Malterre" />,
+      },
     ],
   },
 ])

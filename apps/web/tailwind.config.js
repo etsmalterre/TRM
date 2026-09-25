@@ -13,6 +13,8 @@ export default {
     "../../../ETM/apps/web/src/pages/FilsReferences.tsx",
     "../../../ETM/apps/web/src/pages/FilsGestion.tsx",
     "../../../ETM/apps/web/src/pages/RapportFinance.tsx",
+    // Paramètres › Outils (import de la balance Sage).
+    "../../../ETM/apps/web/src/pages/SettingsOutils.tsx",
     // Tableau de bord shell (the widgets themselves are TRM-local, under src/).
     "../../../ETM/apps/web/src/pages/Dashboard.tsx",
     "../../../ETM/apps/web/src/components/dashboard/WidgetFrame.tsx",

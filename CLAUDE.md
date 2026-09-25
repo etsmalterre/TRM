@@ -341,7 +341,7 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 6. **Atelier** — **Maintenance** (`/atelier/maintenance`, implemented — see "Atelier › Maintenance" below), Bonnetier, **Planning** (`/atelier/planning`, implemented — weekly bonnetier grid over `planning_bonnetier` + desiderata dialog; API route `ETM/apps/api/src/routes/planning-atelier.ts`)
 7. **Qualité** — Défauts récents, **Retour client** (`/qualite/retour-client`, implemented — the menu’s index redirect, see "Qualité › Retour client" below), Analyse
 8. **Rapports** — **Finance** (`/rapports/finance`, implemented — the menu's only screen, shared verbatim with ETM; see "Rapports › Finance" below). The Production / Lots de fils / État stock fil / Analyse placeholders were removed with it.
-9. **Paramètres** — **Utilisateurs** (`/settings/utilisateurs`, implemented, admin-only — see "Paramètres › Utilisateurs" below)
+9. **Paramètres** — **Utilisateurs** (`/settings/utilisateurs`, implemented, admin-only — see "Paramètres › Utilisateurs" below), **Outils** (`/settings/outils`, key `import_compta_sage`): the weekly Sage balance import, ETM's `SettingsOutils.tsx` through `@etm` with `basePath="/outils-trm/import-sage"` — edit it in ETM (rules + refusal of an ETM file: ETM `screen_notes.md` § 14). `/settings` lands on the first Paramètres screen the viewer may open (`@etm/pages/SettingsIndex`).
 
 All other screens are `PagePlaceholder`s for now. Legacy references for each domain: `FEN_Gestion_des_OF.wdw`, `FEN_Machines.wdw`, `FEN_Rapport_de_production.wdw`, etc. in `C:\Mes Projets\TRMPROD\` and the main MPS WinDev project (`FI_Planning_Atelier.wdw`, `FEN_Desiderata.wdw` in TRM mode).
 
