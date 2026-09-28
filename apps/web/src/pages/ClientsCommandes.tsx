@@ -1669,6 +1669,9 @@ function ProgressionDrawer({
   const [shipSel, setShipSel] = useState<Set<number>>(new Set())
   const lastShipIdRef = useRef<number | null>(null)
   const [confirmShip, setConfirmShip] = useState(false)
+  // The avis « Expédier » just created: the Expédition tab opens on it, so the
+  // next click can be « Envoyer » (LIVA #1221).
+  const [shippedAvisId, setShippedAvisId] = useState<number | null>(null)
   const [shipError, setShipError] = useState<string | null>(null)
   const shippable = useMemo(() => (pieces?.pieces ?? []).filter((p) => !p.expedie), [pieces])
   // Re-filtered against the live payload so a refetch can never leave stale ids.
@@ -1680,9 +1683,10 @@ function ProgressionDrawer({
         method: 'POST',
         body: JSON.stringify({ stockIds }),
       }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       setConfirmShip(false)
       setShipSel(new Set())
+      setShippedAvisId(res.IDexpedition)
       lastShipIdRef.current = null
       // The line's Expédié column, the order's list card, the Affectation tab
       // and the Expédition tab all change.
@@ -2086,7 +2090,12 @@ function ProgressionDrawer({
       )}
 
       {tab === 'expedition' && (
-        <ExpeditionTab loading={expLoading} expeditions={expeditions?.expeditions ?? []} />
+        <ExpeditionTab
+          loading={expLoading}
+          expeditions={expeditions?.expeditions ?? []}
+          preferredId={shippedAvisId}
+          clientNom={clientNom}
+        />
       )}
 
       <CreateOfDialog
@@ -2142,18 +2151,25 @@ function ProgressionDrawer({
 
 /** Expédition tab — the legacy two-table split: shipments on the left, the
  *  pieces of the selected shipment in the middle, its info panel on the right.
- *  Scoped to the whole commande, like the legacy window. */
-function ExpeditionTab({ loading, expeditions }: { loading: boolean; expeditions: ExpeditionRow[] }) {
-  const [selectedId, setSelectedId] = useState<number | null>(null)
-  const selected = expeditions.find((e) => e.id === selectedId) ?? expeditions[0] ?? null
-
-  // Keep the selection valid when the payload changes.
-  useEffect(() => {
-    if (expeditions.length === 0) { setSelectedId(null); return }
-    if (selectedId === null || !expeditions.some((e) => e.id === selectedId)) {
-      setSelectedId(expeditions[0].id)
-    }
-  }, [expeditions, selectedId])
+ *  Scoped to the whole commande, like the legacy window. The info panel prints
+ *  and emails the selected avis (LIVA #1221) — the same endpoints and dialog as
+ *  Clients › Expéditions, open to every reader like there. */
+function ExpeditionTab({ loading, expeditions, preferredId, clientNom }: {
+  loading: boolean
+  expeditions: ExpeditionRow[]
+  /** The avis « Expédier » just created — selected once the refetch brings it. */
+  preferredId: number | null
+  clientNom: string
+}) {
+  const [selectedId, setSelectedId] = useState<number | null>(preferredId)
+  const [emailOpen, setEmailOpen] = useState(false)
+  // Derived, not reset in an effect: right after « Expédier » the cached list
+  // does not hold the new avis yet, and an effect snapping to the first row
+  // would lose it before the refetch lands.
+  const selected = expeditions.find((e) => e.id === selectedId)
+    ?? expeditions.find((e) => e.id === preferredId)
+    ?? expeditions[0]
+    ?? null
 
   if (loading) {
     return (
@@ -2215,6 +2231,26 @@ function ExpeditionTab({ loading, expeditions }: { loading: boolean; expeditions
           <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">
             Informations
           </h3>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              title="Imprimer l'avis d'expédition"
+              onClick={() => window.open(`${API_URL}/expeditions-trm/${selected.id}/pdf`, '_blank')}
+            >
+              <Printer className="h-3.5 w-3.5 mr-1.5" />Imprimer
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              title="Envoyer l'avis d'expédition par email"
+              onClick={() => setEmailOpen(true)}
+            >
+              <AtSign className="h-3.5 w-3.5 mr-1.5" />Envoyer
+            </Button>
+          </div>
           <div className="p-3 rounded-lg border bg-card shadow-sm space-y-2">
             <KV label="Date" value={selected.date ? formatHfsqlDate(selected.date) : '—'} />
             <KV label="Transporteur" value={selected.transporteur || '—'} />
@@ -2239,6 +2275,21 @@ function ExpeditionTab({ loading, expeditions }: { loading: boolean; expeditions
             </div>
           )}
         </div>
+      )}
+
+      {/* Same dialog as Clients › Expéditions: the avis PDF attached, the
+          client's contacts ticked « envoi BL » preselected. */}
+      {selected && (
+        <SendEmailDialog
+          open={emailOpen}
+          onClose={() => setEmailOpen(false)}
+          contextLabel={clientNom || undefined}
+          queryKey={['expedition-trm-email-defaults', selected.id]}
+          loadDefaults={() => apiFetch(`/expeditions-trm/${selected.id}/email-defaults`)}
+          pdfUrl={`${API_URL}/expeditions-trm/${selected.id}/pdf`}
+          pdfAttachmentLabel={`BL-TRM-${selected.id}.pdf`}
+          onSend={(p) => postEmail(`${API_URL}/expeditions-trm/${selected.id}/email`, p, { includeAttachPdf: true })}
+        />
       )}
     </div>
   )

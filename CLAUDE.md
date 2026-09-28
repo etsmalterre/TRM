@@ -411,6 +411,8 @@ avis d'expédition = `BonLivraisonPdf` `variant: 'trm'` (`companyTrm`).
   `IDsociete`** ; un rouleau ne revient à TRM que si ETM n'y a pas touché, sinon 409.
 - **« Expédier » depuis Clients › Commandes** (LIVA #1109) : tiroir Progression › Affectation,
   sélection §44, `POST /commandes-trm/:id/lignes/:ligneId/expedier` — un avis, une ligne.
+  L'onglet Expédition du même tiroir **imprime et envoie l'avis** (LIVA #1221), mêmes
+  endpoints et même dialogue que l'écran Expéditions, et s'ouvre sur l'avis juste créé.
 - Validé / dévalider retiré ; « facturée » ⇒ toute écriture 409. `envoyé_client` /
   `envoyé_sst` accentués, jamais nommés en SQL.
 - **Écritures sous `edit_expeditions`** (fermé par défaut — `seed-edit-expeditions-trm.ts --write`

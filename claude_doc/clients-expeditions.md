@@ -66,6 +66,18 @@ Serialised on `expedierLock` (every id is MAX+1). No « Tous » button: shipped
 rows are not selectable. Guard: `check-expedier-trm.ts`
 (`API_BASE=http://localhost:808N/api`) — creates then deletes an avis on the
 dev base, **never against prod**.
+
+**Imprimer / Envoyer from the same drawer** (LIVA #1221, 2026-09-28) — for the rare
+order shipped to a client other than Ets Malterre, where the avis has to reach the
+client: the Expédition tab's Informations panel carries « Imprimer » and « Envoyer »
+for the selected avis, over the **same** `/expeditions-trm/:id/pdf`, `email-defaults`
+and `email` endpoints and the same `SendEmailDialog` as Clients › Expéditions (no API
+change, open to every reader like there). After « Expédier » the tab opens on the new
+avis (`preferredId`, `IDexpedition` from the POST). ⚠️ The selection is **derived**
+(`selectedId` → `preferredId` → first row), not reset in an effect: the tab mounts on
+the cached list, which does not hold the new avis until the refetch lands, and a
+« snap to first row » effect would lose it. On an Ets Malterre shipment the default
+recipients are Ets Malterre's own « envoi BL » contacts — often none, by design.
 - **Droit `edit_expeditions`** (catalogue TRM, catégorie Commandes client) : garde
   « Expédier » ET les six routes d'écriture d'`expeditions-trm.ts` — qui n'en
   avaient **aucune** jusque-là — et cache Nouveau / Modifier / Supprimer et le
