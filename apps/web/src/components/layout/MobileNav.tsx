@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { dashboardItem, type MainMenuItem } from '@/config/navigation'
 import { useVisibleMainNavigation, useVisibleSettingsItem } from '@/hooks/useSubmenuFilter'
+import { AppLogo } from '@etm/components/layout/AppLogo'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -20,12 +21,9 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="w-80 p-0 bg-gradient-to-b from-primary via-primary/95 to-primary/90 border-r-0">
-        <SheetHeader className="border-b border-white/10 px-6 h-14 flex items-center">
-          <SheetTitle className="flex items-center gap-2">
-            <span className="font-semibold text-2xl">
-              <span className="text-accent">TRM</span>
-            </span>
-          </SheetTitle>
+        <SheetHeader className="space-y-0">
+          <SheetTitle className="sr-only">TRM — Tricotage Malterre</SheetTitle>
+          <AppLogo app="trm" />
         </SheetHeader>
 
         <ScrollArea className="h-[calc(100vh-65px)]">
