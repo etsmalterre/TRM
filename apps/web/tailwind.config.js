@@ -25,6 +25,9 @@ export default {
     "../../../ETM/apps/web/src/components/auth/*.tsx",
     "../../../ETM/apps/web/src/components/layout/AppLogo.tsx",
     "../../../ETM/apps/web/src/pages/SettingsIndex.tsx",
+    // Paramètres › Utilisateurs — one screen for both apps, and its account panel.
+    "../../../ETM/apps/web/src/pages/SettingsUtilisateurs.tsx",
+    "../../../ETM/apps/web/src/components/comptes/*.tsx",
   ],
   theme: {
     container: {

@@ -34,7 +34,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <UserProvider>
         <PermissionsProvider>
-          <UserPickerGate>
+          <UserPickerGate app="trm">
             <RouterProvider router={router} />
           </UserPickerGate>
         </PermissionsProvider>

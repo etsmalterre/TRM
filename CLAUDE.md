@@ -598,8 +598,12 @@ reste ouvert. Dossier plan : `~/.claude/plans/curried-nibbling-wave.md`.
   (`hide_<menu>_<screen>`), clés dérivées de `mainNavigation` ; ⚠️ **hide keys via
   `hasRaw()`, jamais `has()`**. Rideau (`useScreenGuard`), pas un verrou. ⚠️ Nouveau menu
   = `seed-screen-access-trm.ts --menu screen_<menu> --write` sur la prod **avant** le web deploy — ⚠️ **jamais sans `--menu`** : le script nu redistribue TOUS les menus, ceux retirés à la main compris (2026-09-22, 16 menus rendus à cinq comptes, défaits dans l heure).
-- Liste = allowlist `TRM_STAFF` (dont le compte-poste `Visitage`, id 10, clé finissant par
-  `|` nu — pas une coquille). Clés livrées : `edit_commandes_client`, `edit_of`, …
+- ⚠️ **L'écran est celui d'ETM** (`@etm/pages/SettingsUtilisateurs`, 2026-09-30) : ne jamais le
+  forker, les différences TRM sont des props (`permissionsPath`, `NotificationsTab`, onglet
+  Appareils). **Liste = les membres de TRM** (table `utilisateur_app`, API
+  `lib/utilisateur-apps.ts`) — un compte appartient à ETM, à TRM ou aux deux ; un non-membre est
+  refusé par la porte (`UserPickerGate app="trm"`) et n'a aucun droit TRM. L'allowlist `TRM_STAFF`
+  n'existe plus. Clés livrées : `edit_commandes_client`, `edit_of`, …
 
 ### Qualité › Retour client (`/qualite/retour-client`) — port de `FI_Retour_ClientTRM.wdw`
 

@@ -505,7 +505,7 @@ dans son propre cookie. Conception : plan §3.2–3.4 ; décision de Vincent du 
   d'enrôlement.
 - **Comptes** : régleurs sous leurs comptes personnels (Nicolas 11 ↔ bonnetier 16, Mickaël
   21 ↔ 15), téléphones partagés sous `Regleur` (14, `pc-regleur`, le compte de l'app Android
-  legacy — ajouté à `TRM_STAFF` pour cela). Le dialogue présélectionne le régleur homonyme du
+  legacy — membre de TRM pour cela, `utilisateur_app`). Le dialogue présélectionne le régleur homonyme du
   compte.
 - ⚠️ **`scripts/check-api-routes.mjs` ne détecte pas un sous-routeur manquant** : il sonde
   les racines de montage et `/api/atelier` répond déjà en prod. Ordre : `/etm_deploy` avant
