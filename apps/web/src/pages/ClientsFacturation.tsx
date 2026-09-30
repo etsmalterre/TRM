@@ -53,6 +53,7 @@ import {
   FileDown,
   Package,
   CalendarDays,
+  AlertTriangle,
 } from 'lucide-react'
 import { FiniRollIcon } from '@/components/icons/FiniRollIcon'
 import { TmRollIcon } from '@/components/icons/TmRollIcon'
@@ -159,6 +160,10 @@ interface FactureDetail {
   total_ht: number
   total_tva: number
   total_ttc: number
+  /** LIVA #1248 — legal reason printed under the totals at 0 %. */
+  mention_tva?: string | null
+  /** 0 % for a French client with no mention légale chosen. */
+  mention_tva_manquante?: boolean
 }
 
 interface GenerateSummary {
@@ -1506,7 +1511,19 @@ function LignesSection({
                 {fmtNum(signed(facture.total_ttc, facture.type), 2)} €
               </span>
             </div>
+            {facture.mention_tva && (
+              <p className="text-xs text-muted-foreground italic">{facture.mention_tva}</p>
+            )}
           </div>
+          {facture.mention_tva_manquante && (
+            <div className="mt-2 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800">
+              <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-px" />
+              <span>
+                TVA à 0 % sans motif : la facture n'indiquera pas pourquoi elle est exonérée.
+                Renseignez la mention légale dans Clients › Gestion (onglet Info, carte « Exonération de TVA ») avant de l'envoyer.
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

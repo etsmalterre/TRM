@@ -466,6 +466,9 @@ apps). **Dossier : `claude_doc/clients-gestion.md`.**
 - `tva` / `code_comptable` partitionnés : toujours `/clients-trm/lookups/*`.
 - Deux lacunes assumées (legacy PCS-compressé) : pas de radio « En Attente » sur Stocks de
   fil, colonne « Marge Brute » rendue vide.
+- ⚠️ **Client français à 0 % = mention légale obligatoire** (LIVA #1248) : carte « Exonération
+  de TVA » de l'onglet Info (+ attestations du client), imprimée sous les totaux de tous les PDF
+  client ; UE / hors UE prennent leur article du pays (`ETM/apps/api/src/lib/tva-mention.ts`).
 
 ### Production › Ordres de fabrication (`/production/of`) — port of FEN_Gestion_des_OF.wdw
 

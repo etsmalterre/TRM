@@ -17,3 +17,39 @@
   - the « En Attente » radio of Stocks de fil is **not implemented** (only En cours / Historique / Tous). `terminé` is the single state flag on `stock_fil`; `niveau` is the rack level, `controlé` is 0 on every open lot, and OF affectation doesn't fit either — nothing backs a third state. Do not invent one.
   - the historique's « Marge Brute » column is **rendered but always empty** (`marge_brute: null` from the API). Every observable legacy value is 0,00 %, so the formula could not be recovered. Fill it in when the calculation is specified.
 
+
+## Exonération de TVA — mention légale et attestations (LIVA #1248, 2026-09-30)
+
+Laetitia : SOFILETA trouvait sa facture « pas finie » — à 0 % le PDF s'arrêtait sur TOTAL HT, sans
+motif. Désormais tous les PDF client (facture/avoir, proforma, confirmation, devis — ETM et TRM,
+même gabarit) gardent « TVA (0 %) » et « TOTAL TTC » et impriment **le motif légal sous les
+totaux** (`ETM/apps/api/src/lib/tva-mention.ts`, pur, testé) :
+
+- pays de l'adresse de facturation **dans l'UE** → « Exonération de TVA, article 262 ter I du CGI » ;
+- **hors UE** (Maroc, Suisse, Royaume-Uni, DOM…) → « … article 262 I du CGI » ;
+- **France** (ou pays vide) → la **mention légale choisie sur la fiche** : carte « Exonération de
+  TVA » de l'onglet Info, visible dès que la TVA du client est à 0 %. Préréglages « Achats en
+  franchise (attestation d'exportateur) » → art. 275 (le cas SOFILETA, décision de Vincent),
+  « Autoliquidation (déchets) » → art. 283-2 sexies (les recycleurs : SUEZ, HAUREC, GURDEBEKE,
+  qui portaient déjà une ligne d'autoliquidation tapée à la main dans leurs factures), ou texte libre.
+  ⚠️ **Obligatoire pour enregistrer** un client français à 0 % (écran + API, 400
+  `mention_exoneration_requise`).
+- La carte garde aussi **les attestations du client** (PDF / JPEG / PNG, envoi immédiat comme un
+  contact, sous `edit_client_info`) : `/clients-trm/:id/attestations-tva`.
+
+Stockage : `data/tva-exoneration.json` + fichiers `data/tva-attestations/` sur le serveur de l'API
+(`lib/tva-exoneration-store.ts`) — état serveur, jamais touché par un déploiement. Le pays est lu
+sur l'adresse **du document** (instantané) ; la mention d'un client français est lue au rendu (comme
+le SIREN). Le préréglage est stocké par code : reformuler un préréglage change tous les documents
+futurs. Garde : `check-tva-exoneration.ts`.
+
+**Alerte à la facture** : le détail d'une facture (`/factures[-trm]/:kind/:id`) renvoie
+`mention_tva` et `mention_tva_manquante` ; les deux écrans Facturation (ETM et TRM) affichent la
+mention sous le TTC et un bandeau ambre quand elle manque (0 % + client français sans mention).
+
+**Données de prod (2026-09-30)** : mentions de SOFILETA (art. 275) et de SUEZ RV PICARDIE, HAUREC,
+GURDEBEKE (autoliquidation) posées par `ETM/apps/api/src/scripts/seed-mentions-tva-1248.ts --write`
+**après** l'`/etm_deploy` qui livre #1248, **puis redémarrer l'API** (le store met le JSON en cache).
+AIN Fibres laissé vide (motif inconnu, sa dernière facture est un essai à 0,00 €). Corrigés en base
+le même jour : N° TVA de GURDEBEKE (portait celui d'ETS Malterre → FR01927220442, vérifié VIES) et
+pays de l'adresse de facturation #503 de MON COEUR (« -1 » → « États-Unis »).

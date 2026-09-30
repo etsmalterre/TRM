@@ -16,7 +16,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Users, Search, Loader2, AlertCircle, MapPin, User, Star, Pencil, Plus, X, Save,
   Trash2, FileText, Phone, Mail, Receipt, Briefcase, History, Archive, ArchiveRestore,
-  Printer, AtSign, Truck,
+  Printer, AtSign, Truck, Scale, Upload,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -117,9 +117,21 @@ interface ClientDetail {
   bloque: number
   adresses: Adresse[]
   contacts: Contact[]
+  /** LIVA #1248 — VAT zone of the default billing address. */
+  zone_tva: ZoneTva
+  /** The line a 0 % document prints for a foreign client (null for France). */
+  mention_zone: string | null
+  /** The mention légale chosen for a French client at 0 %. */
+  mention_exoneration: MentionClient | null
+  attestations_tva: AttestationTva[]
 }
 
-interface LookupLabel { id: number; label: string }
+type ZoneTva = 'france' | 'ue' | 'hors_ue'
+interface MentionClient { code: string; texte: string }
+interface MentionPreset { code: string; libelle: string; texte: string }
+interface AttestationTva { id: string; nom: string; contentType: string; taille: number; ajouteLe: string }
+
+interface LookupLabel { id: number; label: string; valeur?: number }
 
 interface Deletability { commandes: number; marchandises: number; deletable: boolean }
 
@@ -179,6 +191,9 @@ interface Draft {
   IDcode_comptable: number
   IDtransporteur: number
   bloque: boolean
+  /** Mention légale of a French client at 0 % — '' = none chosen. */
+  mention_code: string
+  mention_texte: string
 }
 
 function draftFromDetail(d: ClientDetail): Draft {
@@ -198,6 +213,8 @@ function draftFromDetail(d: ClientDetail): Draft {
     IDcode_comptable: d.IDcode_comptable ?? 0,
     IDtransporteur: d.IDtransporteur ?? 0,
     bloque: !!d.bloque,
+    mention_code: d.mention_exoneration?.code ?? '',
+    mention_texte: d.mention_exoneration?.texte ?? '',
   }
 }
 
@@ -218,7 +235,24 @@ function draftToBody(d: Draft) {
     IDcode_comptable: d.IDcode_comptable,
     IDtransporteur: d.IDtransporteur,
     bloque: d.bloque,
+    mention_exoneration: d.mention_code ? { code: d.mention_code, texte: d.mention_code === 'autre' ? d.mention_texte.trim() : '' } : null,
   }
+}
+
+/** The text a draft's mention prints: the preset's wording, or the free text. */
+function mentionText(code: string, texte: string, presets: MentionPreset[]): string {
+  if (!code) return ''
+  if (code === 'autre') return texte.trim()
+  return presets.find((p) => p.code === code)?.texte ?? ''
+}
+
+function useMentionPresets() {
+  const { data } = useQuery<MentionPreset[]>({
+    queryKey: ['trm-client-lookup', 'mentions-exoneration'],
+    queryFn: () => apiFetch('/clients-trm/lookups/mentions-exoneration'),
+    staleTime: Infinity,
+  })
+  return data ?? []
 }
 
 // ── Main Page ──────────────────────────────────────────
@@ -238,7 +272,7 @@ export function ClientsGestion() {
   const [createOpen, setCreateOpen] = useState(false)
   // Non-null while a save is refused because the compte client is empty or
   // malformed — holds the French explanation shown in the blocking alert.
-  const [saveBlockedReason, setSaveBlockedReason] = useState<string | null>(null)
+  const [saveBlocked, setSaveBlocked] = useState<{ title: string; message: string } | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   // §18 A-bis placeholders — the legacy fiche prints nothing, so the canonical
   // §6.1 Print / Email buttons open the "En developpement" dialog for now.
@@ -266,7 +300,8 @@ export function ClientsGestion() {
   // Lookups (shared across edit + view-mode label resolution)
   const modesPaiement = useLookup('modes-paiement', 'modes-paiement', (r) => ({ id: r.IDmode_paiement, label: r.libelle }))
   const echeances = useLookup('echeances', 'echeances', (r) => ({ id: r.IDecheance, label: r.libelle }))
-  const tvas = useLookup('tva', 'tva', (r) => ({ id: r.IDtva, label: r.libelle }))
+  const tvas = useLookup('tva', 'tva', (r) => ({ id: r.IDtva, label: r.libelle, valeur: Number(r.valeur) || 0 }))
+  const mentionPresets = useMentionPresets()
   const codesComptables = useLookup('codes-comptables', 'codes-comptables', (r) => ({ id: r.IDcode_comptable, label: r.libelle }))
   const transporteurs = useLookup('transporteurs', 'transporteurs', (r) => ({ id: r.IDtransporteur, label: r.nom }))
   const { taken: comptesPris } = useComptesPris()
@@ -349,10 +384,31 @@ export function ClientsGestion() {
     [isEditing, canEditInfo, draft, comptesPris, detail?.compte],
   )
 
+  // LIVA #1248 — a French client at 0 % prints its mention légale under the
+  // totals of every invoice: saving one without it is refused (the API
+  // checks the same rule).
+  const mentionIssue = useMemo(() => {
+    if (!isEditing || !canEditInfo || !draft || !detail) return null
+    const exonere = tvas.find((t) => t.id === draft.IDtva)?.valeur === 0
+    if (!exonere || detail.zone_tva !== 'france') return null
+    return mentionText(draft.mention_code, draft.mention_texte, mentionPresets)
+      ? null
+      : 'Ce client français est exonéré de TVA : choisissez la mention légale imprimée sous les totaux de ses factures.'
+  }, [isEditing, canEditInfo, draft, detail, tvas, mentionPresets])
+
+  const blockReason = useMemo(
+    () => (compteIssue
+      ? { title: 'Compte client requis', message: `${compteIssue} Il figure dans l'onglet Info, rubrique Facturation.` }
+      : mentionIssue
+        ? { title: 'Mention légale requise', message: `${mentionIssue} Elle figure dans l'onglet Info, rubrique Exonération de TVA.` }
+        : null),
+    [compteIssue, mentionIssue],
+  )
+
   const attemptSave = useCallback(() => {
-    if (compteIssue) { setSaveBlockedReason(compteIssue); return }
+    if (blockReason) { setSaveBlocked(blockReason); return }
     saveMutation.mutate()
-  }, [compteIssue, saveMutation])
+  }, [blockReason, saveMutation])
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiFetch(`/clients-trm/${id}`, { method: 'DELETE' }),
@@ -400,8 +456,8 @@ export function ClientsGestion() {
     // Leaving edit mode with an invalid compte would let the client be saved
     // (via the guard's « Enregistrer ») without one. Block the exit and explain
     // instead; « Annuler » is still a way out, it just discards.
-    shouldBlockExit: compteIssue !== null,
-    onExitBlocked: () => setSaveBlockedReason(compteIssue),
+    shouldBlockExit: blockReason !== null,
+    onExitBlocked: () => setSaveBlocked(blockReason),
   })
 
   const handleSelect = useCallback((id: number) => {
@@ -432,7 +488,8 @@ export function ClientsGestion() {
           onSubFormsDirtyChange={setSubFormsDirty} draft={draft} onPatch={patch}
           canEditInfo={canEditInfo} canCrudContacts={canCrudContacts} canCrudAdresses={canCrudAdresses}
           modesPaiement={modesPaiement} echeances={echeances}
-          tvas={tvas} codesComptables={codesComptables} transporteurs={transporteurs} /> : null}
+          tvas={tvas} codesComptables={codesComptables} transporteurs={transporteurs}
+          mentionPresets={mentionPresets} /> : null}
         sidebarTitle="Contacts & Adresses" hasSelection={selectedId !== null}
         onBack={() => guard.guardAction(() => { setIsEditing(false); setDraft(null); setSelectedId(null) })}
       />
@@ -450,19 +507,17 @@ export function ClientsGestion() {
         }}
       />
       <PlaceholderDialog mode={placeholder} onClose={() => setPlaceholder(null)} />
-      <AlertDialog open={saveBlockedReason !== null} onOpenChange={(o) => { if (!o) setSaveBlockedReason(null) }}>
+      <AlertDialog open={saveBlocked !== null} onOpenChange={(o) => { if (!o) setSaveBlocked(null) }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-destructive" />
-              Compte client requis
+              {saveBlocked?.title}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              {saveBlockedReason} Il figure dans l'onglet Info, rubrique Facturation.
-            </AlertDialogDescription>
+            <AlertDialogDescription>{saveBlocked?.message}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:gap-2 mt-4">
-            <Button onClick={() => setSaveBlockedReason(null)}>OK</Button>
+            <Button onClick={() => setSaveBlocked(null)}>OK</Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -915,13 +970,14 @@ type SidebarTab = 'info' | 'contacts' | 'adresses'
 
 function DetailSidebar({ client, isLoading, isEditing, clientId, onMutationSuccess, onSubFormsDirtyChange, draft, onPatch,
   canEditInfo, canCrudContacts, canCrudAdresses,
-  modesPaiement, echeances, tvas, codesComptables, transporteurs }: {
+  modesPaiement, echeances, tvas, codesComptables, transporteurs, mentionPresets }: {
   client: ClientDetail | null; isLoading: boolean; isEditing: boolean; clientId: number; onMutationSuccess: () => void
   onSubFormsDirtyChange: (dirty: boolean) => void
   draft: Draft | null; onPatch: (p: Partial<Draft>) => void
   canEditInfo: boolean; canCrudContacts: boolean; canCrudAdresses: boolean
   modesPaiement: LookupLabel[]; echeances: LookupLabel[]
   tvas: LookupLabel[]; codesComptables: LookupLabel[]; transporteurs: LookupLabel[]
+  mentionPresets: MentionPreset[]
 }) {
   const [activeTab, setActiveTab] = useState<SidebarTab>('info')
   if (isLoading) return (
@@ -957,7 +1013,8 @@ function DetailSidebar({ client, isLoading, isEditing, clientId, onMutationSucce
             that tab exactly like view mode (mirrored server-side in clients-trm.ts). */}
         {activeTab === 'info' && <InfoTab client={client} isEditing={isEditing && canEditInfo} draft={draft} onPatch={onPatch}
           modesPaiement={modesPaiement} echeances={echeances}
-          tvas={tvas} codesComptables={codesComptables} transporteurs={transporteurs} />}
+          tvas={tvas} codesComptables={codesComptables} transporteurs={transporteurs}
+          mentionPresets={mentionPresets} clientId={clientId} onMutationSuccess={onMutationSuccess} />}
         {activeTab === 'contacts' && <ContactsTab contacts={client.contacts} isEditing={isEditing && canCrudContacts} clientId={clientId} onMutationSuccess={onMutationSuccess} onDirtyChange={onSubFormsDirtyChange} />}
         {activeTab === 'adresses' && <AdressesTab adresses={client.adresses} isEditing={isEditing && canCrudAdresses} clientId={clientId} onMutationSuccess={onMutationSuccess} onDirtyChange={onSubFormsDirtyChange} />}
       </div>
@@ -1026,11 +1083,13 @@ function KVSelect({ label, value, edit, options, onChange, searchable }: {
   )
 }
 
-function InfoTab({ client, isEditing, draft, onPatch, modesPaiement, echeances, tvas, codesComptables, transporteurs }: {
+function InfoTab({ client, isEditing, draft, onPatch, modesPaiement, echeances, tvas, codesComptables, transporteurs,
+  mentionPresets, clientId, onMutationSuccess }: {
   client: ClientDetail; isEditing: boolean
   draft: Draft | null; onPatch: (p: Partial<Draft>) => void
   modesPaiement: LookupLabel[]; echeances: LookupLabel[]
   tvas: LookupLabel[]; codesComptables: LookupLabel[]; transporteurs: LookupLabel[]
+  mentionPresets: MentionPreset[]; clientId: number; onMutationSuccess: () => void
 }) {
   const ed = isEditing && draft !== null
   // Same query key as the page, so React Query dedupes this to zero extra
@@ -1052,7 +1111,10 @@ function InfoTab({ client, isEditing, draft, onPatch, modesPaiement, echeances, 
     IDcode_comptable: ed ? draft!.IDcode_comptable : client.IDcode_comptable,
     IDtransporteur: ed ? draft!.IDtransporteur : client.IDtransporteur,
     bloque: ed ? draft!.bloque : !!client.bloque,
+    mention_code: ed ? draft!.mention_code : client.mention_exoneration?.code ?? '',
+    mention_texte: ed ? draft!.mention_texte : client.mention_exoneration?.texte ?? '',
   }
+  const exonere = tvas.find((t) => t.id === v.IDtva)?.valeur === 0
   return (
     <>
       {/* No « Général » card: the legacy TRM fiche has no secteur, no activité
@@ -1080,6 +1142,12 @@ function InfoTab({ client, isEditing, draft, onPatch, modesPaiement, echeances, 
         <KVText label="Remise (%)" value={v.pct_remise} edit={ed} type="number" onChange={(x) => onPatch({ pct_remise: x })} />
       </InfoCard>
 
+      {(exonere || client.attestations_tva.length > 0) && (
+        <ExonerationCard client={client} isEditing={ed} exonere={exonere}
+          mentionCode={v.mention_code} mentionTexte={v.mention_texte} onPatch={onPatch}
+          presets={mentionPresets} clientId={clientId} onMutationSuccess={onMutationSuccess} />
+      )}
+
       <InfoCard icon={<Truck className="h-4 w-4 text-accent" />} title="Autre" isEditing={ed}>
         <KVSelect label="Transporteur" value={v.IDtransporteur} edit={ed} options={transporteurs} onChange={(id) => onPatch({ IDtransporteur: id })} searchable />
       </InfoCard>
@@ -1093,6 +1161,130 @@ function InfoTab({ client, isEditing, draft, onPatch, modesPaiement, echeances, 
         ) : <p className="text-sm text-muted-foreground italic">Aucun commentaire</p>}
       </InfoCard>
     </>
+  )
+}
+
+// ── Info card: Exonération de TVA (LIVA #1248) ─────────
+// A 0 % invoice prints WHY there is no VAT under its totals. For a foreign
+// client the API picks the article from the billing country (shown here, read
+// only); a French client's reason is only known to the customer file, so the
+// user chooses the mention légale — required to save — and keeps the
+// attestations the client sends (SOFILETA: one « achat en franchise » a year).
+
+function ExonerationCard({ client, isEditing, exonere, mentionCode, mentionTexte, onPatch, presets, clientId, onMutationSuccess }: {
+  client: ClientDetail; isEditing: boolean; exonere: boolean
+  mentionCode: string; mentionTexte: string; onPatch: (p: Partial<Draft>) => void
+  presets: MentionPreset[]; clientId: number; onMutationSuccess: () => void
+}) {
+  const francais = client.zone_tva === 'france'
+  const texte = mentionText(mentionCode, mentionTexte, presets)
+  const presetIndex = presets.findIndex((p) => p.code === mentionCode)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData()
+      fd.append('fichier', file)
+      // Raw fetch: apiFetch would force a JSON Content-Type over the multipart boundary.
+      const res = await fetch(`${API_URL}/clients-trm/${clientId}/attestations-tva`, { method: 'POST', body: fd, credentials: 'include' })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(json?.message || json?.error || `Erreur HTTP ${res.status}`)
+      return json
+    },
+    onSuccess: () => { setUploadError(null); onMutationSuccess() },
+    onError: (e: Error) => setUploadError(e.message),
+  })
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiFetch(`/clients-trm/${clientId}/attestations-tva/${id}`, { method: 'DELETE' }),
+    onSuccess: () => { setDeleteId(null); onMutationSuccess() },
+  })
+
+  return (
+    <InfoCard icon={<Scale className="h-4 w-4 text-accent" />} title="Exonération de TVA" isEditing={isEditing && exonere && francais}>
+      {exonere && !francais && (
+        <KVRow label="Mention imprimée">
+          <span className="block text-xs italic">{client.mention_zone}</span>
+        </KVRow>
+      )}
+      {exonere && francais && (
+        <>
+          <KVRow label="Mention légale">
+            {isEditing ? (
+              <PopoverSelect
+                options={presets.map((p, i) => ({ id: i + 1, primary: p.libelle, detail: p.texte || undefined }))}
+                value={presetIndex + 1}
+                onChange={(id) => onPatch({ mention_code: presets[id - 1]?.code ?? '' })}
+                emptyLabel="— À choisir —" size="sm" />
+            ) : presetIndex >= 0 ? (
+              <span className="block truncate">{presets[presetIndex].libelle}</span>
+            ) : (
+              <span className="text-destructive text-xs font-medium">À choisir</span>
+            )}
+          </KVRow>
+          {isEditing && mentionCode === 'autre' && (
+            <textarea value={mentionTexte} onChange={(e) => onPatch({ mention_texte: e.target.value })} rows={2} maxLength={300}
+              placeholder="Texte imprimé sous les totaux"
+              className="w-full rounded-md border border-input bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-y" />
+          )}
+          {texte ? (
+            <p className="text-xs italic text-muted-foreground text-right">« {texte} »</p>
+          ) : (
+            <p className="text-[11px] text-destructive text-right">Sans mention, ses factures ne disent pas pourquoi la TVA est à 0 %.</p>
+          )}
+        </>
+      )}
+
+      {/* Attestations — kept even if the client is no longer at 0 %, so a
+          document never silently disappears from the fiche. */}
+      {(francais || client.attestations_tva.length > 0) && (
+        <div className="pt-2 border-t border-border/60 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">Attestations du client</span>
+            {isEditing && (
+              <label className="cursor-pointer">
+                <input type="file" className="hidden" accept=".pdf,image/jpeg,image/png"
+                  onClick={(e) => { (e.target as HTMLInputElement).value = '' }}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMutation.mutate(f) }} />
+                <span className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-md border border-input bg-white hover:bg-accent/10">
+                  {uploadMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                  Ajouter
+                </span>
+              </label>
+            )}
+          </div>
+          {client.attestations_tva.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">Aucune attestation</p>
+          ) : client.attestations_tva.map((d) => (
+            <div key={d.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-border/60 bg-white">
+              <FileText className="h-3.5 w-3.5 text-accent flex-shrink-0" />
+              <button type="button" className="flex-1 min-w-0 text-left" title="Ouvrir"
+                onClick={() => window.open(`${API_URL}/clients-trm/${clientId}/attestations-tva/${d.id}`, '_blank')}>
+                <span className="block text-sm truncate hover:underline">{d.nom}</span>
+                <span className="block text-[10px] text-muted-foreground">Ajoutée le {new Date(d.ajouteLe).toLocaleDateString('fr-FR')}</span>
+              </button>
+              {isEditing && (
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  title="Supprimer" onClick={() => setDeleteId(d.id)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          ))}
+          {uploadError && <p className="text-[11px] text-destructive">{uploadError}</p>}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        title="Supprimer l'attestation ?"
+        description="Le document sera définitivement retiré de la fiche client."
+        confirmLabel="Supprimer"
+        isPending={deleteMutation.isPending}
+        onConfirm={() => { if (deleteId) deleteMutation.mutate(deleteId) }}
+        onCancel={() => setDeleteId(null)}
+      />
+    </InfoCard>
   )
 }
 
