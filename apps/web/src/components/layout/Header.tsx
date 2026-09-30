@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useLocation, NavLink } from 'react-router-dom'
-import { Menu, Maximize2, Minimize2, LogOut, MessageSquarePlus, RefreshCw } from 'lucide-react'
+import { Menu, Maximize2, Minimize2, MessageSquarePlus, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getActiveMenu } from '@/config/navigation'
 import { cn } from '@/lib/utils'
 import { updateServiceWorkerAndWait } from '@/lib/sw-refresh'
-import { useUser, canSwitchUser } from '@/contexts/UserContext'
+import { useUser } from '@/contexts/UserContext'
+import { useAccountMenu } from '@etm/components/auth/UserMenuActions'
 import { useHeaderActionsSlot } from '@/contexts/HeaderActionsContext'
 import { useSubmenuFilter } from '@/hooks/useSubmenuFilter'
 import { TicketModal } from '@/components/tickets/TicketModal'
@@ -22,8 +23,8 @@ export function Header({ onMenuClick }: HeaderProps) {
   const location = useLocation()
   const activeMenu = getActiveMenu(location.pathname)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const { user, logout } = useUser()
-  const allowSwitch = canSwitchUser(user)
+  const { user } = useUser()
+  const accountMenu = useAccountMenu()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
 
@@ -259,26 +260,16 @@ export function Header({ onMenuClick }: HeaderProps) {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold text-primary truncate">{userDisplay}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Utilisateur actif</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide truncate">{user.identifiant ?? (user.typeCompte === 'poste' ? 'Poste' : 'Utilisateur actif')}</p>
                 </div>
               </div>
-              {allowSwitch && (
-                <button
-                  onClick={() => { setUserMenuOpen(false); void logout() }}
-                  className="mt-3 w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-accent/10 hover:text-accent transition-colors border-t border-border/60 pt-3"
-                >
-                  <LogOut className="h-3 w-3" />
-                  Changer d'utilisateur
-                </button>
-              )}
+              <div className="mt-3 border-t border-border/60 pt-3">
+                {accountMenu.items(() => setUserMenuOpen(false))}
+              </div>
               <button
                 onClick={() => void refreshApp()}
                 disabled={refreshing}
-                className={cn(
-                  'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-accent/10 hover:text-accent transition-colors disabled:opacity-60',
-                  // Carry the separator when no "Changer d'utilisateur" precedes us.
-                  !allowSwitch && 'mt-3 border-t border-border/60 pt-3'
-                )}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-accent/10 hover:text-accent transition-colors disabled:opacity-60"
               >
                 <RefreshCw className={cn('h-3 w-3', refreshing && 'animate-spin')} />
                 Actualiser l'application
@@ -293,6 +284,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         </div>
       </div>
 
+      {accountMenu.dialogs}
       <TicketModal
         open={ticketOpen}
         onOpenChange={setTicketOpen}

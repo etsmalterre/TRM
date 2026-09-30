@@ -99,7 +99,7 @@ export function Sidebar({ collapsed, onToggle, className }: SidebarProps) {
   // `screen_settings`, Outils hideable); Utilisateurs additionally needs the
   // EFFECTIVE admin (an admin impersonating someone sees exactly what they
   // see). The menu disappears when nothing is left. The admin can still
-  // switch back to themselves via the header avatar's "Changer d'utilisateur"
+  // switch back to themselves via the « Voir comme » pill (bottom-left)
   // button to regain access.
   const visibleSettings = useVisibleSettingsItem()
 

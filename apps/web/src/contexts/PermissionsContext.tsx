@@ -48,12 +48,16 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [isEffectiveAdmin, setIsEffectiveAdmin] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(true)
+  // Whose permissions are in state: right after a login the user is set one
+  // render before the refetch effect runs (same fix as ETM, 2026-09-30).
+  const [chargePour, setChargePour] = useState<number | null>(null)
 
   const fetchPermissions = useCallback(async () => {
     if (!user) {
       setGranted(new Set())
       setIsAdmin(false)
       setIsEffectiveAdmin(false)
+      setChargePour(null)
       setIsLoading(false)
       return
     }
@@ -69,6 +73,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       setIsAdmin(false)
       setIsEffectiveAdmin(false)
     } finally {
+      setChargePour(user.IDutilisateur)
       setIsLoading(false)
     }
   }, [user])
@@ -92,9 +97,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
   const hasRaw = useCallback((key: string): boolean => granted.has(key), [granted])
 
+  const enAttente = isLoading || userLoading || (!!user && chargePour !== user.IDutilisateur)
+
   const value = useMemo<PermissionsContextValue>(
-    () => ({ granted, isAdmin, isEffectiveAdmin, isLoading, has, hasRaw, refresh: fetchPermissions }),
-    [granted, isAdmin, isEffectiveAdmin, isLoading, has, hasRaw, fetchPermissions],
+    () => ({ granted, isAdmin, isEffectiveAdmin, isLoading: enAttente, has, hasRaw, refresh: fetchPermissions }),
+    [granted, isAdmin, isEffectiveAdmin, enAttente, has, hasRaw, fetchPermissions],
   )
 
   return <PermissionsContext.Provider value={value}>{children}</PermissionsContext.Provider>
