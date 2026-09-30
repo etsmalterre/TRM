@@ -816,6 +816,7 @@ numbers**: the two apps ship independently, so TRM started its own count at **0.
 
 ## Conventions
 
+- ⚠️ **Landing a worktree is the user's call**: never run `/feature-complete` (or its steps by hand — push to master, `down.mjs --remove`) unless Vincent typed it; « fix it on prod » is not it. Finish, say it's ready, stop.
 - **Code**: English. **UI**: French. **Comments**: English.
 - **"check last screenshot"** → read the latest file in `%USERPROFILE%\Pictures\Screenshots`.
 - Git remote: `github.com/etsmalterre/TRM` (etsmalterre account).
