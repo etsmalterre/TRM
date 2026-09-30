@@ -155,7 +155,8 @@ IDmachine = …)`) ou à une référence (`IDref_ecru = …`). Pas de graphe, pa
   21 h, la même que `equipeAt` et la tablette TRS), Aujourd'hui, Hier, Cette semaine, Semaine
   dernière, Ce mois, Mois dernier, et **Personnalisée** qui garde les deux bornes libres du
   legacy. Les bornes résolues sont toujours affichées. `au` est inclusif à la seconde
-  (`…59`, le `999` du legacy). Bornées à 400 jours côté API.
+  (`…59`, le `999` du legacy). Bornées à 10 ans côté API (400 jours jusqu'au LIVA #1234 :
+  tout l'historique TRM se lit en ~0,3 s).
 - **Un appel rend le total ET la répartition par métier et par référence** — le legacy
   faisait lire un métier à la fois. Un clic sur une ligne filtre dessus et bascule l'axe
   (un métier → ses références, une référence → ses métiers) ; la puce du bandeau retire le
