@@ -19,6 +19,12 @@ export default {
     "../../../ETM/apps/web/src/pages/Dashboard.tsx",
     "../../../ETM/apps/web/src/components/dashboard/WidgetFrame.tsx",
     "../../../ETM/apps/web/src/components/dashboard/DashboardContextMenu.tsx",
+    // Login / poste / password change / name picker (UserPickerGate pulls the
+    // whole folder). Missing until 2026-09-30: the split login layout rendered
+    // on TRM without its padding, sizes and gold rule.
+    "../../../ETM/apps/web/src/components/auth/*.tsx",
+    "../../../ETM/apps/web/src/components/layout/AppLogo.tsx",
+    "../../../ETM/apps/web/src/pages/SettingsIndex.tsx",
   ],
   theme: {
     container: {
