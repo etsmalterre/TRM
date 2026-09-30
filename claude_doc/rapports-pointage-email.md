@@ -31,19 +31,22 @@ rule once, both follow. Dossier `pointage-pwa.md` § « 7 derniers jours ».
   - `lib/rapport-pointage.ts` — **pure rules**, tested (`rapport-pointage.test.ts`).
   - `lib/rapport-pointage-email.ts` — markup, inside the standard card (`notification-email.ts`
     gained `appName` + `sections`, pre-rendered blocks with their text twin).
-  - `lib/rapports-pointage-envoi.ts` — reads, recipients, sending, **the timer**.
+  - `lib/rapports-pointage-envoi.ts` — reads, recipients, sending.
+  - `lib/automates/rapports-pointage/` — the schedule: two automates (ETM › Agents IA › Automates).
   - `routes/notifications-trm.ts` → `/api/notifications-trm` (`keys`, `users`, `users/:id`,
     `apercu/:key?jour=`, `envoyer-test/:key?jour=`).
 - Web: `apps/web/src/pages/SettingsUtilisateurs.tsx` → `NotificationsTab`.
 
-## The timer
+## The schedule
 
-In the API process (`demarrerRapportsPointage()` from `index.ts`), a tick every minute.
-⚠️ **Runs only when `NODE_ENV=production`** — a dev or worktree API never mails anyone
-(`RAPPORTS_POINTAGE=off` disables it in prod, `=on` forces it). The journal
-`data/rapports-pointage-envois.json` stores the day each report went out, **written before
-sending**: at most once a day, and an API down at 09:00 sends when it comes back the same
-day. No catch-up of a previous day. Sender `tricotbot@etsmalterre.com` (display « TRM -
+Since 2026-09-30 both reports are **automates** « Rapport de pointage » and « Bilan des
+heures annualisées » (ETM › Agents IA › Automates) on the agents' engine: off / essai / actif,
+« Lancer maintenant », every send listed with its recipients. ⚠️ **Runs only when
+`NODE_ENV=production`** (`AGENTS_IA=off` disables it in prod). The day is written before
+sending: at most once a day, and an API down at 09:00 sends when it comes back the same day.
+No catch-up of a previous day. (2026-09-22 → 09-30 they had their own timer and journal
+`data/rapports-pointage-envois.json`, read once by the automates so the deploy day never
+sends twice; `RAPPORTS_POINTAGE` is gone.) Sender `tricotbot@etsmalterre.com` (display « TRM -
 Pointage »), impersonated through the Gmail domain-wide delegation;
 `RAPPORTS_POINTAGE_FROM` overrides. No email when nobody clocked in / no balance.
 
