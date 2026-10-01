@@ -32,7 +32,7 @@ rule once, both follow. Dossier `pointage-pwa.md` § « 7 derniers jours ».
   - `lib/rapport-pointage-email.ts` — markup, inside the standard card (`notification-email.ts`
     gained `appName` + `sections`, pre-rendered blocks with their text twin).
   - `lib/rapports-pointage-envoi.ts` — reads, recipients, sending.
-  - `lib/automates/rapports-pointage/` — the schedule: two automates (ETM › Agents IA › Automates).
+  - `lib/automates/rapports-pointage/` — the schedule: two automates (TRM › Agents IA › Automates, `app: 'trm'`).
   - `routes/notifications-trm.ts` → `/api/notifications-trm` (`keys`, `users`, `users/:id`,
     `apercu/:key?jour=`, `envoyer-test/:key?jour=`).
 - Web: `apps/web/src/pages/SettingsUtilisateurs.tsx` → `NotificationsTab`.
@@ -40,7 +40,8 @@ rule once, both follow. Dossier `pointage-pwa.md` § « 7 derniers jours ».
 ## The schedule
 
 Since 2026-09-30 both reports are **automates** « Rapport de pointage » and « Bilan des
-heures annualisées » (ETM › Agents IA › Automates) on the agents' engine: off / essai / actif,
+heures annualisées » (TRM › Agents IA › Automates since 2026-10-01, ETM's menu before — dossier
+`agents-ia.md`) on the agents' engine: off / essai / actif,
 « Lancer maintenant », every send listed with its recipients. ⚠️ **Runs only when
 `NODE_ENV=production`** (`AGENTS_IA=off` disables it in prod). The day is written before
 sending: at most once a day, and an API down at 09:00 sends when it comes back the same day.

@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   FileBarChart,
   Clock,
+  Bot,
   Settings,
 } from 'lucide-react'
 import { BobineIcon } from '@/components/icons/BobineIcon'
@@ -282,6 +283,20 @@ export const mainNavigation: MainMenuItem[] = [
       { title: 'Prévisionnel', href: '/pointage/previsionnel' },
       { title: 'Paie', href: '/pointage/paie' },
       { title: 'Salariés', href: '/pointage/salaries' },
+    ],
+  },
+  {
+    // Agents IA — ETM's two screens over TRM's own agents and automates
+    // (/api/agents-ia-trm, /api/automates-trm): the pointage report emails
+    // since 2026-10-01. Granted person by person (seed: false in ETM's
+    // screen-keys-trm.ts); piloting needs `edit_agents_ia`.
+    id: 'agents-ia',
+    title: 'Agents IA',
+    icon: Bot,
+    href: '/agents-ia',
+    submenus: [
+      { title: 'Agents', href: '/agents-ia/agents' },
+      { title: 'Automates', href: '/agents-ia/automates' },
     ],
   },
 ]

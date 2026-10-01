@@ -102,6 +102,7 @@ warnings that would bite in the first hour) with a pointer to the dossier.
 | `claude_doc/pointage-pwa.md` | `apps/pointage`, la tablette pointeuse (base `pointage`, boutons, enrôlement) |
 | `claude_doc/admin-pointage.md` | Menu Pointage de l'ERP : Horaires, Salariés + messages (port d'Admin Pointage, corrections suivies dans la jumelle et le journal TRS) |
 | `claude_doc/rapports-pointage-email.md` | Rapports de pointage par email (ex-n8n) : onglet Notifications, règles, minuterie de l'API |
+| `claude_doc/agents-ia.md` | Agents IA (Agents + Automates) : écrans d'ETM sur les montages TRM de l'API, `app: 'trm'`, droits |
 
 ## Atelier — la PWA mobile de l'atelier (`apps/atelier`)
 
@@ -296,6 +297,20 @@ réservé à qui a le menu « Pointage » (`screen_pointage`). **Dossier : `clau
   `planning_bonnetier` ce jour-là (± 5 min, 20 min de pause), sinon **journée** 09:00–12:00 /
   14:00–18:00 (± 5 min) ; une sortie oubliée entre deux lignes est signalée. Lu sur `lst_horaire`.
 
+## Agents IA — le menu des agents et automates de TRM
+
+Menu **« Agents IA »** (`screen_agents_ia`, **`seed: false`**) : Agents (`/agents-ia/agents`,
+vide pour l'instant) et **Automates** (`/agents-ia/automates`, le Rapport de pointage et le
+Bilan des heures annualisées, venus du menu d'ETM le 2026-10-01). **Les écrans sont ceux
+d'ETM** (`@etm/pages/AgentsIa`, `@etm/pages/Automates`), la seule différence est la prop
+`basePath` (`/agents-ia-trm`, `/automates-trm`). **Dossier : `claude_doc/agents-ia.md`.**
+
+- ⚠️ **Un agent / automate appartient à une app par `app: 'trm'` dans son catalogue**
+  (API `lib/agents/catalog.ts`, `lib/automates/catalog.ts`, absent = ETM) ; chaque montage
+  ne liste que les siens et répond 404 aux autres. Le moteur les fait tous tourner.
+- Droits `edit_agents_ia` / `evaluer_agents_ia` du **store TRM** (`permission-keys-trm.ts`),
+  vérifiés sur chaque écriture des montages TRM.
+
 ## Production / deploy
 
 - **Host**: `https://trm.intra.etsmalterre.com` (HTTPS only since 2026-09-10; Caddy `10.10.20.5` terminates TLS) → nginx on `mps-webapps` (`10.10.20.4`, hostname `mfprod-erp` until 2026-09-09), dist at `/home/debian/mps_trm/dist`, `/api/` proxied to the MPS API (`10.10.20.3:8081`).
@@ -341,7 +356,9 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 6. **Atelier** — **Maintenance** (`/atelier/maintenance`, implemented — see "Atelier › Maintenance" below), Bonnetier, **Planning** (`/atelier/planning`, implemented — weekly bonnetier grid over `planning_bonnetier` + desiderata dialog; API route `ETM/apps/api/src/routes/planning-atelier.ts`)
 7. **Qualité** — Défauts récents, **Retour client** (`/qualite/retour-client`, implemented — the menu’s index redirect, see "Qualité › Retour client" below), Analyse
 8. **Rapports** — **Finance** (`/rapports/finance`, implemented — the menu's only screen, shared verbatim with ETM; see "Rapports › Finance" below). The Production / Lots de fils / État stock fil / Analyse placeholders were removed with it.
-9. **Paramètres** — **Utilisateurs** (`/settings/utilisateurs`, implemented, admin-only — see "Paramètres › Utilisateurs" below), **Outils** (`/settings/outils`, given in Écrans › Paramètres — no action key, the API checks the screen grant): the weekly Sage balance import, ETM's `SettingsOutils.tsx` through `@etm` with `basePath="/outils-trm/import-sage"` — edit it in ETM (rules + refusal of an ETM file: ETM `screen_notes.md` § 14). `/settings` lands on the first Paramètres screen the viewer may open (`@etm/pages/SettingsIndex`).
+9. **Pointage** — Horaires, Semaines, Prévisionnel, Paie, Salariés (see « Pointage — le menu de l'ERP »).
+10. **Agents IA** — Agents (`/agents-ia/agents`), **Automates** (`/agents-ia/automates`) — ETM's screens, TRM's jobs (see « Agents IA » above).
+11. **Paramètres** — **Utilisateurs** (`/settings/utilisateurs`, implemented, admin-only — see "Paramètres › Utilisateurs" below), **Outils** (`/settings/outils`, given in Écrans › Paramètres — no action key, the API checks the screen grant): the weekly Sage balance import, ETM's `SettingsOutils.tsx` through `@etm` with `basePath="/outils-trm/import-sage"` — edit it in ETM (rules + refusal of an ETM file: ETM `screen_notes.md` § 14). `/settings` lands on the first Paramètres screen the viewer may open (`@etm/pages/SettingsIndex`).
 
 All other screens are `PagePlaceholder`s for now. Legacy references for each domain: `FEN_Gestion_des_OF.wdw`, `FEN_Machines.wdw`, `FEN_Rapport_de_production.wdw`, etc. in `C:\Mes Projets\TRMPROD\` and the main MPS WinDev project (`FI_Planning_Atelier.wdw`, `FEN_Desiderata.wdw` in TRM mode).
 

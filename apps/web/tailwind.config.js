@@ -28,6 +28,10 @@ export default {
     // Paramètres › Utilisateurs — one screen for both apps, and its account panel.
     "../../../ETM/apps/web/src/pages/SettingsUtilisateurs.tsx",
     "../../../ETM/apps/web/src/components/comptes/*.tsx",
+    // Agents IA › Agents + Automates and the pieces they share.
+    "../../../ETM/apps/web/src/pages/AgentsIa.tsx",
+    "../../../ETM/apps/web/src/pages/Automates.tsx",
+    "../../../ETM/apps/web/src/components/agents-ia/commun.tsx",
   ],
   theme: {
     container: {

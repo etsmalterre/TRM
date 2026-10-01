@@ -114,6 +114,13 @@ const QualiteAnalysePage = createPlaceholder('Analyse', 'Analyse qualité', BarC
 // Charges and Analyse financière widgets already read). Edit it in ETM.
 import { RapportFinance } from '@etm/pages/RapportFinance'
 
+// Agents IA
+// ETM's two screens, imported verbatim; `basePath` points them at TRM's mounts
+// of the same routers, which list only TRM's agents and automates (the pointage
+// report emails) and check TRM's permission store. Edit them in ETM.
+import { AgentsIa } from '@etm/pages/AgentsIa'
+import { Automates } from '@etm/pages/Automates'
+
 // Pointage
 // The office's side of the time clock — port of the WinDev Admin Pointage
 // over the legacy `pointage` database (/api/pointage-admin). Horaires = the
@@ -198,6 +205,11 @@ export const router = createBrowserRouter([
       { path: 'pointage/previsionnel', element: <PointagePrevisionnel /> },
       { path: 'pointage/paie', element: <PointagePaie /> },
       { path: 'pointage/salaries', element: <PointageSalaries /> },
+
+      // Agents IA
+      { path: 'agents-ia', element: <Navigate to="/agents-ia/automates" replace /> },
+      { path: 'agents-ia/agents', element: <AgentsIa basePath="/agents-ia-trm" /> },
+      { path: 'agents-ia/automates', element: <Automates basePath="/automates-trm" /> },
 
       // Settings (admin-only sub-routes)
       { path: 'settings', element: <SettingsIndex /> },
