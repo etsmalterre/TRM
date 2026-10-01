@@ -1263,6 +1263,21 @@ export function AtelierMaintenance() {
     if (!isEditing) setDraft(selected ? emptyDraft(selected) : null)
   }, [selected, isEditing])
 
+  // An entretien added while editing joins the draft as it is on the server,
+  // so it neither reads as an unsaved change nor gets dropped on Enregistrer.
+  useEffect(() => {
+    if (!isEditing || !selected) return
+    setDraft((d) => {
+      if (!d) return d
+      const missing = selected.entretiens.filter((e) => !(e.id in d.entretiens))
+      if (missing.length === 0) return d
+      const added = Object.fromEntries(
+        missing.map((e) => [e.id, { date: e.date ?? '', commentaire: e.commentaire ?? '' }]),
+      )
+      return { ...d, entretiens: { ...d.entretiens, ...added } }
+    })
+  }, [selected, isEditing])
+
   const isDirty = useMemo(() => {
     if (!isEditing || !draft || !selected) return false
     return JSON.stringify(draft) !== JSON.stringify(emptyDraft(selected))
@@ -1501,7 +1516,7 @@ export function AtelierMaintenance() {
                 set={set}
                 onFait={onFaitMetier}
                 onManage={quick ? openManage : undefined}
-                onAdd={quick ? () => openCreate('metier') : undefined}
+                onAdd={canEdit && isEditing ? () => openCreate('metier') : undefined}
               />
               <GarnitureCard
                 metier={selected}

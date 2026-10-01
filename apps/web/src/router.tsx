@@ -9,7 +9,6 @@ import { Dashboard } from '@etm/pages/Dashboard'
 import {
   Layers,
   ClipboardList,
-  HardHat,
   AlertTriangle,
   Undo2,
   BarChart3,
@@ -98,7 +97,6 @@ import { ProductionPlanning } from '@/pages/ProductionPlanning'
 // (Productivité was removed from the Atelier menu on 2026-08-26 — it had never
 // been more than a placeholder.)
 import { AtelierMaintenance } from '@/pages/AtelierMaintenance'
-const AtelierBonnetierPage = createPlaceholder('Bonnetier', 'Suivi bonnetier', HardHat)
 // Planning — real screen
 import { AtelierPlanning } from '@/pages/AtelierPlanning'
 
@@ -185,7 +183,6 @@ export const router = createBrowserRouter([
       // Atelier
       { path: 'atelier', element: <Navigate to="/atelier/maintenance" replace /> },
       { path: 'atelier/maintenance', element: <AtelierMaintenance /> },
-      { path: 'atelier/bonnetier', element: <AtelierBonnetierPage /> },
       { path: 'atelier/planning', element: <AtelierPlanning /> },
 
       // Qualité

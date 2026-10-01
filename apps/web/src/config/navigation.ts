@@ -238,7 +238,6 @@ export const mainNavigation: MainMenuItem[] = [
     href: '/atelier',
     submenus: [
       { title: 'Maintenance', href: '/atelier/maintenance' },
-      { title: 'Bonnetier', href: '/atelier/bonnetier' },
       { title: 'Planning', href: '/atelier/planning' },
     ],
   },
@@ -349,7 +348,6 @@ export const routeTitles: Record<string, string> = {
   // Atelier
   '/atelier': 'Atelier',
   '/atelier/maintenance': 'Maintenance',
-  '/atelier/bonnetier': 'Bonnetier',
   '/atelier/planning': 'Planning',
   // Qualité
   '/qualite': 'Qualité',
