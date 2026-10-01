@@ -21,6 +21,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef, type ReactNode, type ComponentType } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link, useSearchParams } from 'react-router-dom'
 import { UnsavedChangesDialog } from '@/components/shared/UnsavedChangesDialog'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
@@ -403,7 +404,10 @@ function formatSaisie(raw: string | null): string {
 
 export function ClientsCommandes() {
   const queryClient = useQueryClient()
-  const [selectedId, setSelectedId] = useState<number | null>(null)
+  // Deep link from Production › Planning (LIVA #1250): ?commande=<id>. The
+  // planning only lists open orders, so the default « En cours » list holds it.
+  const [searchParams] = useSearchParams()
+  const [selectedId, setSelectedId] = useState<number | null>(() => Number(searchParams.get('commande')) || null)
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open')
@@ -1366,6 +1370,38 @@ function LineStat({ label, value, className, valueClass }: {
   )
 }
 
+/** « Fin prévue » of a line, from Production › Planning (LIVA #1250) — the
+ *  end of its last bar on the métiers' timeline (OF in progress, queued OFs,
+ *  then the part no OF covers yet). One shared query for every card. */
+function FinPrevueStat({ ligneId }: { ligneId: number }) {
+  const { data } = useQuery({
+    queryKey: ['planning-prod-trm-fins'],
+    queryFn: () => apiFetch<{
+      lignes: Record<number, { fin_prevue: number | null; en_retard: boolean; non_planifiable: boolean }>
+    }>('/planning-prod-trm/fins'),
+    staleTime: 60_000,
+  })
+  const f = data?.lignes[ligneId]
+  if (!f || (f.fin_prevue === null && !f.non_planifiable)) return null
+  return (
+    <Link
+      to="/production/planning"
+      onClick={(e) => e.stopPropagation()}
+      className="text-right group"
+      title={f.non_planifiable
+        ? 'Aucun métier n’a de réglage pour cette référence : le planning ne peut pas la dater.'
+        : `Fin du tricotage prévue par le planning de production${f.en_retard ? ' — après le délai' : ''}`}
+    >
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold group-hover:text-accent">Fin prévue</p>
+      <p className={cn('text-xs font-semibold tabular-nums', f.en_retard && 'text-red-600', f.non_planifiable && 'text-amber-600')}>
+        {f.non_planifiable
+          ? 'Aucun métier'
+          : new Date(f.fin_prevue!).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
+      </p>
+    </Link>
+  )
+}
+
 function LineCard({
   line, estSoldee, isEditing, linesLocked, isDrawerOpen, canSetDelai, onEdit, onDelete, onSetDelai, onOpenProgression,
 }: {
@@ -1481,6 +1517,7 @@ function LineCard({
           </div>
         )}
         {line.montant > 0 && <LineStat label="Montant" value={`${fmtNum(line.montant, 2)} €`} />}
+        {!isRecti && !estSoldee && <FinPrevueStat ligneId={line.IDligne_commande_client} />}
         {/* Délai — the legacy line band's ATT_delai (LIVA #1123). TRM's own
             answer to the commande, so it is writable on a mirror, outside
             edit mode, whenever the order is open. Without a date on a

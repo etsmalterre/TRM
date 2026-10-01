@@ -36,6 +36,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import {
   Activity, AlertCircle, Award, Bell, Check, CheckCircle2, ChevronDown,
   ChevronUp, ClipboardList, Clock, Eye, Factory, Info, Layers, Loader2,
@@ -726,10 +727,15 @@ function draftFromDetail(d: OfDetail): Draft {
 
 export function ProductionOf() {
   const queryClient = useQueryClient()
-  const [selectedId, setSelectedId] = useState<number | null>(null)
+  // Deep link from Production › Planning (LIVA #1250): ?of=<id>&statut=encours|attente.
+  const [searchParams] = useSearchParams()
+  const [selectedId, setSelectedId] = useState<number | null>(() => Number(searchParams.get('of')) || null)
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('encours')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    const s = searchParams.get('statut')
+    return s === 'attente' || s === 'termine' ? s : 'encours'
+  })
   const [isEditing, setIsEditing] = useState(false)
   // Read stays open to whoever holds the Production menu — the atelier and
   // the poste de visitage next door consult the queue, the consigne and the

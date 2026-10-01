@@ -227,6 +227,8 @@ export const mainNavigation: MainMenuItem[] = [
       { title: 'Visitage', href: '/production/visitage' },
       { title: 'Prime', href: '/production/prime' },
       { title: 'TRS', href: '/production/trs', permission: 'view_trs' },
+      // LIVA #1250 — the commande lines on the métiers' timeline (FI_Planning_Commande).
+      { title: 'Planning', href: '/production/planning' },
     ],
   },
   {
@@ -340,6 +342,7 @@ export const routeTitles: Record<string, string> = {
   // Production
   '/production': 'Production',
   '/production/of': 'Ordres de fabrication',
+  '/production/planning': 'Planning',
   '/production/visitage': 'Visitage',
   '/production/prime': 'Prime',
   '/production/trs': 'TRS',

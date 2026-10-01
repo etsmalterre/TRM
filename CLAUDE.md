@@ -88,6 +88,7 @@ warnings that would bite in the first hour) with a pointer to the dossier.
 | `claude_doc/clients-facturation.md` | Clients › Facturation (router factory, code comptable) |
 | `claude_doc/tombe-metier-stock.md` | Tombé Métier › Stock (TRM écru partition, Dymo reprint, observations sous `edit_stock_ecru`) |
 | `claude_doc/clients-gestion.md` | Clients › Gestion (TRM fiche client) |
+| `claude_doc/production-planning.md` | Production › Planning (LIVA #1250): commande lines on the métiers' timeline, calendar, measured rendement |
 | `claude_doc/production-of.md` | Production › Ordres de fabrication + Observations régleur (`obs_ref_ecru`) |
 | `claude_doc/atelier-maintenance.md` | Atelier › Maintenance (rouloir, garniture, jauges) |
 | `claude_doc/production-visitage.md` | Production › Visitage (le poste, `POST /valider`, étiquette Dymo, kiosk Chrome) |
@@ -352,7 +353,7 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 2. **Clients** — **Commandes** (`/clients/commandes`, implemented — voir "Commandes clients" ci-dessous), **Expéditions** (`/clients/expeditions`, implemented — TRM-specific, NOT shared, see below), **Facturation** (`/clients/facturation`, implemented — TRM-specific, NOT shared, see below), **Gestion** (`/clients/gestion`, implemented — see "Clients › Gestion" below), Planning
 3. **Fils** — **Références** (`/fils/references`, shared verbatim with ETM), **Stock** (`/fils/stock`, implemented — TRM-specific, NOT shared, see "Fils › Stock" below), **Fournisseurs** (`/fils/fournisseurs`, shared verbatim with ETM)
 4. **Tombé Métier** — **Références** (`/tombe-metier/references`, implemented — shared verbatim with ETM, see "Shared screens" below), Échantillons, **Stock** (`/tombe-metier/stock`, implemented — TRM-specific, NOT shared, see below). Menu icon is the custom `TmRollIcon`.
-5. **Production** — **Ordres de fabrication** (`/production/of`, implemented — see "Production › Ordres de fabrication" below), **Visitage** (`/production/visitage`, implemented — see "Production › Visitage" below), **Prime** (`/production/prime`, implemented — see "Production › Prime" below), **TRS** (`/production/trs`, implemented — see "Production › TRS" below)
+5. **Production** — **Ordres de fabrication** (`/production/of`, implemented — see "Production › Ordres de fabrication" below), **Planning** (`/production/planning`, implemented — see "Production › Planning" below), **Visitage** (`/production/visitage`, implemented — see "Production › Visitage" below), **Prime** (`/production/prime`, implemented — see "Production › Prime" below), **TRS** (`/production/trs`, implemented — see "Production › TRS" below)
 6. **Atelier** — **Maintenance** (`/atelier/maintenance`, implemented — see "Atelier › Maintenance" below), Bonnetier, **Planning** (`/atelier/planning`, implemented — weekly bonnetier grid over `planning_bonnetier` + desiderata dialog; API route `ETM/apps/api/src/routes/planning-atelier.ts`)
 7. **Qualité** — Défauts récents, **Retour client** (`/qualite/retour-client`, implemented — the menu’s index redirect, see "Qualité › Retour client" below), Analyse
 8. **Rapports** — **Finance** (`/rapports/finance`, implemented — the menu's only screen, shared verbatim with ETM; see "Rapports › Finance" below). The Production / Lots de fils / État stock fil / Analyse placeholders were removed with it.
@@ -530,6 +531,23 @@ recherche, onglets, Observations régleur).
   `components/of/FilPickers.tsx`, LIVA #1160, 2026-09-16), empilé sur `CreateOfDialog` ; les
   deux champs d'emblée, lot obligatoire en mode `lot` seulement. Ne pas réintroduire le
   panneau qui grandissait dans la carte. Dossier § « Ajouter un fil / lot ».
+
+### Production › Planning (`/production/planning`) — port de `FI_Planning_Commande` (LIVA #1250)
+
+Métiers à gauche, chaque ligne de commande TRM encore à tricoter sur une frise ; la fin de sa
+dernière barre est sa **« fin prévue »**, reprise sur la carte de ligne de Clients › Commandes.
+API `/api/planning-prod-trm` (`ETM/apps/api/src/lib/planning-prod-trm.ts`, pur et testé).
+**Dossier : `claude_doc/production-planning.md`.**
+
+- ⚠️ **Les dates se calculent à chaque lecture, jamais stockées** : un glisser enregistre le
+  métier et le rang (`planning_prod_ligne`), rien d'autre. Les colonnes legacy
+  `IDmachine_planning` / `planning_*` ne sont ni lues ni écrites.
+- ⚠️ **Calendrier = le planning des bonnetiers tant qu'il est rempli (21 j max), puis le régime**
+  (3×8 par défaut, 2×8, 2×7 = 6–20, personnalisé — `planning_prod_reglage`, migration
+  `0006` à passer avant l'API). **Rendement MESURÉ par métier** (facteur de calibration,
+  dépasse 100 %), pas le 17 × 0,6 du legacy (~40 % optimiste).
+- Droit **`edit_planning_prod`** (placer une ligne, régime) ; déplacer un OF reste sous
+  `edit_of`.
 
 ### Atelier › Maintenance (`/atelier/maintenance`) — port de `FI_Maintenance.wdw`
 

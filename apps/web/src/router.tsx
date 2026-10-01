@@ -89,6 +89,7 @@ import { ProductionPrime } from '@/pages/ProductionPrime'
 // of the workshop over `/trs/equipe` on the MPS API. Behind `view_trs` — the
 // page renders its own « Accès restreint » state, the API refuses too.
 import { ProductionTrs } from '@/pages/ProductionTrs'
+import { ProductionPlanning } from '@/pages/ProductionPlanning'
 
 // Atelier
 // Maintenance — real screen (port of the legacy FI_Maintenance.wdw). TRM-only
@@ -176,6 +177,7 @@ export const router = createBrowserRouter([
       // Production
       { path: 'production', element: <Navigate to="/production/of" replace /> },
       { path: 'production/of', element: <ProductionOf /> },
+      { path: 'production/planning', element: <ProductionPlanning /> },
       { path: 'production/visitage', element: <ProductionVisitage /> },
       { path: 'production/prime', element: <ProductionPrime /> },
       { path: 'production/trs', element: <ProductionTrs /> },
