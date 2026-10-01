@@ -64,3 +64,40 @@ tout futur portage TRM.
   `/etm_deploy`**, c'est le seul test du chemin Linux) et `check-maintenance-trm.ts`
   (garde HTTP : aller-retour PUT avec accents, 409 sur métier archivé, 403 sans le droit,
   reset d'opération, tout restauré).
+
+## Refonte avec Mickaël (2026-10-01)
+
+Mickaël (utilisateur principal) a demandé quatre choses ; ce qui a été fait :
+
+- **Entretiens par métier.** Ventilateurs, Couronnes et Fuites d'air étaient UNE date pour tout
+  l'atelier (`operation_maintenance`). Migration PG **`0007_maintenance_trm`** (`ETM/apps/api/src/lib/mps-schema.ts`) :
+  `operation_maintenance.portee` (`'metier'` | `'atelier'`) + `archive`, et la table
+  **`operation_maintenance_metier`** (op × métier : `date_derniere`, `commentaire`, `modifie_par`).
+  Les trois anciens deviennent `metier`, chaque métier repart de la date commune qu'ils avaient ;
+  « Fuites d'air » est **aussi** recréé en entretien d'atelier (même date, même fréquence).
+  Carte **Entretien** dans la fiche, entre Rouloir et Garniture.
+- **Onglet Rouloir retiré** (et `GET /metiers/:id/production` avec lui). L'onglet Entretien de la
+  sidebar devient **Atelier** : les entretiens du bâtiment seuls (`portee = 'atelier'`).
+- **Kg tricotés depuis chaque entretien** (rouloir, garniture, entretiens) : ⚠️ **une seule mesure,
+  les rouleaux pesés** — Σ `stock_ecru.poids` des OF du métier, `date_saisie` **strictement après**
+  le jour de l'entretien (`lib/maintenance-trm.ts`, testé). Le compteur rouloir a quitté la règle
+  legacy (Σ `ordre_fabrication.quantite` des OF terminés créés après la visite, qui ignorait l'OF en
+  cours) : écart ≤ ~10 % sur la plupart des métiers, le seuil 15 000 Kg est conservé. La parité
+  avec l'écran WinDev (retiré le 2026-09-29) n'est plus vérifiée ; `probe-maintenance-trm.ts`
+  imprime les deux mesures côte à côte.
+- **Entretiens d'atelier extensibles** : « Ajouter un entretien » (sidebar Atelier ou carte
+  Entretien) ouvre `components/maintenance/OperationDialog.tsx` — nom, fréquence en mois, portée
+  (fixée à la création). L'icône réglages d'un entretien le renomme / change sa fréquence /
+  le supprime (= `archive`, les dates restent). Routes `POST|PUT|DELETE /operations[/:id]`.
+
+Autres changements :
+- **« Effectué ce jour » sur chaque élément**, hors mode édition, confirmé (`ConfirmDialog`) :
+  `POST /metiers/:id/fait { item: 'rouloir' | <clé garniture> | <id entretien> }` ; atelier :
+  `POST /operations/:id/reset` (409 `operation_par_metier` sur un entretien par métier). En mode
+  édition, les dates et commentaires des entretiens se corrigent avec le reste (`PUT /metiers/:id`,
+  champ `entretiens`).
+- **Liste** : liseré = pire état (rouloir + entretiens), ligne « À faire : … », pastille = métiers
+  ayant quelque chose de dû ; tri état puis kg restants. La jauge reste celle du rouloir.
+- **Route en PostgreSQL natif** (`mpsPg`), plus de pliage d'accents HFSQL.
+
+**Déploiement** : `mps-migrate.ts --write` (owner) **avant** de redémarrer l'API, puis `/trm_deploy`.

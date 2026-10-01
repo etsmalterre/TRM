@@ -557,12 +557,13 @@ Fiche §4–§9, `AtelierMaintenance.tsx` + `MaintenanceGauge.tsx`, API
 **Dossier : `claude_doc/atelier-maintenance.md`.**
 
 - ⚠️ « Description » = `machine.commentaire`, **pas** `nom`. Vraies fautes de colonnes :
-  `observation_maintenace`, `comm_pulsonque`. `connecté` / `archivé` / `diamètre`
-  accentués → `SELECT *` + pliage, filtre en JS ; le `SET` ne nomme que la maintenance.
-- Compteur rouloir : Σ `quantite` des OF terminés après `date_maintenance`, **seuil
-  15 000 Kg mesuré 14/14** (`probe-maintenance-trm.ts`) — constante de module ; si elle
-  change, table datée comme `BAREMES_PRIME`.
-- Jauges = les 3 lignes `operation_maintenance`, atelier-wide, rendues dynamiquement.
+  `observation_maintenace`, `comm_pulsonque`. Le `SET` ne nomme que la maintenance.
+- Compteur rouloir : **seuil 15 000 Kg** — constante de module ; si elle change, table
+  datée comme `BAREMES_PRIME`.
+- **Depuis le 2026-10-01 (Mickaël)** : Ventilateurs / Couronnes / Fuites d'air **par métier**
+  (migration PG `0007`, `operation_maintenance.portee` + `operation_maintenance_metier`), entretiens
+  d'atelier à part (sidebar « Atelier », extensibles), onglet Rouloir retiré, et **kg tricotés depuis
+  chaque entretien** = rouleaux pesés (`lib/maintenance-trm.ts`) — le compteur rouloir aussi.
 
 ### Production › Visitage (`/production/visitage`) — port of `FI_Visitage.wdw`
 

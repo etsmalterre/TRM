@@ -1,31 +1,31 @@
 // Atelier › Maintenance — port of the legacy FI_Maintenance.wdw (Tricotage
 // Malterre mode). Layout: Fiche (MasterDetailLayout, mps_designer §4–§9).
 //
-// Left  = the 30 active métiers, most urgent first, each with its rouloir
-//         counter ("Rouloir dans N Kgs" — the legacy string) and a §41 liseré.
+// Left  = the active métiers, most urgent first, each with its rouloir counter
+//         ("Rouloir dans N Kgs" — the legacy string), what is due, and a §41
+//         liseré on the worst of its items.
 // Center= the maintenance fiche: Identification (description + fonture),
-//         Rouloir (last visit, comment, the 15 000 Kg counter) and Garniture
-//         (the legacy's six date + comment pairs, in the legacy's order).
-// Right = Entretien (the three atelier-wide operations + "Effectué ce jour"),
-//         Métier (read-only characteristics) and Rouloir (the OFs the counter
-//         is made of).
+//         Rouloir (last visit, comment, the 15 000 Kg counter), Entretien (the
+//         periodic per-métier items: Ventilateurs, Couronnes, Fuites d'air, …)
+//         and Garniture (the legacy's six date + comment pairs). Every item
+//         shows the kg knitted since it was last done (Mickaël, 2026-10-01).
+// Right = Atelier (the building's own dated items — air leaks, …) and Métier
+//         (read-only characteristics).
 //
-// API: /api/maintenance-trm (ETM shared API — routes/maintenance-trm.ts holds
-// the data rules and the recovered legacy spec, including why the rouloir
-// threshold is 15 000 Kg and how that was measured rather than guessed).
+// API: /api/maintenance-trm (MPS API — routes/maintenance-trm.ts holds the
+// data rules; lib/maintenance-trm.ts the kg-since and state rules).
 //
 // Deliberate deltas vs the legacy window (house convention: state them):
 //  - The red/green padlock (IMG_Verrou) becomes the standard gold Modifier edit
 //    mode with the §28 unsaved-changes guard, like Gestion des OF.
 //  - The rainbow needle dials become single-hue meters with a status word —
 //    see the header of components/maintenance/MaintenanceGauge.tsx for why.
-//  - The three gauges are rendered from `operation_maintenance` rather than
-//    hard-wired, so a fourth operation added in the base shows up on its own.
-//  - The garniture dates gain a derived "il y a N ans" caption. No colour on
-//    them: the base holds no frequency for garniture work, so an alert
-//    threshold would be invented data.
-//  - New: the Rouloir sidebar tab lists the OFs behind the counter. The legacy
-//    printed the number with no way to check it.
+//  - Ventilateurs / Couronnes / Fuites d'air were ONE atelier-wide date each;
+//    they are per métier since 2026-10-01 (Mickaël), and the atelier keeps
+//    items of its own. Items are created / edited here (OperationDialog).
+//  - « Effectué ce jour » on every item, outside edit mode, confirmed.
+//  - The garniture dates have no colour: the base holds no frequency for
+//    garniture work, so an alert threshold would be invented data.
 //  - No Imprimer / Envoyer un email (§6.1): the legacy window produces no
 //    document, and a placeholder pair would be noise.
 
@@ -35,12 +35,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
   Brush,
+  CalendarCheck,
   CalendarClock,
-  ClipboardList,
   Cog,
+  Factory,
+  Fan,
   Gauge,
   Loader2,
   Pencil,
+  Plus,
   Save,
   Search,
   Settings2,
@@ -61,6 +64,11 @@ import {
   etatSpec,
   type MeterEtat,
 } from '@/components/maintenance/MaintenanceGauge'
+import {
+  OperationDialog,
+  type OperationDraft,
+  type Portee,
+} from '@/components/maintenance/OperationDialog'
 import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst'
 import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
 import { useHasPermission } from '@/contexts/PermissionsContext'
@@ -74,6 +82,20 @@ import { cn } from '@/lib/utils'
 interface OperationSlot {
   date: string | null
   commentaire: string | null
+  /** Kg knitted since `date` (weighed rolls); null without a date. */
+  kgDepuis: number | null
+}
+
+interface EntretienMetier {
+  id: number
+  nom: string
+  frequenceMois: number
+  date: string | null
+  commentaire: string | null
+  moisEcoules: number | null
+  ratio: number | null
+  etat: MeterEtat
+  kgDepuis: number | null
 }
 
 interface Garniture {
@@ -94,6 +116,11 @@ interface Metier {
   description: string | null
   doubleFonture: boolean
   archive: boolean
+  /** Worst state over the rouloir and the periodic items. */
+  etat: MeterEtat
+  /** Names of the items that are due ('Rouloir', 'Ventilateurs', …). */
+  aFaire: string[]
+  entretiens: EntretienMetier[]
   rouloir: {
     derniereVisite: string | null
     commentaire: string | null
@@ -120,9 +147,12 @@ interface MetiersPayload {
   metiers: Metier[]
 }
 
+/** The item catalogue. `derniereMaintenance` / meter fields are filled for
+ *  atelier items only — a per-métier item's dates live on each métier. */
 interface OperationEntretien {
   id: number
   nom: string
+  portee: Portee
   derniereMaintenance: string | null
   frequenceMois: number
   moisEcoules: number | null
@@ -130,12 +160,8 @@ interface OperationEntretien {
   etat: MeterEtat
 }
 
-interface ProductionPayload {
-  derniereVisite: string | null
-  totalKg: number
-  seuilRouloirKg: number
-  ofs: { id: number; dateCreation: string | null; quantiteKg: number; reference: string | null }[]
-}
+/** What « Effectué ce jour » targets on a métier. */
+type FaitItem = 'rouloir' | GarnitureKey | number
 
 // ── Constants ──────────────────────────────────────────
 
@@ -182,6 +208,9 @@ const emptyDraft = (m: Metier) => ({
       { date: m.garniture[r.key].date ?? '', commentaire: m.garniture[r.key].commentaire ?? '' },
     ]),
   ) as Record<GarnitureKey, { date: string; commentaire: string }>,
+  entretiens: Object.fromEntries(
+    m.entretiens.map((e) => [e.id, { date: e.date ?? '', commentaire: e.commentaire ?? '' }]),
+  ) as Record<number, { date: string; commentaire: string }>,
 })
 
 type Draft = ReturnType<typeof emptyDraft>
@@ -242,7 +271,7 @@ function MetierList({
               type="button"
               onClick={onToggleDue}
               aria-pressed={dueOnly}
-              title="Visite du rouloir à faire"
+              title="Métiers avec un entretien à faire"
               className={cn(
                 'h-7 min-w-[1.75rem] px-1.5 inline-flex items-center justify-center rounded-md text-xs font-semibold tabular-nums border transition-colors flex-shrink-0',
                 dueOnly
@@ -279,7 +308,8 @@ function MetierList({
           !isError &&
           rows.map((m) => {
             const selected = selectedId === m.id
-            const etat = m.rouloir.etat
+            // The liseré carries the worst item; the meter stays the rouloir's.
+            const etat = m.etat
             const selectedRing =
               etat === 'due'
                 ? 'border-red-500 ring-1 ring-red-500'
@@ -312,17 +342,28 @@ function MetierList({
                   )}
                 </div>
                 <div className="mt-1.5 flex items-center gap-2">
-                  <LinearMeter ratio={m.rouloir.ratio} etat={etat} className="h-1.5 flex-1" />
+                  <LinearMeter
+                    ratio={m.rouloir.ratio}
+                    etat={m.rouloir.etat}
+                    className="h-1.5 flex-1"
+                  />
                   {/* The legacy string, kept verbatim. */}
                   <p
                     className={cn(
                       'text-[11px] tabular-nums flex-shrink-0',
-                      etat === 'ok' ? 'text-muted-foreground' : etatSpec(etat).text,
+                      m.rouloir.etat === 'ok'
+                        ? 'text-muted-foreground'
+                        : etatSpec(m.rouloir.etat).text,
                     )}
                   >
                     Rouloir dans {fmtNum(m.rouloir.restantKg)} Kgs
                   </p>
                 </div>
+                {m.aFaire.length > 0 && (
+                  <p className="mt-1 text-[11px] font-medium text-red-700 truncate">
+                    À faire : {m.aFaire.join(', ')}
+                  </p>
+                )}
               </div>
             )
           })}
@@ -403,7 +444,7 @@ function DetailHeader({
                     Ø {c.diametre}&quot;
                   </Badge>
                 )}
-                <EtatChip etat={metier.rouloir.etat} />
+                <EtatChip etat={metier.etat} />
               </div>
             </>
           )}
@@ -522,12 +563,15 @@ function RouloirCard({
   isEditing,
   draft,
   set,
+  onFait,
 }: {
   metier: Metier
   seuilKg: number
   isEditing: boolean
   draft: Draft | null
   set: (fn: (d: Draft) => Draft) => void
+  /** « Effectué ce jour » — absent without the right or in edit mode. */
+  onFait?: () => void
 }) {
   const r = metier.rouloir
   const spec = etatSpec(r.etat)
@@ -535,11 +579,12 @@ function RouloirCard({
 
   return (
     <Card className={cn('card-premium', isEditing && editSectionClass)}>
-      <CardHeader className="flex flex-row items-center gap-2 pb-2">
+      <CardHeader className="flex flex-row items-center gap-2 pb-2 space-y-0">
         <Gauge className="h-4 w-4 text-accent" />
         <CardTitle className="text-sm font-semibold">Rouloir</CardTitle>
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-2">
           <EtatChip etat={r.etat} />
+          {onFait && <FaitButton onClick={onFait} />}
         </span>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -608,7 +653,7 @@ function RouloirCard({
         <div>
           <div className="flex items-baseline justify-between mb-1.5 gap-2">
             <p className="text-[11px] font-medium text-muted-foreground">
-              Production depuis la visite
+              Tricoté depuis la visite
             </p>
             <p className={cn('text-xs font-semibold tabular-nums', spec.text)}>
               {fmtNum(r.produitKg)} / {fmtNum(seuilKg)} Kg
@@ -632,93 +677,269 @@ function RouloirCard({
   )
 }
 
-function GarnitureCard({
+/** « Effectué ce jour » — the one quick action of an item, outside edit mode. */
+function FaitButton({ onClick, compact }: { onClick: () => void; compact?: boolean }) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className={cn('h-7 px-2 text-xs', compact && 'w-7 px-0')}
+      title="Effectué ce jour"
+      onClick={onClick}
+    >
+      <CalendarCheck className={cn('h-3.5 w-3.5', !compact && 'mr-1.5')} />
+      {!compact && 'Effectué ce jour'}
+    </Button>
+  )
+}
+
+function KgDepuis({ kg }: { kg: number | null }) {
+  if (kg === null) return <span className="text-muted-foreground">—</span>
+  return <span className="tabular-nums">{fmtNum(kg)} Kg</span>
+}
+
+// Shared grid of the Entretien and Garniture rows: item · date · kg tricotés ·
+// commentaire · action. One template so the two cards line up column for column.
+const ITEM_GRID =
+  'grid grid-cols-1 md:grid-cols-[12rem_10rem_6.5rem_minmax(0,1fr)_auto] gap-1.5 md:gap-3 md:items-center py-1.5 border-b border-border/60 last:border-b-0'
+
+function ItemHeaderRow() {
+  return (
+    <div className={cn(ITEM_GRID, 'hidden md:grid py-0 pb-1 text-[11px] font-medium text-muted-foreground')}>
+      <span />
+      <span>Dernière fois</span>
+      <span>Tricoté depuis</span>
+      <span>Commentaire</span>
+      <span className="w-7" />
+    </div>
+  )
+}
+
+function ItemRow({
+  label,
+  sub,
+  date,
+  kgDepuis,
+  commentaire,
+  isEditing,
+  draftDate,
+  draftCommentaire,
+  onDraftDate,
+  onDraftCommentaire,
+  onFait,
+  onManage,
+}: {
+  label: string
+  sub?: React.ReactNode
+  date: string | null
+  kgDepuis: number | null
+  commentaire: string | null
+  isEditing: boolean
+  draftDate: string
+  draftCommentaire: string
+  onDraftDate: (hf: string) => void
+  onDraftCommentaire: (v: string) => void
+  onFait?: () => void
+  onManage?: () => void
+}) {
+  const age = ageLabel(date)
+  return (
+    <div className={ITEM_GRID}>
+      <div className="min-w-0">
+        <p className="text-sm font-medium truncate">{label}</p>
+        {sub}
+      </div>
+
+      {isEditing ? (
+        <input
+          type="date"
+          value={hfsqlDateToInput(draftDate)}
+          onChange={(e) => onDraftDate(inputDateToHfsql(e.target.value))}
+          className="h-8 px-2 text-sm rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+      ) : (
+        <p className="text-sm tabular-nums">
+          {date ? (
+            <>
+              {formatHfsqlDate(date)}
+              {age && <span className="block text-[11px] text-muted-foreground">{age}</span>}
+            </>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </p>
+      )}
+
+      <p className="text-sm">
+        <span className="md:hidden text-[11px] text-muted-foreground mr-1.5">Tricoté depuis</span>
+        <KgDepuis kg={kgDepuis} />
+      </p>
+
+      {isEditing ? (
+        <input
+          type="text"
+          value={draftCommentaire}
+          onChange={(e) => onDraftCommentaire(e.target.value)}
+          placeholder="Commentaire"
+          className="h-8 px-2 text-sm rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+      ) : (
+        <p
+          className={cn('text-sm line-clamp-2', !commentaire && 'text-muted-foreground italic')}
+          title={commentaire ?? undefined}
+        >
+          {commentaire || '—'}
+        </p>
+      )}
+
+      <div className="flex items-center gap-1 md:justify-end min-w-[1.75rem]">
+        {onManage && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-muted-foreground"
+            title="Modifier l'entretien (nom, fréquence)"
+            onClick={onManage}
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        {onFait && <FaitButton onClick={onFait} compact />}
+      </div>
+    </div>
+  )
+}
+
+function EntretienCard({
   metier,
   isEditing,
   draft,
   set,
+  onFait,
+  onManage,
+  onAdd,
 }: {
   metier: Metier
   isEditing: boolean
   draft: Draft | null
   set: (fn: (d: Draft) => Draft) => void
+  onFait?: (item: FaitItem, label: string) => void
+  onManage?: (id: number) => void
+  onAdd?: () => void
 }) {
+  const setSlot = (id: number, patch: Partial<{ date: string; commentaire: string }>) =>
+    set((d) => ({
+      ...d,
+      entretiens: {
+        ...d.entretiens,
+        [id]: { ...(d.entretiens[id] ?? { date: '', commentaire: '' }), ...patch },
+      },
+    }))
+
   return (
     <Card className={cn('card-premium', isEditing && editSectionClass)}>
-      <CardHeader className="flex flex-row items-center gap-2 pb-2">
+      <CardHeader className="flex flex-row items-center gap-2 pb-2 space-y-0">
+        <Fan className="h-4 w-4 text-accent" />
+        <CardTitle className="text-sm font-semibold">Entretien</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {metier.entretiens.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic py-2">Aucun entretien périodique.</p>
+        ) : (
+          <>
+            <ItemHeaderRow />
+            {metier.entretiens.map((e) => {
+              const spec = etatSpec(e.etat)
+              const slot = draft?.entretiens[e.id] ?? { date: '', commentaire: '' }
+              return (
+                <ItemRow
+                  key={e.id}
+                  label={e.nom}
+                  sub={
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                      Tous les {e.frequenceMois} mois
+                      {e.etat !== 'ok' && e.etat !== 'inconnu' && (
+                        <span className={cn('font-medium', spec.text)}>· {spec.label}</span>
+                      )}
+                      {e.etat === 'inconnu' && <span>· jamais fait</span>}
+                    </p>
+                  }
+                  date={e.date}
+                  kgDepuis={e.kgDepuis}
+                  commentaire={e.commentaire}
+                  isEditing={isEditing && !!draft}
+                  draftDate={slot.date}
+                  draftCommentaire={slot.commentaire}
+                  onDraftDate={(hf) => setSlot(e.id, { date: hf })}
+                  onDraftCommentaire={(v) => setSlot(e.id, { commentaire: v })}
+                  onFait={onFait ? () => onFait(e.id, e.nom) : undefined}
+                  onManage={onManage ? () => onManage(e.id) : undefined}
+                />
+              )
+            })}
+          </>
+        )}
+        {onAdd && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-2 text-accent hover:text-accent hover:bg-accent/10"
+            onClick={onAdd}
+          >
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            Ajouter un entretien
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function GarnitureCard({
+  metier,
+  isEditing,
+  draft,
+  set,
+  onFait,
+}: {
+  metier: Metier
+  isEditing: boolean
+  draft: Draft | null
+  set: (fn: (d: Draft) => Draft) => void
+  onFait?: (item: FaitItem, label: string) => void
+}) {
+  const setSlot = (key: GarnitureKey, patch: Partial<{ date: string; commentaire: string }>) =>
+    set((d) => ({
+      ...d,
+      garniture: { ...d.garniture, [key]: { ...d.garniture[key], ...patch } },
+    }))
+
+  return (
+    <Card className={cn('card-premium', isEditing && editSectionClass)}>
+      <CardHeader className="flex flex-row items-center gap-2 pb-2 space-y-0">
         <Brush className="h-4 w-4 text-accent" />
         <CardTitle className="text-sm font-semibold">Garniture</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent>
+        <ItemHeaderRow />
         {GARNITURE_ROWS.map((row) => {
           const slot = metier.garniture[row.key]
-          const age = ageLabel(slot.date)
           return (
-            <div
+            <ItemRow
               key={row.key}
-              className="grid grid-cols-1 md:grid-cols-[13rem_9.5rem_minmax(0,1fr)] gap-2 md:gap-3 md:items-center py-1.5 border-b border-border/60 last:border-b-0"
-            >
-              <p className="text-sm font-medium">{row.label}</p>
-
-              {isEditing && draft ? (
-                <input
-                  type="date"
-                  value={hfsqlDateToInput(draft.garniture[row.key].date)}
-                  onChange={(e) =>
-                    set((d) => ({
-                      ...d,
-                      garniture: {
-                        ...d.garniture,
-                        [row.key]: {
-                          ...d.garniture[row.key],
-                          date: inputDateToHfsql(e.target.value),
-                        },
-                      },
-                    }))
-                  }
-                  className="h-8 px-2 text-sm rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              ) : (
-                <p className="text-sm tabular-nums">
-                  {slot.date ? (
-                    <>
-                      {formatHfsqlDate(slot.date)}
-                      {age && <span className="text-xs text-muted-foreground ml-2">{age}</span>}
-                    </>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </p>
-              )}
-
-              {isEditing && draft ? (
-                <input
-                  type="text"
-                  value={draft.garniture[row.key].commentaire}
-                  onChange={(e) =>
-                    set((d) => ({
-                      ...d,
-                      garniture: {
-                        ...d.garniture,
-                        [row.key]: { ...d.garniture[row.key], commentaire: e.target.value },
-                      },
-                    }))
-                  }
-                  placeholder="Commentaire"
-                  className="h-8 px-2 text-sm rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              ) : (
-                <p
-                  className={cn(
-                    'text-sm line-clamp-2',
-                    !slot.commentaire && 'text-muted-foreground italic',
-                  )}
-                  title={slot.commentaire ?? undefined}
-                >
-                  {slot.commentaire || '—'}
-                </p>
-              )}
-            </div>
+              label={row.label}
+              date={slot.date}
+              kgDepuis={slot.kgDepuis}
+              commentaire={slot.commentaire}
+              isEditing={isEditing && !!draft}
+              draftDate={draft?.garniture[row.key].date ?? ''}
+              draftCommentaire={draft?.garniture[row.key].commentaire ?? ''}
+              onDraftDate={(hf) => setSlot(row.key, { date: hf })}
+              onDraftCommentaire={(v) => setSlot(row.key, { commentaire: v })}
+              onFait={onFait ? () => onFait(row.key, row.label) : undefined}
+            />
           )
         })}
       </CardContent>
@@ -730,25 +951,32 @@ function GarnitureCard({
 //  Right sidebar
 // ══════════════════════════════════════════════════════
 
-type SidebarTab = 'entretien' | 'metier' | 'rouloir'
+type SidebarTab = 'atelier' | 'metier'
 
 function MaintenanceSidebar({
   metier,
-  seuilKg,
   canEdit,
-  isEditing,
+  operations,
+  isLoading,
+  isError,
+  onReset,
+  onManage,
+  onAdd,
 }: {
   metier: Metier
-  seuilKg: number
   canEdit: boolean
-  isEditing: boolean
+  operations: OperationEntretien[]
+  isLoading: boolean
+  isError: boolean
+  onReset: (op: OperationEntretien) => void
+  onManage: (id: number) => void
+  onAdd: () => void
 }) {
-  const [tab, setTab] = useState<SidebarTab>('entretien')
+  const [tab, setTab] = useState<SidebarTab>('atelier')
 
   const tabs: { key: SidebarTab; label: string; icon: ComponentType<{ className?: string }> }[] = [
-    { key: 'entretien', label: 'Entretien', icon: Gauge },
+    { key: 'atelier', label: 'Atelier', icon: Factory },
     { key: 'metier', label: 'Métier', icon: Settings2 },
-    { key: 'rouloir', label: 'Rouloir', icon: ClipboardList },
   ]
 
   return (
@@ -776,40 +1004,43 @@ function MaintenanceSidebar({
           })}
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-transparent">
-          {tab === 'entretien' && <EntretienTab canEdit={canEdit && !isEditing} />}
+          {tab === 'atelier' && (
+            <AtelierTab
+              operations={operations}
+              isLoading={isLoading}
+              isError={isError}
+              canEdit={canEdit}
+              onReset={onReset}
+              onManage={onManage}
+              onAdd={onAdd}
+            />
+          )}
           {tab === 'metier' && <MetierTab metier={metier} />}
-          {tab === 'rouloir' && <RouloirTab metier={metier} seuilKg={seuilKg} />}
         </div>
       </div>
     </div>
   )
 }
 
-/** Tab 1 — the atelier-wide operations (operation_maintenance). Not per-métier:
- *  these are the workshop's ventilateurs, couronnes and air leaks, which is
- *  exactly where the legacy put them (bottom of the left panel, always on). */
-function EntretienTab({ canEdit }: { canEdit: boolean }) {
-  const queryClient = useQueryClient()
-  const [confirmId, setConfirmId] = useState<number | null>(null)
-
-  const { data, isLoading, isError } = useQuery<{ operations: OperationEntretien[] }>({
-    queryKey: ['maintenance-trm-operations'],
-    queryFn: () => apiFetch('/maintenance-trm/operations'),
-  })
-
-  const resetMut = useMutation({
-    mutationFn: (id: number) =>
-      apiFetch(`/maintenance-trm/operations/${id}/reset`, { method: 'POST' }),
-    onSuccess: (payload: { operations: OperationEntretien[] }) => {
-      queryClient.setQueryData(['maintenance-trm-operations'], payload)
-      setConfirmId(null)
-    },
-    onError: () => setConfirmId(null),
-  })
-
-  const operations = data?.operations ?? []
-  const pending = operations.find((o) => o.id === confirmId)
-
+/** Tab 1 — the atelier's own dated items (portée « atelier »): the building's
+ *  air leaks and whatever comes next. Not tied to the selected métier. */
+function AtelierTab({
+  operations,
+  isLoading,
+  isError,
+  canEdit,
+  onReset,
+  onManage,
+  onAdd,
+}: {
+  operations: OperationEntretien[]
+  isLoading: boolean
+  isError: boolean
+  canEdit: boolean
+  onReset: (op: OperationEntretien) => void
+  onManage: (id: number) => void
+  onAdd: () => void
+}) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -829,8 +1060,14 @@ function EntretienTab({ canEdit }: { canEdit: boolean }) {
   return (
     <>
       <p className="text-[11px] text-muted-foreground px-0.5 pb-1">
-        Entretiens de l&apos;atelier — communs à tous les métiers.
+        Entretiens de l&apos;atelier — pas d&apos;un métier en particulier.
       </p>
+
+      {operations.length === 0 && (
+        <p className="text-xs text-muted-foreground italic py-6 text-center">
+          Aucun entretien d&apos;atelier.
+        </p>
+      )}
 
       {operations.map((op) => {
         const spec = etatSpec(op.etat)
@@ -845,10 +1082,23 @@ function EntretienTab({ canEdit }: { canEdit: boolean }) {
                 size={92}
               />
               <div className="min-w-0 flex-1 pt-1">
-                <p className="font-medium text-sm truncate">{op.nom}</p>
+                <div className="flex items-start gap-1">
+                  <p className="font-medium text-sm truncate flex-1">{op.nom}</p>
+                  {canEdit && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 -mt-0.5 text-muted-foreground"
+                      title="Modifier l'entretien (nom, fréquence)"
+                      onClick={() => onManage(op.id)}
+                    >
+                      <Settings2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
                 <EtatChip etat={op.etat} className="mt-1" />
                 <p className="text-[11px] text-muted-foreground mt-1.5">
-                  {/* The legacy's own two labels. */}
                   {op.derniereMaintenance
                     ? `Dernière maintenance le ${formatHfsqlDate(op.derniereMaintenance)}`
                     : 'Aucune maintenance enregistrée'}
@@ -868,10 +1118,9 @@ function EntretienTab({ canEdit }: { canEdit: boolean }) {
                 variant="outline"
                 size="sm"
                 className="w-full mt-2 h-8"
-                onClick={() => setConfirmId(op.id)}
-                disabled={resetMut.isPending}
+                onClick={() => onReset(op)}
               >
-                <CalendarClock className="h-3.5 w-3.5 mr-1.5" />
+                <CalendarCheck className="h-3.5 w-3.5 mr-1.5" />
                 Effectué ce jour
               </Button>
             )}
@@ -879,23 +1128,17 @@ function EntretienTab({ canEdit }: { canEdit: boolean }) {
         )
       })}
 
-      <ConfirmDialog
-        open={pending !== undefined}
-        variant="default"
-        title="Entretien effectué"
-        /* The legacy confirmation sentence, kept verbatim. */
-        description={
-          pending
-            ? `Confirmez-vous que la maintenance des ${pending.nom} a été effectué ce jour ?`
-            : undefined
-        }
-        confirmLabel="Confirmer"
-        isPending={resetMut.isPending}
-        onCancel={() => setConfirmId(null)}
-        onConfirm={() => {
-          if (confirmId !== null) resetMut.mutate(confirmId)
-        }}
-      />
+      {canEdit && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full text-accent hover:text-accent hover:bg-accent/10"
+          onClick={onAdd}
+        >
+          <Plus className="h-3.5 w-3.5 mr-1.5" />
+          Ajouter un entretien
+        </Button>
+      )}
     </>
   )
 }
@@ -935,80 +1178,22 @@ function MetierTab({ metier }: { metier: Metier }) {
   )
 }
 
-/** Tab 3 — the OFs the rouloir counter is made of. New vs the legacy: it turns
- *  "Rouloir dans 610 Kgs" from an assertion into something checkable. */
-function RouloirTab({ metier, seuilKg }: { metier: Metier; seuilKg: number }) {
-  const { data, isLoading, isError } = useQuery<ProductionPayload>({
-    queryKey: ['maintenance-trm-production', metier.id],
-    queryFn: () => apiFetch(`/maintenance-trm/metiers/${metier.id}/production`),
-  })
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-5 w-5 animate-spin text-accent" />
-      </div>
-    )
-  }
-  if (isError || !data) {
-    return (
-      <div className="flex flex-col items-center justify-center py-8 text-destructive">
-        <AlertCircle className="h-5 w-5 mb-2" />
-        <p className="text-xs text-center">Impossible de charger la production.</p>
-      </div>
-    )
-  }
-
-  if (!data.derniereVisite) {
-    return (
-      <p className="text-xs text-muted-foreground italic py-6 text-center">
-        Aucune visite du rouloir enregistrée : le compteur n&apos;a pas de point de départ.
-      </p>
-    )
-  }
-
-  return (
-    <>
-      <p className="text-[11px] text-muted-foreground px-0.5 pb-1">
-        OF terminés depuis le {formatHfsqlDate(data.derniereVisite)} — c&apos;est ce que compte le
-        seuil de {fmtNum(seuilKg)} Kg.
-      </p>
-
-      {data.ofs.length === 0 ? (
-        <p className="text-xs text-muted-foreground italic py-6 text-center">
-          Aucun OF terminé depuis la dernière visite.
-        </p>
-      ) : (
-        <>
-          {data.ofs.map((o) => (
-            <div key={o.id} className="rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <p className="font-medium text-sm">OF {o.id}</p>
-                <p className="text-sm tabular-nums flex-shrink-0">{fmtNum(o.quantiteKg, 1)} Kg</p>
-              </div>
-              <div className="flex items-baseline justify-between gap-2">
-                <p className="text-[11px] text-muted-foreground truncate">{o.reference ?? '—'}</p>
-                <p className="text-[11px] text-muted-foreground flex-shrink-0">
-                  {o.dateCreation ? formatHfsqlDate(o.dateCreation) : '—'}
-                </p>
-              </div>
-            </div>
-          ))}
-          <div className="flex items-baseline justify-between gap-2 pt-2 px-1 border-t">
-            <p className="text-xs font-medium">
-              {data.ofs.length} OF{data.ofs.length > 1 ? 's' : ''}
-            </p>
-            <p className="text-sm font-semibold tabular-nums">{fmtNum(data.totalKg, 1)} Kg</p>
-          </div>
-        </>
-      )}
-    </>
-  )
-}
-
 // ══════════════════════════════════════════════════════
 //  Page
 // ══════════════════════════════════════════════════════
+
+/** What the « Effectué ce jour » confirmation is about. */
+type FaitPending =
+  | { kind: 'metier'; item: FaitItem; label: string }
+  | { kind: 'atelier'; op: OperationEntretien }
+
+/** The OperationDialog's subject: a new item (with its preset portée) or one to edit. */
+type OperationEdit = { mode: 'create'; portee: Portee } | { mode: 'edit'; op: OperationEntretien }
+
+function apiErrorMessage(e: unknown, fallback: string): string {
+  const body = (e as { body?: { message?: string } } | null)?.body
+  return body?.message ?? fallback
+}
 
 export function AtelierMaintenance() {
   const queryClient = useQueryClient()
@@ -1020,15 +1205,28 @@ export function AtelierMaintenance() {
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [writeError, setWriteError] = useState<string | null>(null)
+  const [fait, setFait] = useState<FaitPending | null>(null)
+  const [opEdit, setOpEdit] = useState<OperationEdit | null>(null)
+  const [opError, setOpError] = useState<string | null>(null)
 
   const { data, isLoading, isError, error } = useQuery<MetiersPayload>({
     queryKey: ['maintenance-trm-metiers'],
     queryFn: () => apiFetch('/maintenance-trm/metiers'),
   })
 
+  const opsQuery = useQuery<{ operations: OperationEntretien[] }>({
+    queryKey: ['maintenance-trm-operations'],
+    queryFn: () => apiFetch('/maintenance-trm/operations'),
+  })
+  const allOperations = useMemo(() => opsQuery.data?.operations ?? [], [opsQuery.data])
+  const atelierOperations = useMemo(
+    () => allOperations.filter((o) => o.portee === 'atelier'),
+    [allOperations],
+  )
+
   const metiers = useMemo(() => data?.metiers ?? [], [data])
   const seuilKg = data?.seuilRouloirKg ?? 15000
-  const dueCount = useMemo(() => metiers.filter((m) => m.rouloir.etat === 'due').length, [metiers])
+  const dueCount = useMemo(() => metiers.filter((m) => m.etat === 'due').length, [metiers])
 
   // §41.4: an armed pill must not survive its bucket emptying.
   const dueFilterActive = dueOnly && dueCount > 0
@@ -1036,7 +1234,7 @@ export function AtelierMaintenance() {
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     return metiers.filter((m) => {
-      if (dueFilterActive && m.rouloir.etat !== 'due') return false
+      if (dueFilterActive && m.etat !== 'due') return false
       if (!q) return true
       return (
         m.emplacement.toLowerCase().includes(q) ||
@@ -1089,6 +1287,11 @@ export function AtelierMaintenance() {
             },
           ]),
         ),
+        entretiens: selected.entretiens.map((e) => ({
+          id: e.id,
+          date: draft.entretiens[e.id]?.date || null,
+          commentaire: draft.entretiens[e.id]?.commentaire.trim() || null,
+        })),
       }
       return apiFetch(`/maintenance-trm/metiers/${selected.id}`, {
         method: 'PUT',
@@ -1098,12 +1301,9 @@ export function AtelierMaintenance() {
     onSuccess: () => {
       setWriteError(null)
       setIsEditing(false)
-      // The rouloir counter moves with the visit date, and the list order
-      // follows the counter — refetch rather than patch the cache.
+      // The counters move with the dates, and the list order follows them —
+      // refetch rather than patch the cache.
       queryClient.invalidateQueries({ queryKey: ['maintenance-trm-metiers'] })
-      if (selectedId !== null) {
-        queryClient.invalidateQueries({ queryKey: ['maintenance-trm-production', selectedId] })
-      }
     },
     onError: (e: Error) => {
       setWriteError(
@@ -1112,6 +1312,58 @@ export function AtelierMaintenance() {
           : "L'enregistrement a échoué. Réessayez.",
       )
     },
+  })
+
+  const faitMut = useMutation({
+    mutationFn: async (p: FaitPending) => {
+      if (p.kind === 'atelier') {
+        return apiFetch(`/maintenance-trm/operations/${p.op.id}/reset`, { method: 'POST' })
+      }
+      if (!selected) return
+      return apiFetch(`/maintenance-trm/metiers/${selected.id}/fait`, {
+        method: 'POST',
+        body: JSON.stringify({ item: p.item }),
+      })
+    },
+    onSuccess: (_payload, p) => {
+      setFait(null)
+      setWriteError(null)
+      queryClient.invalidateQueries({
+        queryKey: [p.kind === 'atelier' ? 'maintenance-trm-operations' : 'maintenance-trm-metiers'],
+      })
+    },
+    onError: (e) => {
+      setFait(null)
+      setWriteError(apiErrorMessage(e, "L'enregistrement a échoué. Réessayez."))
+    },
+  })
+
+  const opSaveMut = useMutation({
+    mutationFn: async (d: OperationDraft) => {
+      if (!opEdit) return
+      return opEdit.mode === 'create'
+        ? apiFetch('/maintenance-trm/operations', { method: 'POST', body: JSON.stringify(d) })
+        : apiFetch(`/maintenance-trm/operations/${opEdit.op.id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ nom: d.nom, frequenceMois: d.frequenceMois }),
+          })
+    },
+    onSuccess: () => {
+      setOpEdit(null)
+      queryClient.invalidateQueries({ queryKey: ['maintenance-trm-operations'] })
+      queryClient.invalidateQueries({ queryKey: ['maintenance-trm-metiers'] })
+    },
+    onError: (e) => setOpError(apiErrorMessage(e, "L'enregistrement a échoué. Réessayez.")),
+  })
+
+  const opDeleteMut = useMutation({
+    mutationFn: (id: number) => apiFetch(`/maintenance-trm/operations/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      setOpEdit(null)
+      queryClient.invalidateQueries({ queryKey: ['maintenance-trm-operations'] })
+      queryClient.invalidateQueries({ queryKey: ['maintenance-trm-metiers'] })
+    },
+    onError: (e) => setOpError(apiErrorMessage(e, 'La suppression a échoué. Réessayez.')),
   })
 
   const guard = useUnsavedGuard({
@@ -1146,6 +1398,40 @@ export function AtelierMaintenance() {
   const set = useCallback((fn: (d: Draft) => Draft) => {
     setDraft((cur) => (cur ? fn(cur) : cur))
   }, [])
+
+  const openCreate = (portee: Portee) => {
+    setOpError(null)
+    setOpEdit({ mode: 'create', portee })
+  }
+  const openManage = (id: number) => {
+    const op = allOperations.find((o) => o.id === id)
+    if (!op) return
+    setOpError(null)
+    setOpEdit({ mode: 'edit', op })
+  }
+
+  // Quick actions exist outside edit mode only: a date typed in the draft and
+  // a « done today » written behind it would fight on Enregistrer.
+  const quick = canEdit && !isEditing
+  const onFaitMetier = quick
+    ? (item: FaitItem, label: string) => setFait({ kind: 'metier', item, label })
+    : undefined
+
+  const opInitial = useMemo<OperationDraft>(
+    () =>
+      opEdit?.mode === 'edit'
+        ? { nom: opEdit.op.nom, frequenceMois: opEdit.op.frequenceMois, portee: opEdit.op.portee }
+        : { nom: '', frequenceMois: 3, portee: opEdit?.portee ?? 'metier' },
+    [opEdit],
+  )
+
+  const faitDescription = !fait
+    ? undefined
+    : fait.kind === 'atelier'
+      ? `Confirmez-vous que la maintenance des ${fait.op.nom} de l'atelier a été effectuée ce jour ?`
+      : `Confirmez-vous que « ${fait.label} » a été effectué ce jour sur le métier ${
+          selected?.emplacement || selected?.nom || ''
+        } ? Le compteur de kilos repart de zéro.`
 
   return (
     <>
@@ -1206,8 +1492,24 @@ export function AtelierMaintenance() {
                 isEditing={isEditing}
                 draft={draft}
                 set={set}
+                onFait={onFaitMetier ? () => onFaitMetier('rouloir', 'Visite du rouloir') : undefined}
               />
-              <GarnitureCard metier={selected} isEditing={isEditing} draft={draft} set={set} />
+              <EntretienCard
+                metier={selected}
+                isEditing={isEditing}
+                draft={draft}
+                set={set}
+                onFait={onFaitMetier}
+                onManage={quick ? openManage : undefined}
+                onAdd={quick ? () => openCreate('metier') : undefined}
+              />
+              <GarnitureCard
+                metier={selected}
+                isEditing={isEditing}
+                draft={draft}
+                set={set}
+                onFait={onFaitMetier}
+              />
             </div>
           )
         }
@@ -1215,19 +1517,52 @@ export function AtelierMaintenance() {
           selected ? (
             <MaintenanceSidebar
               metier={selected}
-              seuilKg={seuilKg}
-              canEdit={canEdit}
-              isEditing={isEditing}
+              canEdit={quick}
+              operations={atelierOperations}
+              isLoading={opsQuery.isLoading}
+              isError={opsQuery.isError}
+              onReset={(op) => setFait({ kind: 'atelier', op })}
+              onManage={openManage}
+              onAdd={() => openCreate('atelier')}
             />
           ) : null
         }
-        sidebarTitle="Entretien"
+        sidebarTitle="Atelier"
         hasSelection={selectedId !== null}
         onBack={() =>
           guard.guardAction(() => {
             setIsEditing(false)
             setSelectedId(null)
           })
+        }
+      />
+
+      <ConfirmDialog
+        open={fait !== null}
+        variant="default"
+        title="Entretien effectué"
+        description={faitDescription}
+        confirmLabel="Confirmer"
+        isPending={faitMut.isPending}
+        onCancel={() => setFait(null)}
+        onConfirm={() => {
+          if (fait) faitMut.mutate(fait)
+        }}
+      />
+
+      <OperationDialog
+        open={opEdit !== null}
+        onOpenChange={(o) => !o && setOpEdit(null)}
+        initial={opInitial}
+        editing={opEdit?.mode === 'edit'}
+        saving={opSaveMut.isPending || opDeleteMut.isPending}
+        error={opError}
+        onSave={(d) => {
+          setOpError(null)
+          opSaveMut.mutate(d)
+        }}
+        onDelete={
+          opEdit?.mode === 'edit' ? () => opDeleteMut.mutate(opEdit.op.id) : undefined
         }
       />
 
