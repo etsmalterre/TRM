@@ -101,3 +101,12 @@ Autres changements :
 - **Route en PostgreSQL natif** (`mpsPg`), plus de pliage d'accents HFSQL.
 
 **Déploiement** : `mps-migrate.ts --write` (owner) **avant** de redémarrer l'API, puis `/trm_deploy`.
+
+**Atelier dans la liste (2026-10-01, retour de Vincent)** : les entretiens d'atelier dans le panneau de
+droite passaient pour une info du métier sélectionné. Ils ont maintenant leur **entrée « Atelier »
+épinglée en tête de la liste** (hors défilement, teinte marine, icône usine, au-dessus de l'intitulé
+« Métiers »), et ouvrent leur propre vue au centre ( comme sélection). Le panneau de
+droite ne montre plus que le métier sélectionné. La pastille rouge compte l'atelier quand un de ses
+entretiens est dû. ⚠️ La sélection automatique attend les métiers (), sinon
+l'atelier, seul dans la liste un instant, était choisi au chargement. Le sous-menu placeholder
+Atelier › Bonnetier a été retiré le même jour (navigation, router, ).

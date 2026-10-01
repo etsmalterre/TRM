@@ -30,7 +30,6 @@
 //    document, and a placeholder pair would be noise.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { ComponentType } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
@@ -225,6 +224,63 @@ function todayHf(): string {
 //  Left panel — the métier queue
 // ══════════════════════════════════════════════════════
 
+/** Selection id of the pinned « Atelier » entry — never a machine id. */
+const ATELIER_ID = -1
+
+interface AtelierSummary {
+  etat: MeterEtat
+  aFaire: string[]
+  nbEntretiens: number
+}
+
+function AtelierListCard({
+  summary,
+  selected,
+  onSelect,
+}: {
+  summary: AtelierSummary
+  selected: boolean
+  onSelect: () => void
+}) {
+  const { etat } = summary
+  return (
+    <div
+      onClick={onSelect}
+      className={cn(
+        // Navy-tinted, with its own icon box: reads as a different kind of
+        // thing than the white métier cards below.
+        'p-3 border rounded-lg cursor-pointer transition-all bg-primary/[0.04] flex items-center gap-3',
+        selected
+          ? etat === 'due'
+            ? 'border-red-500 ring-1 ring-red-500'
+            : etat === 'proche'
+              ? 'border-amber-500 ring-1 ring-amber-500'
+              : 'border-primary/60 ring-1 ring-primary/60'
+          : 'border-primary/20 hover:border-primary/40',
+        etat === 'due' && 'shadow-[inset_4px_0_0_0_rgb(239_68_68)]',
+        etat === 'proche' && 'shadow-[inset_4px_0_0_0_rgb(245_158_11)]',
+      )}
+    >
+      <div className="h-9 w-9 rounded-md bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0">
+        <Factory className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold text-sm">Atelier</p>
+        {summary.aFaire.length > 0 ? (
+          <p className="text-[11px] font-medium text-red-700 truncate">
+            À faire : {summary.aFaire.join(', ')}
+          </p>
+        ) : (
+          <p className="text-[11px] text-muted-foreground truncate">
+            Entretiens généraux · {summary.nbEntretiens} élément
+            {summary.nbEntretiens > 1 ? 's' : ''}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function MetierList({
   rows,
   isLoading,
@@ -237,6 +293,7 @@ function MetierList({
   dueOnly,
   dueCount,
   onToggleDue,
+  atelier,
 }: {
   rows: Metier[]
   isLoading: boolean
@@ -249,6 +306,8 @@ function MetierList({
   dueOnly: boolean
   dueCount: number
   onToggleDue: () => void
+  /** The pinned building entry; null when filtered out. */
+  atelier: AtelierSummary | null
 }) {
   return (
     <div className="flex flex-col h-full rounded-lg border shadow-sm bg-zinc-100/80">
@@ -271,7 +330,7 @@ function MetierList({
               type="button"
               onClick={onToggleDue}
               aria-pressed={dueOnly}
-              title="Métiers avec un entretien à faire"
+              title="Entretiens à faire"
               className={cn(
                 'h-7 min-w-[1.75rem] px-1.5 inline-flex items-center justify-center rounded-md text-xs font-semibold tabular-nums border transition-colors flex-shrink-0',
                 dueOnly
@@ -284,6 +343,21 @@ function MetierList({
           )}
         </div>
       </div>
+
+      {/* The building, pinned above the métiers and outside their scroll: it is
+          not a machine, and its items have nothing to do with the selected one. */}
+      {atelier && (
+        <div className="px-3 pt-3 pb-2.5 border-b border-border/70">
+          <AtelierListCard
+            summary={atelier}
+            selected={selectedId === ATELIER_ID}
+            onSelect={() => onSelect(ATELIER_ID)}
+          />
+        </div>
+      )}
+      <p className="px-3 pt-2.5 -mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Métiers
+      </p>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-transparent">
         {isLoading && (
@@ -948,86 +1022,38 @@ function GarnitureCard({
 }
 
 // ══════════════════════════════════════════════════════
-//  Right sidebar
+//  The pinned « Atelier » entry — the building's own items
 // ══════════════════════════════════════════════════════
 
-type SidebarTab = 'atelier' | 'metier'
-
-function MaintenanceSidebar({
-  metier,
-  canEdit,
-  operations,
-  isLoading,
-  isError,
-  onReset,
-  onManage,
-  onAdd,
-}: {
-  metier: Metier
-  canEdit: boolean
-  operations: OperationEntretien[]
-  isLoading: boolean
-  isError: boolean
-  onReset: (op: OperationEntretien) => void
-  onManage: (id: number) => void
-  onAdd: () => void
-}) {
-  const [tab, setTab] = useState<SidebarTab>('atelier')
-
-  const tabs: { key: SidebarTab; label: string; icon: ComponentType<{ className?: string }> }[] = [
-    { key: 'atelier', label: 'Atelier', icon: Factory },
-    { key: 'metier', label: 'Métier', icon: Settings2 },
-  ]
-
+function AtelierDetailHeader({ summary }: { summary: AtelierSummary }) {
   return (
-    <div className="w-96 flex-shrink-0 flex flex-col gap-3 min-h-0">
-      <div className="flex-1 min-h-0 rounded-xl border flex flex-col overflow-hidden bg-zinc-100/80">
-        <div className="flex border-b p-1 gap-1 rounded-t-xl bg-zinc-200/50">
-          {tabs.map((t) => {
-            const Icon = t.icon
-            return (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                title={t.label}
-                className={cn(
-                  'flex-1 flex items-center justify-center gap-1 px-1.5 py-2 text-xs font-medium rounded-md transition-colors',
-                  tab === t.key
-                    ? 'bg-accent text-accent-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-accent/10',
-                )}
-              >
-                <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-                <span className="truncate">{t.label}</span>
-              </button>
-            )
-          })}
+    <div className="flex-shrink-0 pt-0.5">
+      <div className="flex items-center gap-3">
+        <div className="h-11 w-11 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary text-primary-foreground">
+          <Factory className="h-5 w-5" />
         </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-transparent">
-          {tab === 'atelier' && (
-            <AtelierTab
-              operations={operations}
-              isLoading={isLoading}
-              isError={isError}
-              canEdit={canEdit}
-              onReset={onReset}
-              onManage={onManage}
-              onAdd={onAdd}
-            />
-          )}
-          {tab === 'metier' && <MetierTab metier={metier} />}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-heading font-bold tracking-tight truncate">Atelier</h1>
+          <div className="flex gap-1.5 mt-1 flex-wrap">
+            <Badge variant="secondary" className="text-xs">
+              Entretiens généraux du bâtiment
+            </Badge>
+            <EtatChip etat={summary.etat} />
+          </div>
         </div>
       </div>
+      <div className="h-1 w-24 mt-3 rounded-full bg-gradient-to-r from-accent via-accent to-accent/30" />
     </div>
   )
 }
 
-/** Tab 1 — the atelier's own dated items (portée « atelier »): the building's
- *  air leaks and whatever comes next. Not tied to the selected métier. */
-function AtelierTab({
+/** The atelier's own dated items (portée « atelier »): the building's air
+ *  leaks and whatever comes next — tied to no métier. */
+function AtelierDetail({
   operations,
   isLoading,
   isError,
+  error,
   canEdit,
   onReset,
   onManage,
@@ -1036,110 +1062,138 @@ function AtelierTab({
   operations: OperationEntretien[]
   isLoading: boolean
   isError: boolean
+  error: string | null
   canEdit: boolean
   onReset: (op: OperationEntretien) => void
   onManage: (id: number) => void
   onAdd: () => void
 }) {
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-5 w-5 animate-spin text-accent" />
-      </div>
-    )
-  }
-  if (isError) {
-    return (
-      <div className="flex flex-col items-center justify-center py-8 text-destructive">
-        <AlertCircle className="h-5 w-5 mb-2" />
-        <p className="text-xs text-center">Impossible de charger les entretiens.</p>
-      </div>
-    )
-  }
-
   return (
-    <>
-      <p className="text-[11px] text-muted-foreground px-0.5 pb-1">
-        Entretiens de l&apos;atelier — pas d&apos;un métier en particulier.
-      </p>
-
-      {operations.length === 0 && (
-        <p className="text-xs text-muted-foreground italic py-6 text-center">
-          Aucun entretien d&apos;atelier.
-        </p>
+    <div className="flex-1 min-h-0 overflow-auto space-y-4 scrollbar-transparent pr-0.5">
+      {error && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 flex items-center gap-2 text-destructive">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <p className="text-sm">{error}</p>
+        </div>
       )}
-
-      {operations.map((op) => {
-        const spec = etatSpec(op.etat)
-        return (
-          <div key={op.id} className="rounded-lg border bg-card p-3">
-            <div className="flex items-start gap-3">
-              <RadialMeter
-                ratio={op.ratio}
-                etat={op.etat}
-                center={op.moisEcoules === null ? '—' : `${op.moisEcoules}`}
-                caption={op.moisEcoules === null ? undefined : 'mois'}
-                size={92}
-              />
-              <div className="min-w-0 flex-1 pt-1">
-                <div className="flex items-start gap-1">
-                  <p className="font-medium text-sm truncate flex-1">{op.nom}</p>
-                  {canEdit && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 -mt-0.5 text-muted-foreground"
-                      title="Modifier l'entretien (nom, fréquence)"
-                      onClick={() => onManage(op.id)}
-                    >
-                      <Settings2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-                <EtatChip etat={op.etat} className="mt-1" />
-                <p className="text-[11px] text-muted-foreground mt-1.5">
-                  {op.derniereMaintenance
-                    ? `Dernière maintenance le ${formatHfsqlDate(op.derniereMaintenance)}`
-                    : 'Aucune maintenance enregistrée'}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Tous les {op.frequenceMois} mois
-                  {op.ratio !== null && op.ratio > 1 && (
-                    <span className={cn('ml-1 font-medium', spec.text)}>
-                      · {Math.round(op.ratio * 100)} % de l&apos;intervalle
-                    </span>
-                  )}
-                </p>
-              </div>
+      <Card className="card-premium">
+        <CardHeader className="flex flex-row items-center gap-2 pb-2 space-y-0">
+          <Fan className="h-4 w-4 text-accent" />
+          <CardTitle className="text-sm font-semibold">Entretiens de l&apos;atelier</CardTitle>
+          <span className="ml-auto text-[11px] text-muted-foreground">
+            Pas d&apos;un métier en particulier
+          </span>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-accent" />
             </div>
-            {canEdit && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full mt-2 h-8"
-                onClick={() => onReset(op)}
-              >
-                <CalendarCheck className="h-3.5 w-3.5 mr-1.5" />
-                Effectué ce jour
-              </Button>
-            )}
-          </div>
-        )
-      })}
+          ) : isError ? (
+            <div className="flex flex-col items-center justify-center py-8 text-destructive">
+              <AlertCircle className="h-5 w-5 mb-2" />
+              <p className="text-xs text-center">Impossible de charger les entretiens.</p>
+            </div>
+          ) : operations.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic py-2">
+              Aucun entretien d&apos;atelier.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
+              {operations.map((op) => {
+                const spec = etatSpec(op.etat)
+                return (
+                  <div key={op.id} className="rounded-lg border bg-card p-3">
+                    <div className="flex items-start gap-3">
+                      <RadialMeter
+                        ratio={op.ratio}
+                        etat={op.etat}
+                        center={op.moisEcoules === null ? '—' : `${op.moisEcoules}`}
+                        caption={op.moisEcoules === null ? undefined : 'mois'}
+                        size={92}
+                      />
+                      <div className="min-w-0 flex-1 pt-1">
+                        <div className="flex items-start gap-1">
+                          <p className="font-medium text-sm truncate flex-1">{op.nom}</p>
+                          {canEdit && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 -mt-0.5 text-muted-foreground"
+                              title="Modifier l'entretien (nom, fréquence)"
+                              onClick={() => onManage(op.id)}
+                            >
+                              <Settings2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                        <EtatChip etat={op.etat} className="mt-1" />
+                        <p className="text-[11px] text-muted-foreground mt-1.5">
+                          {op.derniereMaintenance
+                            ? `Dernière maintenance le ${formatHfsqlDate(op.derniereMaintenance)}`
+                            : 'Aucune maintenance enregistrée'}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Tous les {op.frequenceMois} mois
+                          {op.ratio !== null && op.ratio > 1 && (
+                            <span className={cn('ml-1 font-medium', spec.text)}>
+                              · {Math.round(op.ratio * 100)} % de l&apos;intervalle
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    {canEdit && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-2 h-8"
+                        onClick={() => onReset(op)}
+                      >
+                        <CalendarCheck className="h-3.5 w-3.5 mr-1.5" />
+                        Effectué ce jour
+                      </Button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {canEdit && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2 text-accent hover:text-accent hover:bg-accent/10"
+              onClick={onAdd}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Ajouter un entretien
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
 
-      {canEdit && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full text-accent hover:text-accent hover:bg-accent/10"
-          onClick={onAdd}
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          Ajouter un entretien
-        </Button>
-      )}
-    </>
+// ══════════════════════════════════════════════════════
+//  Right sidebar — the selected métier only
+// ══════════════════════════════════════════════════════
+
+function MaintenanceSidebar({ metier }: { metier: Metier }) {
+  return (
+    <div className="w-96 flex-shrink-0 flex flex-col gap-3 min-h-0">
+      <div className="flex-1 min-h-0 rounded-xl border flex flex-col overflow-hidden bg-zinc-100/80">
+        <div className="flex items-center gap-1.5 border-b px-3 py-2.5 rounded-t-xl bg-zinc-200/50 text-xs font-semibold">
+          <Settings2 className="h-3.5 w-3.5 text-accent" />
+          Métier {metier.emplacement || metier.nom}
+        </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-transparent">
+          <MetierTab metier={metier} />
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1226,10 +1280,38 @@ export function AtelierMaintenance() {
 
   const metiers = useMemo(() => data?.metiers ?? [], [data])
   const seuilKg = data?.seuilRouloirKg ?? 15000
-  const dueCount = useMemo(() => metiers.filter((m) => m.etat === 'due').length, [metiers])
+  const atelierSummary = useMemo<AtelierSummary>(() => {
+    const rang: Record<MeterEtat, number> = { due: 3, proche: 2, ok: 1, inconnu: 0 }
+    const etat = atelierOperations.reduce<MeterEtat>(
+      (worst, o) => (rang[o.etat] > rang[worst] ? o.etat : worst),
+      'ok',
+    )
+    return {
+      etat,
+      aFaire: atelierOperations.filter((o) => o.etat === 'due').map((o) => o.nom),
+      nbEntretiens: atelierOperations.length,
+    }
+  }, [atelierOperations])
+
+  // The pill counts everything with something due: métiers, and the atelier.
+  const dueCount = useMemo(
+    () =>
+      metiers.filter((m) => m.etat === 'due').length + (atelierSummary.etat === 'due' ? 1 : 0),
+    [metiers, atelierSummary],
+  )
 
   // §41.4: an armed pill must not survive its bucket emptying.
   const dueFilterActive = dueOnly && dueCount > 0
+
+  const atelierVisible = useMemo(() => {
+    if (dueFilterActive && atelierSummary.etat !== 'due') return false
+    const q = searchQuery.trim().toLowerCase()
+    return (
+      !q ||
+      'atelier'.includes(q) ||
+      atelierOperations.some((o) => o.nom.toLowerCase().includes(q))
+    )
+  }, [dueFilterActive, atelierSummary, searchQuery, atelierOperations])
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -1244,13 +1326,22 @@ export function AtelierMaintenance() {
     })
   }, [metiers, searchQuery, dueFilterActive])
 
+  // The atelier entry is a valid selection while visible, but auto-select
+  // lands on the first métier: that is what the screen is mostly used for.
+  const selectableIds = useMemo(
+    () => [...filtered.map((m) => m.id), ...(atelierVisible ? [ATELIER_ID] : [])],
+    [filtered, atelierVisible],
+  )
   useAutoSelectFirst({
-    rows: filtered,
+    rows: selectableIds,
     selectedId,
-    getId: (m: Metier) => m.id,
+    getId: (id: number) => id,
     select: setSelectedId,
-    suspended: isEditing,
+    // Wait for the métiers: otherwise the atelier, alone in the list for a
+    // moment, would be picked first.
+    suspended: isEditing || isLoading,
   })
+  const atelierSelected = selectedId === ATELIER_ID
 
   const selected = useMemo(
     () => metiers.find((m) => m.id === selectedId) ?? null,
@@ -1464,10 +1555,13 @@ export function AtelierMaintenance() {
             dueOnly={dueFilterActive}
             dueCount={dueCount}
             onToggleDue={() => guard.guardAction(() => setDueOnly((v) => !v))}
+            atelier={atelierVisible ? atelierSummary : null}
           />
         }
         detailHeader={
-          selected ? (
+          atelierSelected ? (
+            <AtelierDetailHeader summary={atelierSummary} />
+          ) : selected ? (
             <DetailHeader
               metier={selected}
               isEditing={isEditing}
@@ -1485,7 +1579,18 @@ export function AtelierMaintenance() {
           ) : null
         }
         detail={
-          !selected ? (
+          atelierSelected ? (
+            <AtelierDetail
+              operations={atelierOperations}
+              isLoading={opsQuery.isLoading}
+              isError={opsQuery.isError}
+              error={writeError}
+              canEdit={canEdit}
+              onReset={(op) => setFait({ kind: 'atelier', op })}
+              onManage={openManage}
+              onAdd={() => openCreate('atelier')}
+            />
+          ) : !selected ? (
             <EmptyDetail />
           ) : (
             <div className="flex-1 min-h-0 overflow-auto space-y-4 scrollbar-transparent pr-0.5">
@@ -1530,19 +1635,10 @@ export function AtelierMaintenance() {
         }
         sidebar={
           selected ? (
-            <MaintenanceSidebar
-              metier={selected}
-              canEdit={quick}
-              operations={atelierOperations}
-              isLoading={opsQuery.isLoading}
-              isError={opsQuery.isError}
-              onReset={(op) => setFait({ kind: 'atelier', op })}
-              onManage={openManage}
-              onAdd={() => openCreate('atelier')}
-            />
+            <MaintenanceSidebar metier={selected} />
           ) : null
         }
-        sidebarTitle="Atelier"
+        sidebarTitle="Métier"
         hasSelection={selectedId !== null}
         onBack={() =>
           guard.guardAction(() => {
