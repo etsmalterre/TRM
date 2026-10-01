@@ -105,8 +105,8 @@ Autres changements :
 **Atelier dans la liste (2026-10-01, retour de Vincent)** : les entretiens d'atelier dans le panneau de
 droite passaient pour une info du métier sélectionné. Ils ont maintenant leur **entrée « Atelier »
 épinglée en tête de la liste** (hors défilement, teinte marine, icône usine, au-dessus de l'intitulé
-« Métiers »), et ouvrent leur propre vue au centre ( comme sélection). Le panneau de
+« Métiers »), et ouvrent leur propre vue au centre (`ATELIER_ID = -1` comme sélection). Le panneau de
 droite ne montre plus que le métier sélectionné. La pastille rouge compte l'atelier quand un de ses
-entretiens est dû. ⚠️ La sélection automatique attend les métiers (), sinon
+entretiens est dû. ⚠️ La sélection automatique attend les métiers (`suspended: isLoading`), sinon
 l'atelier, seul dans la liste un instant, était choisi au chargement. Le sous-menu placeholder
-Atelier › Bonnetier a été retiré le même jour (navigation, router, ).
+Atelier › Bonnetier a été retiré le même jour (navigation, router, `screen-keys-trm.ts`).
