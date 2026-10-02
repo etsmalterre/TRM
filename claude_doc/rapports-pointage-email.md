@@ -33,9 +33,12 @@ rule once, both follow. Dossier `pointage-pwa.md` § « 7 derniers jours ».
     gained `appName` + `sections`, pre-rendered blocks with their text twin).
   - `lib/rapports-pointage-envoi.ts` — reads, recipients, sending.
   - `lib/automates/rapports-pointage/` — the schedule: two automates (TRM › Agents IA › Automates, `app: 'trm'`).
-  - `routes/notifications-trm.ts` → `/api/notifications-trm` (`keys`, `users`, `users/:id`,
-    `apercu/:key?jour=`, `envoyer-test/:key?jour=`).
-- Web: `apps/web/src/pages/SettingsUtilisateurs.tsx` → `NotificationsTab`.
+  - `abonnementRapport(key)` (same file) — the automate's « Destinataires » tab: candidates,
+    switch, preview, test send (`lib/automates/abonnement.ts`, routes in `routes/automates.ts`:
+    `/:slug/destinataires`, `/:slug/destinataires/:userId`, `/:slug/apercu?jour=`,
+    `/:slug/envoyer-test`). `routes/notifications-trm.ts` is gone (2026-10-02).
+- Web: ETM's `pages/Automates.tsx` → `DestinatairesTab` (shared through `@etm`). TRM's
+  Paramètres › Utilisateurs passes `NotificationsTab={null}`: no Notifications tab any more.
 
 ## The schedule
 
@@ -49,15 +52,28 @@ No catch-up of a previous day. (2026-09-22 → 09-30 they had their own timer an
 `data/rapports-pointage-envois.json`, read once by the automates so the deploy day never
 sends twice; `RAPPORTS_POINTAGE` is gone.) Sender `tricotbot@etsmalterre.com` (display « TRM -
 Pointage »), impersonated through the Gmail domain-wide delegation;
-`RAPPORTS_POINTAGE_FROM` overrides. No email when nobody clocked in / no balance.
+`RAPPORTS_POINTAGE_FROM` overrides. No balance → no weekly email.
+
+**Anomalies only (2026-10-02, automate version 2).** Vincent: the rules are trusted now, a
+daily mail listing everyone goes unread. The daily report lists only the salariés with at
+least one alert (whole line kept, wrong times in red, « Aucun pointage » included) and the
+days that have one; **no email at all when everything is in order** — the run says « Rien à
+signaler » with no recipients, so silence is never confused with a dead automate. The
+subject keeps the whole covered period; the intro reads « N pointages à vérifier sur M
+salariés pointés ». The filter lives in `contenuRapportPointage` only: `analyserJours()`
+still returns every line, the tablet's « 7 derniers jours » needs the days in order. The
+Tuesday balance is unchanged (full table) — decided the same day.
 
 ## Recipients
 
-Subscribed **and** holding the menu « Pointage » (`screen_pointage`, or the admin) **and** having an address in
-`user-emails.json`. The tab locks the switch without the right (a lock line names it), the
-PUT refuses a NEW subscription without it (409 `permission_requise`, switching off always
-allowed), and the sender skips a subscriber who lost it (logged). No admin bypass on
-subscriptions: nobody is subscribed by default.
+Chosen in the automate's **« Destinataires »** tab since 2026-10-02 (Paramètres ›
+Utilisateurs › Notifications before; same store `data/notifications-trm.json`, nothing
+migrated). The tab lists TRM's active person accounts that hold the menu « Pointage »
+(`screen_pointage`, or the admin), plus anyone still subscribed without it (marked « n'a
+plus le droit », can only be switched off). Switches need `edit_agents_ia`; « Aperçu » and
+« M'envoyer un test » need the Pointage menu (the body carries hours). A NEW subscription
+without the right is refused (409), and the sender skips a subscriber who lost it or has no
+address (named in the run). No admin bypass on subscriptions: nobody is subscribed by default.
 
 ## Daily report rules (decisions 2026-09-22)
 
@@ -103,7 +119,7 @@ from `lst_salarie` → `prenomAffiche()`. No em / en dash in content (skill rule
 ## Checks
 
 - `pnpm test` in `apps/api` (rules + content).
-- Preview any past morning: `GET /api/notifications-trm/apercu/notif_rapport_pointage?jour=YYYYMMDD`
-  (admin cookie), or the « Aperçu » link in the tab.
-- « M’envoyer un test » sends the report to the viewing admin only (works in dev too: it is
+- Preview any past morning: `GET /api/automates-trm/rapport-pointage/apercu?jour=YYYYMMDD`
+  (cookie with the Pointage menu), or « Aperçu » in the Destinataires tab.
+- « M’envoyer un test » sends the report to the caller only (works in dev too: it is
   a real Gmail send).

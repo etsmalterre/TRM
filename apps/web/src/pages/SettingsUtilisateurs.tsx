@@ -10,14 +10,14 @@
 // station accounts). What makes it TRM's, as props:
 //   • permissionsPath — TRM's own catalog + store (`/api/permissions-trm/*`),
 //     so neither app's screen can strip the other's grants on save;
-//   • NotificationsTab — TRM's report subscriptions (components/settings/
-//     NotificationsTrmTab.tsx);
+//   • NotificationsTab={null} — no Notifications tab: TRM's report e-mails are
+//     chosen in each automate's « Destinataires » tab (Agents IA › Automates,
+//     since 2026-10-02);
 //   • extraTabs — Appareils (the atelier phones enrolled under an account).
 
 import { Smartphone } from 'lucide-react'
 import { SettingsUtilisateurs as SharedSettingsUtilisateurs, type ExtraTab } from '@etm/pages/SettingsUtilisateurs'
 import { AppareilsTab } from '@/components/settings/AppareilsAtelier'
-import { NotificationsTrmTab } from '@/components/settings/NotificationsTrmTab'
 
 const EXTRA_TABS: ExtraTab[] = [
   {
@@ -32,7 +32,7 @@ export function SettingsUtilisateurs() {
   return (
     <SharedSettingsUtilisateurs
       permissionsPath="/permissions-trm"
-      NotificationsTab={NotificationsTrmTab}
+      NotificationsTab={null}
       extraTabs={EXTRA_TABS}
     />
   )

@@ -102,7 +102,7 @@ warnings that would bite in the first hour) with a pointer to the dossier.
 | `claude_doc/dashboard-widgets.md` | Widgets finance, « Poids des pièces », « Pièces à visiter » |
 | `claude_doc/pointage-pwa.md` | `apps/pointage`, la tablette pointeuse (base `pointage`, boutons, enrôlement) |
 | `claude_doc/admin-pointage.md` | Menu Pointage de l'ERP : Horaires, Salariés + messages (port d'Admin Pointage, corrections suivies dans la jumelle et le journal TRS) |
-| `claude_doc/rapports-pointage-email.md` | Rapports de pointage par email (ex-n8n) : onglet Notifications, règles, minuterie de l'API |
+| `claude_doc/rapports-pointage-email.md` | Rapports de pointage par email (ex-n8n) : onglet Destinataires de l'automate, règles, anomalies seules |
 | `claude_doc/agents-ia.md` | Agents IA (Agents + Automates) : écrans d'ETM sur les montages TRM de l'API, `app: 'trm'`, droits |
 
 ## Atelier — la PWA mobile de l'atelier (`apps/atelier`)
@@ -283,13 +283,19 @@ abandonnés (2026-09-22). **Dossier : `claude_doc/admin-pointage.md`** ; code le
 - Paie : **un repas ne compte que si le jour lissé fait ≥ 6 h** (jour = M/A/E, nuit = N, rien pour J) ; heures
   de nuit = Σ des jours N ; semaines validées seules.
 
-## Rapports de pointage par email (ex-n8n) — onglet Notifications
+## Rapports de pointage par email (ex-n8n) — automates, onglet Destinataires
 
 Deux emails remplacent les workflows n8n « pointage » et « Bilan des Heures Annualisées »
 (2026-09-22) : **Rapport de pointage** (lun–ven 9 h, la veille ; le lundi vendredi → dimanche)
-et **Bilan des heures annualisées** (mardi 9 h). Abonnement par utilisateur dans Paramètres ›
-Utilisateurs › **Notifications** (catalogue et store propres à TRM, `/api/notifications-trm`),
-réservé à qui a le menu « Pointage » (`screen_pointage`). **Dossier : `claude_doc/rapports-pointage-email.md`.**
+et **Bilan des heures annualisées** (mardi 9 h). **Destinataires choisis dans l'onglet
+« Destinataires » de chaque automate** (Agents IA › Automates, 2026-10-02 — l'onglet Notifications
+de Paramètres › Utilisateurs est retiré, `/api/notifications-trm` aussi ; même store), réservé à
+qui a le menu « Pointage » (`screen_pointage`). **Dossier : `claude_doc/rapports-pointage-email.md`.**
+
+- ⚠️ **Le rapport quotidien ne liste que les pointages à vérifier** (2026-10-02) : salariés
+  conformes absents, **aucun e-mail quand tout est conforme** (l'exécution dit « Rien à
+  signaler »). Le filtre est dans `contenuRapportPointage`, jamais dans `analyserJours()`
+  (la tablette montre aussi les jours conformes). Le bilan du mardi reste complet.
 
 - ⚠️ **La minuterie vit dans l'API et ne tourne qu'en production** (`NODE_ENV=production`,
   `lib/rapports-pointage-envoi.ts`) : un API de dev ou de worktree n'envoie jamais rien ; journal

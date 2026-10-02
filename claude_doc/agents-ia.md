@@ -34,8 +34,12 @@ it drives the factory's NVR and was ETM's from the start).
   `evaluer_agents_ia` (noter un run d'agent) in **TRM's** catalog
   (`permission-keys-trm.ts`), checked server-side on every write of the TRM mounts. An
   ETM grant of the same key gives nothing here, and vice versa.
-- The subscribers of the two emails are still chosen in Paramètres › Utilisateurs ›
-  Notifications; a run keeps subject, counts and addresses, never the salariés' hours —
+- The subscribers of the two emails are chosen in the automate's own **« Destinataires »**
+  tab (2026-10-02 — Paramètres › Utilisateurs › Notifications before, removed from TRM).
+  Generic: an automate declaring `abonnement` in its catalog entry gets the tab
+  (`lib/automates/abonnement.ts`, routes `/:slug/destinataires`, `/apercu`, `/envoyer-test`
+  in `routes/automates.ts`); the switches need `edit_agents_ia`, the preview and the test
+  send need the right to read the report (`peutLire` = the Pointage menu). A run keeps subject, counts and addresses, never the salariés' hours —
   so an Agents IA reader needs no Pointage menu.
 
 ## Notes
