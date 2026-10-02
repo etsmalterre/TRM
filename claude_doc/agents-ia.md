@@ -34,7 +34,7 @@ it drives the factory's NVR and was ETM's from the start).
   `evaluer_agents_ia` (noter un run d'agent) in **TRM's** catalog
   (`permission-keys-trm.ts`), checked server-side on every write of the TRM mounts. An
   ETM grant of the same key gives nothing here, and vice versa.
-- The subscribers of the two emails are chosen in the automate's own **« Destinataires »**
+- The subscribers of the two emails are chosen in the automate's **« Destinataires »** right-sidebar
   tab (2026-10-02 — Paramètres › Utilisateurs › Notifications before, removed from TRM).
   Generic: an automate declaring `abonnement` in its catalog entry gets the tab
   (`lib/automates/abonnement.ts`, routes `/:slug/destinataires`, `/apercu`, `/envoyer-test`

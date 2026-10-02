@@ -37,7 +37,7 @@ rule once, both follow. Dossier `pointage-pwa.md` § « 7 derniers jours ».
     switch, preview, test send (`lib/automates/abonnement.ts`, routes in `routes/automates.ts`:
     `/:slug/destinataires`, `/:slug/destinataires/:userId`, `/:slug/apercu?jour=`,
     `/:slug/envoyer-test`). `routes/notifications-trm.ts` is gone (2026-10-02).
-- Web: ETM's `pages/Automates.tsx` → `DestinatairesTab` (shared through `@etm`). TRM's
+- Web: ETM's `pages/Automates.tsx` → `DestinatairesPanel` (right-sidebar tab) (shared through `@etm`). TRM's
   Paramètres › Utilisateurs passes `NotificationsTab={null}`: no Notifications tab any more.
 
 ## The schedule
@@ -66,7 +66,7 @@ Tuesday balance is unchanged (full table) — decided the same day.
 
 ## Recipients
 
-Chosen in the automate's **« Destinataires »** tab since 2026-10-02 (Paramètres ›
+Chosen in the automate's **« Destinataires »** tab (right sidebar, next to « Aperçu ») since 2026-10-02 (Paramètres ›
 Utilisateurs › Notifications before; same store `data/notifications-trm.json`, nothing
 migrated). The tab lists TRM's active person accounts that hold the menu « Pointage »
 (`screen_pointage`, or the admin), plus anyone still subscribed without it (marked « n'a
