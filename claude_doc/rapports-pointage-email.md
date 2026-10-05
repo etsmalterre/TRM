@@ -106,6 +106,10 @@ Two populations:
   more); a 6–10 min late return on a normal-length lunch keeps it. ⚠️ **The two are never
   offset against each other**: Vincent wants 11 min early flagged even after a lunch 10 min
   short. Daunovan 16 min early and Marie 21 min of pause, same report, stay flagged.
+  That change is the automate's **version 3**. ⚠️ Every rule change in
+  `lib/rapport-pointage.ts` bumps `VERSION_RAPPORT` + a `VERSIONS_RAPPORT` note
+  (`lib/automates/rapports-pointage/rapports-pointage.ts`) in the same commit — the 10-05
+  rules first shipped without it and the « Retours » tab still read v2.
 
 « Vincent: we'll improve as we go » — expect these to move. Known gap: a bonnetier on shift
 missing from the planning is judged on day hours (the report then shows odd alerts).
