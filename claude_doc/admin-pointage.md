@@ -35,6 +35,11 @@ Patron §27 (tableau + tiroir), pièces partagées `components/pointage/parts.ts
   les pauses ; le totaliseur ajoute « Hors pauses »). Tiroir : six heures en `<input type="time">`
   sous « Modifier », bilan, « Supprimer le poste » (confirmation §33), bandeau
   rouge sur un poste ouvert > 14 h. « Nouvel horaire » = dialogue §18.A.
+  ⚠️ **Les quatre tiroirs (Horaires, Salariés, Prévisionnel, Semaines) se ferment sur tout clic
+  extérieur sauf dans `[role="dialog"]` / `[role="alertdialog"]`** — rôle que `dialog.tsx` /
+  `alert-dialog.tsx` ne posaient pas avant le 2026-10-05 : « Supprimer » de la confirmation
+  fermait le tiroir et le clic se perdait, aucun DELETE n'est jamais parti (LIVA #1260). Un
+  nouveau popup en portail ouvert depuis un tiroir doit porter l'un de ces rôles.
 - **Semaines** (2026-09-22, code legacy lu, plan § 9.2–9.4) : salarié + année → une tuile par semaine
   ISO (**rouge « à valider »** = dans la fenêtre `semMin < n ≤ semMax` sans ligne `lst_lissage`, verte
   = validée avec son total, grise = hors plage), bandeau « Solde annuel » = le « Détail » du legacy
