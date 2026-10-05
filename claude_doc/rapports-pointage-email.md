@@ -84,20 +84,28 @@ minute from 31 s up (n8n rule).
 
 Two populations:
 - **On shift** = the salarié's bonnetier (`lst_salarie.id_mps`) has a `planning_bonnetier`
-  row starting that day. Late > planned start + 5 min, early < planned end − 5 min, total
+  row starting that day. Late > planned start + 5 min, early < planned end − 10 min, total
   pause > **20 min**. The gap between two lines counts as pause. Planned but never clocked
   → listed, « aucun pointage ».
 - **Day hours** = everyone else, expected **09:00–12:00 / 14:00–18:00** (18:00 assumed —
   Vincent wrote 20:00, the real departures are ~18:00; confirm). Late > 09:05, back from
-  lunch > 14:05, leaving < 17:55, one line across 12:00–14:00 = « pause de midi non
+  lunch > 14:05, leaving < 17:50, one line across 12:00–14:00 = « pause de midi non
   pointée ». The lunch gap is **not** a pause.
 - Both: an open line followed by another line = « sortie non pointée entre X et Y » (n8n
   hid it and inflated the day); an open last line = « fin de poste non pointée ».
 - Both, **since 2026-09-24**: arriving more than **10 min early** or leaving more than
   **10 min late** is red too (`DEBORD_MAX_MIN`, « 15 min d’avance » / « 15 min plus tard »)
   — Vincent: the overlap is time the company pays for and does not need, and shift workers
-  who hand over early are meant to change the habit. Start and end of the day only; the
-  lunch keeps its late-return rule alone. Exactly 10 min is in order (like 5 min late).
+  who hand over early are meant to change the habit. Exactly 10 min is in order (like 5
+  min late).
+- **Since 2026-10-05** (the 02/10 report, Mickael): leaving early gets **10 min**, not 5
+  (`DEPART_AVANCE_MAX_MIN`; arriving late stays at 5), and a day-hours lunch more than
+  **10 min shorter or longer** than `reprise − midi` is red (`REPAS_ECART_MAX_MIN`,
+  « repas de 1 h 49 au lieu de 2 h 00 (11 min de moins) »). The lunch = the gap before the
+  first line starting after noon. A too-long lunch replaces the « reprise » line (it says
+  more); a 6–10 min late return on a normal-length lunch keeps it. ⚠️ **The two are never
+  offset against each other**: Vincent wants 11 min early flagged even after a lunch 10 min
+  short. Daunovan 16 min early and Marie 21 min of pause, same report, stay flagged.
 
 « Vincent: we'll improve as we go » — expect these to move. Known gap: a bonnetier on shift
 missing from the planning is judged on day hours (the report then shows odd alerts).
