@@ -301,8 +301,10 @@ qui a le menu « Pointage » (`screen_pointage`). **Dossier : `claude_doc/rappor
   `lib/rapports-pointage-envoi.ts`) : un API de dev ou de worktree n'envoie jamais rien ; journal
   écrit avant l'envoi = une fois par jour au plus. Expéditeur `tricotbot@etsmalterre.com`.
 - Règles dans `lib/rapport-pointage.ts` (pur, testé) : **en équipe** = une ligne
-  `planning_bonnetier` ce jour-là (± 5 min, 20 min de pause), sinon **journée** 09:00–12:00 /
-  14:00–18:00 (± 5 min) ; une sortie oubliée entre deux lignes est signalée. Lu sur `lst_horaire`.
+  `planning_bonnetier` ce jour-là (20 min de pause), sinon **journée** 09:00–12:00 /
+  14:00–18:00 ; retard > 5 min, départ anticipé > 10 min, avance / dépassement > 10 min, repas
+  ± 10 min de son horaire (2026-10-05) ; ⚠️ jamais compensés entre eux. Une sortie oubliée entre
+  deux lignes est signalée. Lu sur `lst_horaire`.
 
 ## Agents IA — le menu des agents et automates de TRM
 
