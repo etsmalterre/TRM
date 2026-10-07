@@ -138,6 +138,15 @@ avec les commentaires ; saisir un commentaire en déclarant « Effectué ce jour
   `POST /operations/:id/reset`.
 - **Déploiement** : `mps-migrate.ts --write` sur la prod **avant** l'`/etm_deploy`, puis `/trm_deploy`.
 
+**Lecture / édition (décision de Vincent, 2026-10-07)** : le mode lecture **lit et enregistre** des
+événements (« Effectué ce jour », l'historique, « Changer le jeu » de l'onglet Aiguilles) ; le mode
+édition **modifie la fiche** (dates, commentaires, et les entretiens eux-mêmes : ⚙ renommer /
+fréquence / supprimer, « Ajouter un entretien » ; quantités et références de l'onglet Aiguilles).
+⚠️ Ne pas remettre le ⚙ en lecture. La vue **Atelier** a son propre mode édition (Modifier →
+« Terminer », pas d'Enregistrer : chaque dialogue enregistre seul). L'onglet Aiguilles suivait
+déjà la règle. Un entretien supprimé en mode édition sort aussi du brouillon (sinon fiche « non
+enregistrée » à jamais).
+
 ## Onglet Aiguilles (LIVA #1263, 2026-10-07)
 
 Le panneau de droite a deux onglets, **Métier** et **Aiguilles** (`components/maintenance/AiguillesTab.tsx`) :

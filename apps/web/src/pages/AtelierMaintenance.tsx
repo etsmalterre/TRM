@@ -29,6 +29,10 @@
 //    optional comment; every item keeps its history (trm_maintenance_journal),
 //    opened by clicking its line outside edit mode (the régleurs, 2026-10-07).
 //    Edit mode corrects the latest entry only.
+//  - View mode reads and RECORDS (« Effectué ce jour », the history); edit
+//    mode CHANGES the sheet (dates, comments, and the entretiens themselves:
+//    ⚙ rename / frequency / remove, « Ajouter un entretien »). The atelier
+//    view has the same Modifier → « Terminer » mode (Vincent, 2026-10-07).
 //  - The garniture dates have no colour: the base holds no frequency for
 //    garniture work, so an alert threshold would be invented data.
 //  - No Imprimer / Envoyer un email (§6.1): the legacy window produces no
@@ -39,6 +43,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
   Brush,
+  Check,
   CalendarCheck,
   CalendarClock,
   Cog,
@@ -1082,24 +1087,76 @@ function GarnitureCard({
 //  The pinned « Atelier » entry — the building's own items
 // ══════════════════════════════════════════════════════
 
-function AtelierDetailHeader({ summary }: { summary: AtelierSummary }) {
+/** Edit mode here has nothing pending: each change (add, rename, remove an
+ *  entretien) is saved by its own dialog. So no Annuler / Enregistrer — one
+ *  « Terminer » that leaves the mode. */
+function AtelierDetailHeader({
+  summary,
+  isEditing,
+  canEdit,
+  onStartEdit,
+  onDone,
+}: {
+  summary: AtelierSummary
+  isEditing: boolean
+  canEdit: boolean
+  onStartEdit: () => void
+  onDone: () => void
+}) {
   return (
     <div className="flex-shrink-0 pt-0.5">
       <div className="flex items-center gap-3">
-        <div className="h-11 w-11 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary text-primary-foreground">
+        <div
+          className={cn(
+            'h-11 w-11 rounded-lg flex items-center justify-center flex-shrink-0',
+            isEditing ? 'bg-accent/15' : 'bg-primary text-primary-foreground',
+          )}
+        >
           <Factory className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-heading font-bold tracking-tight truncate">Atelier</h1>
-          <div className="flex gap-1.5 mt-1 flex-wrap">
-            <Badge variant="secondary" className="text-xs">
-              Entretiens généraux du bâtiment
-            </Badge>
-            <EtatChip etat={summary.etat} />
-          </div>
+          {isEditing ? (
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-heading font-bold tracking-tight truncate">Atelier</h1>
+              <Badge className="bg-accent text-accent-foreground flex-shrink-0 gap-1 shadow-sm">
+                <Pencil className="h-3 w-3" />
+                Mode edition
+              </Badge>
+            </div>
+          ) : (
+            <>
+              <h1 className="text-2xl font-heading font-bold tracking-tight truncate">Atelier</h1>
+              <div className="flex gap-1.5 mt-1 flex-wrap">
+                <Badge variant="secondary" className="text-xs">
+                  Entretiens généraux du bâtiment
+                </Badge>
+                <EtatChip etat={summary.etat} />
+              </div>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {isEditing ? (
+            <Button size="sm" onClick={onDone}>
+              <Check className="h-3.5 w-3.5 mr-1.5" />
+              Terminer
+            </Button>
+          ) : (
+            canEdit && (
+              <Button variant="gold" size="sm" onClick={onStartEdit}>
+                <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                Modifier
+              </Button>
+            )
+          )}
         </div>
       </div>
-      <div className="h-1 w-24 mt-3 rounded-full bg-gradient-to-r from-accent via-accent to-accent/30" />
+      <div
+        className={cn(
+          'h-1 w-24 mt-3 rounded-full',
+          isEditing ? 'bg-accent' : 'bg-gradient-to-r from-accent via-accent to-accent/30',
+        )}
+      />
     </div>
   )
 }
@@ -1112,6 +1169,7 @@ function AtelierDetail({
   isError,
   error,
   canEdit,
+  isEditing,
   onReset,
   onManage,
   onAdd,
@@ -1122,12 +1180,17 @@ function AtelierDetail({
   isError: boolean
   error: string | null
   canEdit: boolean
+  /** View mode records (« Effectué ce jour ») and reads the history; edit
+   *  mode changes the items themselves (⚙, « Ajouter un entretien »). */
+  isEditing: boolean
   onReset: (op: OperationEntretien) => void
   onManage: (id: number) => void
   onAdd: () => void
   /** Opens the item's history — a click on its card. */
   onHistorique: (op: OperationEntretien) => void
 }) {
+  const editing = canEdit && isEditing
+  const quick = canEdit && !isEditing
   return (
     <div className="flex-1 min-h-0 overflow-auto space-y-4 scrollbar-transparent pr-0.5">
       {error && (
@@ -1136,7 +1199,7 @@ function AtelierDetail({
           <p className="text-sm">{error}</p>
         </div>
       )}
-      <Card className="card-premium">
+      <Card className={cn('card-premium', isEditing && editSectionClass)}>
         <CardHeader className="flex flex-row items-center gap-2 pb-2 space-y-0">
           <Fan className="h-4 w-4 text-accent" />
           <CardTitle className="text-sm font-semibold">Entretiens de l&apos;atelier</CardTitle>
@@ -1165,17 +1228,22 @@ function AtelierDetail({
                 return (
                   <div
                     key={op.id}
-                    role="button"
-                    tabIndex={0}
-                    title="Voir l'historique"
-                    onClick={() => onHistorique(op)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        onHistorique(op)
-                      }
-                    }}
-                    className="rounded-lg border bg-card p-3 cursor-pointer hover:border-zinc-400/60 transition-colors"
+                    {...(!isEditing && {
+                      role: 'button',
+                      tabIndex: 0,
+                      title: "Voir l'historique",
+                      onClick: () => onHistorique(op),
+                      onKeyDown: (e: React.KeyboardEvent) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onHistorique(op)
+                        }
+                      },
+                    })}
+                    className={cn(
+                      'rounded-lg border bg-card p-3',
+                      !isEditing && 'cursor-pointer hover:border-zinc-400/60 transition-colors',
+                    )}
                   >
                     <div className="flex items-start gap-3">
                       <RadialMeter
@@ -1188,7 +1256,7 @@ function AtelierDetail({
                       <div className="min-w-0 flex-1 pt-1">
                         <div className="flex items-start gap-1">
                           <p className="font-medium text-sm truncate flex-1">{op.nom}</p>
-                          {canEdit && (
+                          {editing && (
                             <Button
                               type="button"
                               variant="ghost"
@@ -1220,7 +1288,7 @@ function AtelierDetail({
                         </p>
                       </div>
                     </div>
-                    {canEdit && (
+                    {quick && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1239,7 +1307,7 @@ function AtelierDetail({
               })}
             </div>
           )}
-          {canEdit && (
+          {editing && (
             <Button
               variant="ghost"
               size="sm"
@@ -1496,11 +1564,14 @@ export function AtelierMaintenance() {
     setDraft((d) => {
       if (!d) return d
       const missing = selected.entretiens.filter((e) => !(e.id in d.entretiens))
-      if (missing.length === 0) return d
+      const live = new Set(selected.entretiens.map((e) => String(e.id)))
+      const gone = Object.keys(d.entretiens).filter((id) => !live.has(id))
+      if (missing.length === 0 && gone.length === 0) return d
+      const kept = Object.fromEntries(Object.entries(d.entretiens).filter(([id]) => live.has(id)))
       const added = Object.fromEntries(
         missing.map((e) => [e.id, { date: e.date ?? '', commentaire: e.commentaire ?? '' }]),
       )
-      return { ...d, entretiens: { ...d.entretiens, ...added } }
+      return { ...d, entretiens: { ...kept, ...added } }
     })
   }, [selected, isEditing])
 
@@ -1715,7 +1786,16 @@ export function AtelierMaintenance() {
         }
         detailHeader={
           atelierSelected ? (
-            <AtelierDetailHeader summary={atelierSummary} />
+            <AtelierDetailHeader
+              summary={atelierSummary}
+              isEditing={isEditing}
+              canEdit={canEdit}
+              onStartEdit={() => {
+                setWriteError(null)
+                setIsEditing(true)
+              }}
+              onDone={() => setIsEditing(false)}
+            />
           ) : selected ? (
             <DetailHeader
               metier={selected}
@@ -1741,6 +1821,7 @@ export function AtelierMaintenance() {
               isError={opsQuery.isError}
               error={writeError}
               canEdit={canEdit}
+              isEditing={isEditing}
               onReset={(op) => openFait({ kind: 'atelier', op })}
               onHistorique={(op) =>
                 setHistorique({
@@ -1788,7 +1869,7 @@ export function AtelierMaintenance() {
                 draft={draft}
                 set={set}
                 onFait={onFaitMetier}
-                onManage={quick ? openManage : undefined}
+                onManage={canEdit && isEditing ? openManage : undefined}
                 onAdd={canEdit && isEditing ? () => openCreate('metier') : undefined}
                 onOpen={onOpenItem}
               />
