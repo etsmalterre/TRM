@@ -111,6 +111,33 @@ entretiens est dû. ⚠️ La sélection automatique attend les métiers (`suspe
 l'atelier, seul dans la liste un instant, était choisi au chargement. Le sous-menu placeholder
 Atelier › Bonnetier a été retiré le même jour (navigation, router, `screen-keys-trm.ts`).
 
+## Historique des entretiens (2026-10-07, les régleurs)
+
+Demande : cliquer une ligne d'Entretien ou de Garniture ouvre l'historique de ce qui a été fait,
+avec les commentaires ; saisir un commentaire en déclarant « Effectué ce jour ».
+
+- **Il n'y avait PAS d'historique** : chaque élément ne gardait que sa dernière date + commentaire,
+  écrasés à chaque « Effectué ce jour ». Migration PG **`0013_maintenance_journal_trm`** : table
+  **`trm_maintenance_journal`** (une ligne par intervention : `idmachine` — NULL = élément d'atelier —,
+  `item` = `rouloir` | nom de colonne garniture | `operation` + `idoperation_maintenance`, `date_fait`,
+  `commentaire`, `saisi_par`). Amorcée avec la date que portait chaque élément (`reprise = true`,
+  « Reprise de l'ancienne fiche ») — le seul passé que la base avait, rien d'antérieur n'existe.
+- ⚠️ **La date + le commentaire stockés d'un élément restent la COPIE de sa dernière ligne** (colonnes
+  `machine`, `operation_maintenance_metier`, `operation_maintenance.date_derniere`) : tous les lecteurs
+  sont inchangés. « Effectué ce jour » ajoute une ligne **et** recopie ; le commentaire de la fiche est
+  donc toujours celui de la dernière intervention (un « fait » sans commentaire l'efface — voulu).
+- **Le mode édition ne corrige que la dernière ligne** (décision de Vincent) : seuls les éléments dont
+  la date ou le commentaire a changé la touchent (`journalCorrectLatest`) ; vider la date supprime la
+  dernière ligne et l'élément retombe sur la précédente.
+- Écran : ligne cliquable **hors mode édition seulement** (en édition, ses champs sont les saisies) →
+  `components/maintenance/HistoriqueDialog.tsx` (§18.D, kg tricotés par période = `kgParPeriode`) ;
+  bouton « Historique » sur la carte Rouloir ; carte d'un entretien d'atelier cliquable.
+  « Effectué ce jour » = `FaitDialog.tsx` (commentaire facultatif), aussi depuis l'historique.
+- API : `GET /metiers/:id/historique?item=rouloir|<clé garniture>|<id entretien>`,
+  `GET /operations/:id/historique` ; `commentaire` sur `POST /metiers/:id/fait` et
+  `POST /operations/:id/reset`.
+- **Déploiement** : `mps-migrate.ts --write` sur la prod **avant** l'`/etm_deploy`, puis `/trm_deploy`.
+
 ## Onglet Aiguilles (LIVA #1263, 2026-10-07)
 
 Le panneau de droite a deux onglets, **Métier** et **Aiguilles** (`components/maintenance/AiguillesTab.tsx`) :

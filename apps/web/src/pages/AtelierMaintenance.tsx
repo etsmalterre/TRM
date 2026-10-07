@@ -25,7 +25,10 @@
 //  - Ventilateurs / Couronnes / Fuites d'air were ONE atelier-wide date each;
 //    they are per métier since 2026-10-01 (Mickaël), and the atelier keeps
 //    items of its own. Items are created / edited here (OperationDialog).
-//  - « Effectué ce jour » on every item, outside edit mode, confirmed.
+//  - « Effectué ce jour » on every item, outside edit mode, confirmed with an
+//    optional comment; every item keeps its history (trm_maintenance_journal),
+//    opened by clicking its line outside edit mode (the régleurs, 2026-10-07).
+//    Edit mode corrects the latest entry only.
 //  - The garniture dates have no colour: the base holds no frequency for
 //    garniture work, so an alert threshold would be invented data.
 //  - No Imprimer / Envoyer un email (§6.1): the legacy window produces no
@@ -42,6 +45,7 @@ import {
   Factory,
   Fan,
   Gauge,
+  History,
   Loader2,
   Pencil,
   Pin,
@@ -57,7 +61,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PopoverSelect } from '@/components/ui/popover-select'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { UnsavedChangesDialog } from '@/components/shared/UnsavedChangesDialog'
 import {
   EtatChip,
@@ -72,6 +75,8 @@ import {
   type Portee,
 } from '@/components/maintenance/OperationDialog'
 import { AiguillesTab, useNbAiguilles } from '@/components/maintenance/AiguillesTab'
+import { FaitDialog } from '@/components/maintenance/FaitDialog'
+import { HistoriqueDialog } from '@/components/maintenance/HistoriqueDialog'
 import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst'
 import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
 import { useHasPermission } from '@/contexts/PermissionsContext'
@@ -642,6 +647,7 @@ function RouloirCard({
   draft,
   set,
   onFait,
+  onHistorique,
 }: {
   metier: Metier
   seuilKg: number
@@ -650,6 +656,8 @@ function RouloirCard({
   set: (fn: (d: Draft) => Draft) => void
   /** « Effectué ce jour » — absent without the right or in edit mode. */
   onFait?: () => void
+  /** Opens the visits' history — absent in edit mode. */
+  onHistorique?: () => void
 }) {
   const r = metier.rouloir
   const spec = etatSpec(r.etat)
@@ -662,6 +670,19 @@ function RouloirCard({
         <CardTitle className="text-sm font-semibold">Rouloir</CardTitle>
         <span className="ml-auto flex items-center gap-2">
           <EtatChip etat={r.etat} />
+          {onHistorique && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground"
+              title="Historique des visites"
+              onClick={onHistorique}
+            >
+              <History className="h-3.5 w-3.5 mr-1.5" />
+              Historique
+            </Button>
+          )}
           {onFait && <FaitButton onClick={onFait} />}
         </span>
       </CardHeader>
@@ -764,7 +785,11 @@ function FaitButton({ onClick, compact }: { onClick: () => void; compact?: boole
       size="sm"
       className={cn('h-7 px-2 text-xs', compact && 'w-7 px-0')}
       title="Effectué ce jour"
-      onClick={onClick}
+      onClick={(e) => {
+        // Inside a clickable line: the button must not also open the history.
+        e.stopPropagation()
+        onClick()
+      }}
     >
       <CalendarCheck className={cn('h-3.5 w-3.5', !compact && 'mr-1.5')} />
       {!compact && 'Effectué ce jour'}
@@ -807,6 +832,7 @@ function ItemRow({
   onDraftCommentaire,
   onFait,
   onManage,
+  onOpen,
 }: {
   label: string
   sub?: React.ReactNode
@@ -820,10 +846,28 @@ function ItemRow({
   onDraftCommentaire: (v: string) => void
   onFait?: () => void
   onManage?: () => void
+  /** Opens the item's history. The line is clickable outside edit mode only:
+   *  in edit mode its fields are the inputs. */
+  onOpen?: () => void
 }) {
   const age = ageLabel(date)
+  const clickable = !isEditing && !!onOpen
   return (
-    <div className={ITEM_GRID}>
+    <div
+      className={cn(ITEM_GRID, clickable && 'cursor-pointer hover:bg-zinc-100/70 transition-colors')}
+      {...(clickable && {
+        role: 'button',
+        tabIndex: 0,
+        title: "Voir l'historique",
+        onClick: onOpen,
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onOpen!()
+          }
+        },
+      })}
+    >
       <div className="min-w-0">
         <p className="text-sm font-medium truncate">{label}</p>
         {sub}
@@ -879,7 +923,10 @@ function ItemRow({
             size="sm"
             className="h-7 w-7 p-0 text-muted-foreground"
             title="Modifier l'entretien (nom, fréquence)"
-            onClick={onManage}
+            onClick={(e) => {
+              e.stopPropagation()
+              onManage()
+            }}
           >
             <Settings2 className="h-3.5 w-3.5" />
           </Button>
@@ -898,6 +945,7 @@ function EntretienCard({
   onFait,
   onManage,
   onAdd,
+  onOpen,
 }: {
   metier: Metier
   isEditing: boolean
@@ -906,6 +954,7 @@ function EntretienCard({
   onFait?: (item: FaitItem, label: string) => void
   onManage?: (id: number) => void
   onAdd?: () => void
+  onOpen?: (item: FaitItem, label: string, detail: string) => void
 }) {
   const setSlot = (id: number, patch: Partial<{ date: string; commentaire: string }>) =>
     set((d) => ({
@@ -954,6 +1003,7 @@ function EntretienCard({
                   onDraftCommentaire={(v) => setSlot(e.id, { commentaire: v })}
                   onFait={onFait ? () => onFait(e.id, e.nom) : undefined}
                   onManage={onManage ? () => onManage(e.id) : undefined}
+                  onOpen={onOpen ? () => onOpen(e.id, e.nom, `Tous les ${e.frequenceMois} mois`) : undefined}
                 />
               )
             })}
@@ -981,12 +1031,14 @@ function GarnitureCard({
   draft,
   set,
   onFait,
+  onOpen,
 }: {
   metier: Metier
   isEditing: boolean
   draft: Draft | null
   set: (fn: (d: Draft) => Draft) => void
   onFait?: (item: FaitItem, label: string) => void
+  onOpen?: (item: FaitItem, label: string, detail: string) => void
 }) {
   const setSlot = (key: GarnitureKey, patch: Partial<{ date: string; commentaire: string }>) =>
     set((d) => ({
@@ -1017,6 +1069,7 @@ function GarnitureCard({
               onDraftDate={(hf) => setSlot(row.key, { date: hf })}
               onDraftCommentaire={(v) => setSlot(row.key, { commentaire: v })}
               onFait={onFait ? () => onFait(row.key, row.label) : undefined}
+              onOpen={onOpen ? () => onOpen(row.key, row.label, 'Garniture') : undefined}
             />
           )
         })}
@@ -1062,6 +1115,7 @@ function AtelierDetail({
   onReset,
   onManage,
   onAdd,
+  onHistorique,
 }: {
   operations: OperationEntretien[]
   isLoading: boolean
@@ -1071,6 +1125,8 @@ function AtelierDetail({
   onReset: (op: OperationEntretien) => void
   onManage: (id: number) => void
   onAdd: () => void
+  /** Opens the item's history — a click on its card. */
+  onHistorique: (op: OperationEntretien) => void
 }) {
   return (
     <div className="flex-1 min-h-0 overflow-auto space-y-4 scrollbar-transparent pr-0.5">
@@ -1107,7 +1163,20 @@ function AtelierDetail({
               {operations.map((op) => {
                 const spec = etatSpec(op.etat)
                 return (
-                  <div key={op.id} className="rounded-lg border bg-card p-3">
+                  <div
+                    key={op.id}
+                    role="button"
+                    tabIndex={0}
+                    title="Voir l'historique"
+                    onClick={() => onHistorique(op)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        onHistorique(op)
+                      }
+                    }}
+                    className="rounded-lg border bg-card p-3 cursor-pointer hover:border-zinc-400/60 transition-colors"
+                  >
                     <div className="flex items-start gap-3">
                       <RadialMeter
                         ratio={op.ratio}
@@ -1126,7 +1195,10 @@ function AtelierDetail({
                               size="sm"
                               className="h-6 w-6 p-0 -mt-0.5 text-muted-foreground"
                               title="Modifier l'entretien (nom, fréquence)"
-                              onClick={() => onManage(op.id)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onManage(op.id)
+                              }}
                             >
                               <Settings2 className="h-3.5 w-3.5" />
                             </Button>
@@ -1153,7 +1225,10 @@ function AtelierDetail({
                         variant="outline"
                         size="sm"
                         className="w-full mt-2 h-8"
-                        onClick={() => onReset(op)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onReset(op)
+                        }}
                       >
                         <CalendarCheck className="h-3.5 w-3.5 mr-1.5" />
                         Effectué ce jour
@@ -1290,6 +1365,14 @@ type FaitPending =
   | { kind: 'metier'; item: FaitItem; label: string }
   | { kind: 'atelier'; op: OperationEntretien }
 
+/** The HistoriqueDialog's subject, and what its « Effectué ce jour » targets. */
+interface HistoriqueOpen {
+  path: string
+  title: string
+  subtitle: string
+  fait: FaitPending
+}
+
 /** The OperationDialog's subject: a new item (with its preset portée) or one to edit. */
 type OperationEdit = { mode: 'create'; portee: Portee } | { mode: 'edit'; op: OperationEntretien }
 
@@ -1309,6 +1392,8 @@ export function AtelierMaintenance() {
   const [draft, setDraft] = useState<Draft | null>(null)
   const [writeError, setWriteError] = useState<string | null>(null)
   const [fait, setFait] = useState<FaitPending | null>(null)
+  const [faitError, setFaitError] = useState<string | null>(null)
+  const [historique, setHistorique] = useState<HistoriqueOpen | null>(null)
   const [opEdit, setOpEdit] = useState<OperationEdit | null>(null)
   const [opError, setOpError] = useState<string | null>(null)
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('metier')
@@ -1471,27 +1556,29 @@ export function AtelierMaintenance() {
   })
 
   const faitMut = useMutation({
-    mutationFn: async (p: FaitPending) => {
+    mutationFn: async ({ p, commentaire }: { p: FaitPending; commentaire: string | null }) => {
       if (p.kind === 'atelier') {
-        return apiFetch(`/maintenance-trm/operations/${p.op.id}/reset`, { method: 'POST' })
+        return apiFetch(`/maintenance-trm/operations/${p.op.id}/reset`, {
+          method: 'POST',
+          body: JSON.stringify({ commentaire }),
+        })
       }
       if (!selected) return
       return apiFetch(`/maintenance-trm/metiers/${selected.id}/fait`, {
         method: 'POST',
-        body: JSON.stringify({ item: p.item }),
+        body: JSON.stringify({ item: p.item, commentaire }),
       })
     },
-    onSuccess: (_payload, p) => {
+    onSuccess: (_payload, { p }) => {
       setFait(null)
       setWriteError(null)
       queryClient.invalidateQueries({
         queryKey: [p.kind === 'atelier' ? 'maintenance-trm-operations' : 'maintenance-trm-metiers'],
       })
+      queryClient.invalidateQueries({ queryKey: ['maintenance-trm-historique'] })
     },
-    onError: (e) => {
-      setFait(null)
-      setWriteError(apiErrorMessage(e, "L'enregistrement a échoué. Réessayez."))
-    },
+    // The dialog stays open on a refusal so the typed comment isn't lost.
+    onError: (e) => setFaitError(apiErrorMessage(e, "L'enregistrement a échoué. Réessayez.")),
   })
 
   const opSaveMut = useMutation({
@@ -1569,9 +1656,27 @@ export function AtelierMaintenance() {
   // Quick actions exist outside edit mode only: a date typed in the draft and
   // a « done today » written behind it would fight on Enregistrer.
   const quick = canEdit && !isEditing
+  const openFait = (p: FaitPending) => {
+    setFaitError(null)
+    setFait(p)
+  }
   const onFaitMetier = quick
-    ? (item: FaitItem, label: string) => setFait({ kind: 'metier', item, label })
+    ? (item: FaitItem, label: string) => openFait({ kind: 'metier', item, label })
     : undefined
+
+  // A line opens its history outside edit mode only (in edit mode its fields
+  // are the inputs). « Effectué ce jour » from the history closes it first.
+  const metierLabel = selected ? selected.emplacement || selected.nom : ''
+  const openHistoriqueMetier = (item: FaitItem, label: string, detail: string) => {
+    if (!selected) return
+    setHistorique({
+      path: `/maintenance-trm/metiers/${selected.id}/historique?item=${item}`,
+      title: label,
+      subtitle: `Métier ${metierLabel} · ${detail}`,
+      fait: { kind: 'metier', item, label },
+    })
+  }
+  const onOpenItem = isEditing ? undefined : openHistoriqueMetier
 
   const opInitial = useMemo<OperationDraft>(
     () =>
@@ -1636,7 +1741,15 @@ export function AtelierMaintenance() {
               isError={opsQuery.isError}
               error={writeError}
               canEdit={canEdit}
-              onReset={(op) => setFait({ kind: 'atelier', op })}
+              onReset={(op) => openFait({ kind: 'atelier', op })}
+              onHistorique={(op) =>
+                setHistorique({
+                  path: `/maintenance-trm/operations/${op.id}/historique`,
+                  title: op.nom,
+                  subtitle: `Atelier · tous les ${op.frequenceMois} mois`,
+                  fait: { kind: 'atelier', op },
+                })
+              }
               onManage={openManage}
               onAdd={() => openCreate('atelier')}
             />
@@ -1663,6 +1776,11 @@ export function AtelierMaintenance() {
                 draft={draft}
                 set={set}
                 onFait={onFaitMetier ? () => onFaitMetier('rouloir', 'Visite du rouloir') : undefined}
+                onHistorique={
+                  onOpenItem
+                    ? () => onOpenItem('rouloir', 'Visite du rouloir', `seuil ${fmtNum(seuilKg)} Kg`)
+                    : undefined
+                }
               />
               <EntretienCard
                 metier={selected}
@@ -1672,6 +1790,7 @@ export function AtelierMaintenance() {
                 onFait={onFaitMetier}
                 onManage={quick ? openManage : undefined}
                 onAdd={canEdit && isEditing ? () => openCreate('metier') : undefined}
+                onOpen={onOpenItem}
               />
               <GarnitureCard
                 metier={selected}
@@ -1679,6 +1798,7 @@ export function AtelierMaintenance() {
                 draft={draft}
                 set={set}
                 onFait={onFaitMetier}
+                onOpen={onOpenItem}
               />
             </div>
           )
@@ -1704,16 +1824,30 @@ export function AtelierMaintenance() {
         }
       />
 
-      <ConfirmDialog
+      <HistoriqueDialog
+        open={historique !== null}
+        onOpenChange={(o) => !o && setHistorique(null)}
+        path={historique?.path ?? null}
+        title={historique?.title ?? ''}
+        subtitle={historique?.subtitle ?? ''}
+        onFait={
+          quick && historique
+            ? () => {
+                openFait(historique.fait)
+                setHistorique(null)
+              }
+            : undefined
+        }
+      />
+
+      <FaitDialog
         open={fait !== null}
-        variant="default"
-        title="Entretien effectué"
-        description={faitDescription}
-        confirmLabel="Confirmer"
+        description={faitDescription ?? ''}
         isPending={faitMut.isPending}
+        error={faitError}
         onCancel={() => setFait(null)}
-        onConfirm={() => {
-          if (fait) faitMut.mutate(fait)
+        onConfirm={(commentaire) => {
+          if (fait) faitMut.mutate({ p: fait, commentaire })
         }}
       />
 

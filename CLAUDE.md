@@ -593,6 +593,10 @@ Fiche §4–§9, `AtelierMaintenance.tsx` + `MaintenanceGauge.tsx`, API
   chaque entretien** = rouleaux pesés (`lib/maintenance-trm.ts`) — le compteur rouloir aussi.
 - **Onglet Aiguilles (LIVA #1263, 2026-10-07)** du panneau de droite : références du métier par
   position, **« Changer le jeu »** (sort le stock). Données = module Fournitures, voir ci-dessous.
+- **Historique par élément (2026-10-07)** : ligne cliquable hors édition → `HistoriqueDialog` ;
+  « Effectué ce jour » prend un commentaire. Table PG `trm_maintenance_journal` (migration `0013`) ;
+  ⚠️ la date + commentaire stockés d'un élément sont la **copie de sa dernière ligne**, et le mode
+  édition ne corrige que celle-là.
 
 ### Production › Visitage (`/production/visitage`) — port of `FI_Visitage.wdw`
 
