@@ -136,7 +136,7 @@ avec les commentaires ; saisir un commentaire en déclarant « Effectué ce jour
 - API : `GET /metiers/:id/historique?item=rouloir|<clé garniture>|<id entretien>`,
   `GET /operations/:id/historique` ; `commentaire` sur `POST /metiers/:id/fait` et
   `POST /operations/:id/reset`.
-- **Déploiement** : `mps-migrate.ts --write` sur la prod **avant** l'`/etm_deploy`, puis `/trm_deploy`.
+- **Déploiement** : `/etm_deploy` (`deploy-api` applique la migration 0013 lui-même avant le redémarrage), puis `/trm_deploy`.
 
 **Lecture / édition (décision de Vincent, 2026-10-07)** : le mode lecture **lit et enregistre** des
 événements (« Effectué ce jour », l'historique, « Changer le jeu » de l'onglet Aiguilles) ; le mode
