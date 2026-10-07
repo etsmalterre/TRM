@@ -149,6 +149,8 @@ depuis un téléphone enrôlé. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   `?regleur=1`), **liseré rouge au-delà de 2 % pour les deux** (`of.alerte_defaut`, seuil
   serveur) ; ⚠️ la règle legacy « % remis à 0 sans alerte » est retirée, ne pas la
   réintroduire. Dossier § « Le bonnetier voit moins que le régleur ».
+  ⚠️ **Un métier en pause (`of.interrompu`) ne prend aucune saisie d'un bonnetier**
+  (2026-10-07, API 409 + bande « Métier en pause », ⏸ sur sa tuile) ; le régleur garde tout.
 - **L'OF actif porte Consigne · Historique · Fils** (2026-09-15, ports de `FEN_Consigne`,
   `FEN_Historique`, `FEN_Fils_OF`) : ⚠️ « Pièce N° i » est une **position** à rebours, pas
   `numero` ; la productivité est **la formule du legacy** (`lib/historique-atelier-trm.ts`,
