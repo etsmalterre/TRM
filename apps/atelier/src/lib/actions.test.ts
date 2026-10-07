@@ -33,6 +33,10 @@ describe('actionsDisponibles — a running OF', () => {
       'Relancer OF',
     ])
   })
+  it('a paused métier offers the bonnetier nothing, the régleur everything (2026-10-07)', () => {
+    expect(actionsDisponibles({ ...base, interrompu: true }, false)).toEqual([])
+    expect(actionsDisponibles({ ...base, interrompu: true, produites: 9 }, false)).toEqual([])
+  })
   it('drops Nettoyage once the piece has had its cleanings', () => {
     expect(actionsDisponibles({ ...base, nb_nettoyages_faits: 2 }, false)).toEqual(['Fin de pièce', 'Défaut'])
   })

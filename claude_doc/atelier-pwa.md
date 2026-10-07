@@ -215,6 +215,12 @@ maintenant en deux rangées (`components/atelier/SaisieBand.tsx`, ~130 px) :
   ⏸ bleu (`primary`), ▶ vert (`success`) — l'état où le tap mène, dans la couleur que la
   liste affichera ensuite (demandes de Vincent, 2026-09-15 ; un disque gris nu se lisait
   comme désactivé à côté des tuiles).
+- ⚠️ **Un métier en pause est fermé au bonnetier** (Mickaël, 2026-10-07) : `of.interrompu`
+  ⇒ `actionsDisponibles()` / `actionsFor()` rendent `[]` pour un bonnetier, la bande dit
+  « Métier en pause — en attente du régleur », l'API répond 409 `action_indisponible`, et sa
+  tuile de la liste porte le glyphe ⏸ (le seul glyphe d'état qu'il voit). Le poste reste
+  consultable. **Le régleur garde toutes ses actions** (choix de Vincent). Le legacy ne
+  vérifiait pas la pause — ne pas « réaligner ».
 - **Défaut** ouvre `components/atelier/DefautSheet.tsx` (types en grille de deux, tailles
   pour les types cm, « Enregistrer le défaut » or). **La feuille EST la confirmation** —
   écart au legacy décidé avec Vincent ; elle reste ouverte pendant l'écriture et un refus

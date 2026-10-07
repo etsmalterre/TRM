@@ -71,6 +71,12 @@ export function actionsDisponibles(of: EtatOf, estRegleur: boolean): ActionAteli
   // piece yet, so no procedure to read.
   if (!of.demarre) return estRegleur ? ['Lancement OF'] : []
 
+  // A métier the régleur has paused is his until he resumes it (Mickaël,
+  // 2026-10-07): the bonnetier still reads the poste but records nothing, and
+  // the band says why. The legacy did not check this. The régleur keeps every
+  // action.
+  if (of.interrompu && !estRegleur) return []
+
   const actions: ActionAtelier[] = []
 
   if (of.nb_nettoyages_faits < of.nb_nettoyages_requis) actions.push('Nettoyage')

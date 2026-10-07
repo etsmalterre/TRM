@@ -253,7 +253,10 @@ function MetierTile({ m, regleur, onOpen }: { m: Machine; regleur: boolean; onOp
         )}
       </span>
 
-      {r ? <EtatGlyphe etat={r.etat} /> : <span />}
+      {/* A bonnetier gets the pause glyph alone: a paused métier takes no
+          saisie from them (lib/actions.ts, 2026-10-07), so they must know
+          before they walk to it. Réglage / marche stay the régleur's. */}
+      {r ? <EtatGlyphe etat={r.etat} /> : of?.demarre && of.interrompu ? <EtatGlyphe etat="pause" /> : <span />}
       <ChevronRight className="h-6 w-6 text-muted-foreground" />
 
       {figures && (

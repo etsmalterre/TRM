@@ -174,6 +174,13 @@ export function SaisieBand({
           <Clock className="h-4 w-4 flex-shrink-0" />
           OF non lancé — en attente du régleur
         </p>
+      ) : of.interrompu && !pause ? (
+        // A bonnetier on a métier the régleur paused: same shape, same reason
+        // (lib/actions.ts, 2026-10-07). `!pause` keeps the régleur's band.
+        <p className="flex items-center justify-center gap-2 h-16 rounded-xl border border-dashed border-border text-sm text-muted-foreground">
+          <Pause className="h-4 w-4 flex-shrink-0 fill-current" />
+          Métier en pause — en attente du régleur
+        </p>
       ) : lancement ? (
         <button
           type="button"
