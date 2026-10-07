@@ -32,6 +32,7 @@ export default {
     "../../../ETM/apps/web/src/pages/AgentsIa.tsx",
     "../../../ETM/apps/web/src/pages/Automates.tsx",
     "../../../ETM/apps/web/src/components/agents-ia/commun.tsx",
+    "../../../ETM/apps/web/src/components/agents-ia/Triage.tsx",
   ],
   theme: {
     container: {

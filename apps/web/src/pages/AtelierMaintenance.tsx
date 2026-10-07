@@ -9,8 +9,10 @@
 //         periodic per-métier items: Ventilateurs, Couronnes, Fuites d'air, …)
 //         and Garniture (the legacy's six date + comment pairs). Every item
 //         shows the kg knitted since it was last done (Mickaël, 2026-10-01).
-// Right = Atelier (the building's own dated items — air leaks, …) and Métier
-//         (read-only characteristics).
+// Right = the selected métier, two tabs: Métier (read-only characteristics)
+//         and Aiguilles (its needle references and the constructeur mounted
+//         for each — LIVA #1263, components/maintenance/AiguillesTab.tsx, its
+//         own query and immediate writes).
 //
 // API: /api/maintenance-trm (MPS API — routes/maintenance-trm.ts holds the
 // data rules; lib/maintenance-trm.ts the kg-since and state rules).
@@ -42,6 +44,7 @@ import {
   Gauge,
   Loader2,
   Pencil,
+  Pin,
   Plus,
   Save,
   Search,
@@ -68,6 +71,7 @@ import {
   type OperationDraft,
   type Portee,
 } from '@/components/maintenance/OperationDialog'
+import { AiguillesTab, useNbAiguilles } from '@/components/maintenance/AiguillesTab'
 import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst'
 import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
 import { useHasPermission } from '@/contexts/PermissionsContext'
@@ -1181,16 +1185,61 @@ function AtelierDetail({
 //  Right sidebar — the selected métier only
 // ══════════════════════════════════════════════════════
 
-function MaintenanceSidebar({ metier }: { metier: Metier }) {
+type SidebarTab = 'metier' | 'aiguilles'
+
+function MaintenanceSidebar({
+  metier,
+  tab,
+  onTab,
+  isEditing,
+  canEdit,
+}: {
+  metier: Metier
+  tab: SidebarTab
+  onTab: (t: SidebarTab) => void
+  isEditing: boolean
+  canEdit: boolean
+}) {
+  const nbAiguilles = useNbAiguilles(metier.id)
+  const tabs: { id: SidebarTab; label: string; icon: typeof Settings2; count?: number | null }[] = [
+    { id: 'metier', label: 'Métier', icon: Settings2 },
+    { id: 'aiguilles', label: 'Aiguilles', icon: Pin, count: nbAiguilles },
+  ]
   return (
     <div className="w-96 flex-shrink-0 flex flex-col gap-3 min-h-0">
       <div className="flex-1 min-h-0 rounded-xl border flex flex-col overflow-hidden bg-zinc-100/80">
-        <div className="flex items-center gap-1.5 border-b px-3 py-2.5 rounded-t-xl bg-zinc-200/50 text-xs font-semibold">
-          <Settings2 className="h-3.5 w-3.5 text-accent" />
-          Métier {metier.emplacement || metier.nom}
+        <div className="flex border-b p-1 gap-1 rounded-t-xl bg-zinc-200/50">
+          {tabs.map((t) => {
+            const Icon = t.icon
+            const active = tab === t.id
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onTab(t.id)}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md transition-colors',
+                  active ? 'bg-accent text-accent-foreground shadow-sm' : 'text-muted-foreground hover:bg-accent/10',
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {t.label}
+                {!!t.count && <span className="text-xs tabular-nums opacity-70">{t.count}</span>}
+              </button>
+            )
+          })}
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-transparent">
-          <MetierTab metier={metier} />
+          {tab === 'metier' ? (
+            <MetierTab metier={metier} />
+          ) : (
+            <AiguillesTab
+              metierId={metier.id}
+              metierLabel={metier.emplacement || metier.nom}
+              isEditing={isEditing}
+              canEdit={canEdit}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -1206,7 +1255,7 @@ function SideKV({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-/** Tab 2 — machine characteristics. Read-only on purpose: these columns belong
+/** Tab « Métier » — machine characteristics. Read-only on purpose: these columns belong
  *  to FEN_Gestion_des_machines, and this route never names them in an UPDATE. */
 function MetierTab({ metier }: { metier: Metier }) {
   const c = metier.caracteristiques
@@ -1262,6 +1311,7 @@ export function AtelierMaintenance() {
   const [fait, setFait] = useState<FaitPending | null>(null)
   const [opEdit, setOpEdit] = useState<OperationEdit | null>(null)
   const [opError, setOpError] = useState<string | null>(null)
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('metier')
 
   const { data, isLoading, isError, error } = useQuery<MetiersPayload>({
     queryKey: ['maintenance-trm-metiers'],
@@ -1635,7 +1685,13 @@ export function AtelierMaintenance() {
         }
         sidebar={
           selected ? (
-            <MaintenanceSidebar metier={selected} />
+            <MaintenanceSidebar
+              metier={selected}
+              tab={sidebarTab}
+              onTab={setSidebarTab}
+              isEditing={isEditing}
+              canEdit={canEdit}
+            />
           ) : null
         }
         sidebarTitle="Métier"

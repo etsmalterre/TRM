@@ -52,6 +52,9 @@ import { FilsGestion } from '@etm/pages/FilsGestion'
 // yarn's owner, à façon) and the lifecycle actions (division, titrage,
 // archivage). Own screen, own endpoints (`/stock/fil-trm`).
 import { FilsStock } from '@/pages/FilsStock'
+import { FournituresReferences } from '@/pages/FournituresReferences'
+import { FournituresStock } from '@/pages/FournituresStock'
+import { FournituresGestion } from '@/pages/FournituresGestion'
 
 // Tombé Métier
 // Références is shared verbatim with ETM — imported from the sister repo
@@ -167,6 +170,10 @@ export const router = createBrowserRouter([
       { path: 'fils/fournisseurs', element: <FilsGestion /> },
 
       // Tombé Métier
+      { path: 'fournitures', element: <Navigate to="/fournitures/references" replace /> },
+      { path: 'fournitures/references', element: <FournituresReferences /> },
+      { path: 'fournitures/stock', element: <FournituresStock /> },
+      { path: 'fournitures/gestion', element: <FournituresGestion /> },
       { path: 'tombe-metier', element: <Navigate to="/tombe-metier/references" replace /> },
       { path: 'tombe-metier/references', element: <TombeMetierReferences obsOfEditor={ObsOfEditor} clientsLookupPath={TRM_CLIENTS_LOOKUP} /> },
       { path: 'tombe-metier/echantillons', element: <TmEchantillonsPage /> },

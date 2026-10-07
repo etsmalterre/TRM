@@ -110,3 +110,13 @@ droite ne montre plus que le métier sélectionné. La pastille rouge compte l'a
 entretiens est dû. ⚠️ La sélection automatique attend les métiers (`suspended: isLoading`), sinon
 l'atelier, seul dans la liste un instant, était choisi au chargement. Le sous-menu placeholder
 Atelier › Bonnetier a été retiré le même jour (navigation, router, `screen-keys-trm.ts`).
+
+## Onglet Aiguilles (LIVA #1263, 2026-10-07)
+
+Le panneau de droite a deux onglets, **Métier** et **Aiguilles** (`components/maintenance/AiguillesTab.tsx`) :
+les références d'aiguilles du métier groupées Cylindre / Plateau, le constructeur monté, le jeu
+(quantité par montage) et le stock ; **« Changer le jeu »** remplace une ou plusieurs références
+d'un coup et sort le stock ; historique des jeux sous les cartes. D'abord une carte de la fiche,
+déplacée en onglet le même jour (le centre = l'entretien daté). Les données vivent dans le module
+**Fournitures** — tout le détail (modèle, règles de sortie de stock, reprise du sheet) est dans
+**`claude_doc/fournitures.md`**.

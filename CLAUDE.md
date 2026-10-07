@@ -103,6 +103,7 @@ warnings that would bite in the first hour) with a pointer to the dossier.
 | `claude_doc/pointage-pwa.md` | `apps/pointage`, la tablette pointeuse (base `pointage`, boutons, enrôlement) |
 | `claude_doc/admin-pointage.md` | Menu Pointage de l'ERP : Horaires, Salariés + messages (port d'Admin Pointage, corrections suivies dans la jumelle et le journal TRS) |
 | `claude_doc/rapports-pointage-email.md` | Rapports de pointage par email (ex-n8n) : onglet Destinataires de l'automate, règles, anomalies seules |
+| `claude_doc/fournitures.md` | Menu Fournitures (aiguilles, platines… : références, stock en registre, fournisseurs) + onglet Aiguilles de la maintenance, reprise du sheet de Nicolas |
 | `claude_doc/agents-ia.md` | Agents IA (Agents + Automates) : écrans d'ETM sur les montages TRM de l'API, `app: 'trm'`, droits |
 
 ## Atelier — la PWA mobile de l'atelier (`apps/atelier`)
@@ -308,6 +309,21 @@ qui a le menu « Pointage » (`screen_pointage`). **Dossier : `claude_doc/rappor
   ± 10 min de son horaire (2026-10-05) ; ⚠️ jamais compensés entre eux. Une sortie oubliée entre
   deux lignes est signalée. Lu sur `lst_horaire`.
 
+## Fournitures — aiguilles et platines (LIVA #1263)
+
+Menu **« Fournitures »** (`screen_fournitures`, **`seed: false`**) : Références · Stock · Gestion,
+écrans **propres à TRM** (« Fils » reste celui d'ETM, intouché) + l'onglet Aiguilles d'Atelier ›
+Maintenance. API `/api/fournitures-trm` (`routes/fournitures-trm.ts`), règles pures
+`lib/fournitures-trm.ts`. Remplace le sheet « Stock aiguille » de Nicolas, repris par
+`seed-fournitures-trm.ts`. **Dossier : `claude_doc/fournitures.md`.**
+
+- ⚠️ **Tables `trm_fourniture_*`** : le legacy Confection a déjà `fourniture_fournisseur` & co.
+- ⚠️ **Le stock est un registre signé** (`trm_fourniture_mouvement`, par article × constructeur,
+  NULL = non ventilé) ; **« Changer le jeu » sort le stock sans jamais refuser** (stock du
+  constructeur, puis non ventilé, puis négatif — un inventaire corrige).
+- ⚠️ Un métier tourne avec TOUTES ses références ; une référence est **partagée** par ses métiers.
+- Droits `edit_fournitures` (catalogue, stock, fournisseurs) et `edit_maintenance` (le métier, le jeu).
+
 ## Agents IA — le menu des agents et automates de TRM
 
 Menu **« Agents IA »** (`screen_agents_ia`, **`seed: false`**) : Agents (`/agents-ia/agents`,
@@ -362,6 +378,7 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 1. **Tableau de bord** (`/`, `/tableau-de-bord/:id`) — implemented, the ETM widget grid shared verbatim (see "Tableau de bord" below). Widgets propres à TRM : **Poids des pièces** et **Pièces à visiter**, plus les quatre widgets financiers d'ETM sur la partition société 2.
 2. **Clients** — **Commandes** (`/clients/commandes`, implemented — voir "Commandes clients" ci-dessous), **Expéditions** (`/clients/expeditions`, implemented — TRM-specific, NOT shared, see below), **Facturation** (`/clients/facturation`, implemented — TRM-specific, NOT shared, see below), **Gestion** (`/clients/gestion`, implemented — see "Clients › Gestion" below), Planning
 3. **Fils** — **Références** (`/fils/references`, shared verbatim with ETM), **Stock** (`/fils/stock`, implemented — TRM-specific, NOT shared, see "Fils › Stock" below), **Fournisseurs** (`/fils/fournisseurs`, shared verbatim with ETM)
+3b. **Fournitures** — Références, Stock, Gestion (`/fournitures/*`, TRM-only — see « Fournitures » above)
 4. **Tombé Métier** — **Références** (`/tombe-metier/references`, implemented — shared verbatim with ETM, see "Shared screens" below), Échantillons, **Stock** (`/tombe-metier/stock`, implemented — TRM-specific, NOT shared, see below). Menu icon is the custom `TmRollIcon`.
 5. **Production** — **Ordres de fabrication** (`/production/of`, implemented — see "Production › Ordres de fabrication" below), **Planning** (`/production/planning`, implemented — see "Production › Planning" below), **Visitage** (`/production/visitage`, implemented — see "Production › Visitage" below), **Prime** (`/production/prime`, implemented — see "Production › Prime" below), **TRS** (`/production/trs`, implemented — see "Production › TRS" below)
 6. **Atelier** — **Maintenance** (`/atelier/maintenance`, implemented — see "Atelier › Maintenance" below), Bonnetier, **Planning** (`/atelier/planning`, implemented — weekly bonnetier grid over `planning_bonnetier` + desiderata dialog; API route `ETM/apps/api/src/routes/planning-atelier.ts`)
@@ -574,6 +591,8 @@ Fiche §4–§9, `AtelierMaintenance.tsx` + `MaintenanceGauge.tsx`, API
   (migration PG `0007`, `operation_maintenance.portee` + `operation_maintenance_metier`), entretiens
   d'atelier à part (sidebar « Atelier », extensibles), onglet Rouloir retiré, et **kg tricotés depuis
   chaque entretien** = rouleaux pesés (`lib/maintenance-trm.ts`) — le compteur rouloir aussi.
+- **Onglet Aiguilles (LIVA #1263, 2026-10-07)** du panneau de droite : références du métier par
+  position, **« Changer le jeu »** (sort le stock). Données = module Fournitures, voir ci-dessous.
 
 ### Production › Visitage (`/production/visitage`) — port of `FI_Visitage.wdw`
 

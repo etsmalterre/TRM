@@ -9,6 +9,7 @@ import {
   Clock,
   Bot,
   Settings,
+  Package,
 } from 'lucide-react'
 import { BobineIcon } from '@/components/icons/BobineIcon'
 import { TmRollIcon } from '@/components/icons/TmRollIcon'
@@ -206,6 +207,19 @@ export const mainNavigation: MainMenuItem[] = [
       { title: 'Fournisseurs', href: '/fils/fournisseurs' },
     ],
   },
+  // Every material that is not yarn — aiguilles and platines for now
+  // (LIVA #1263). TRM-only screens: « Fils » stays ETM's.
+  {
+    id: 'fournitures',
+    title: 'Fournitures',
+    icon: Package,
+    href: '/fournitures',
+    submenus: [
+      { title: 'Références', href: '/fournitures/references' },
+      { title: 'Stock', href: '/fournitures/stock' },
+      { title: 'Gestion', href: '/fournitures/gestion' },
+    ],
+  },
   {
     id: 'tombe-metier',
     title: 'Tombé Métier',
@@ -333,6 +347,11 @@ export const routeTitles: Record<string, string> = {
   '/fils/references': 'Références',
   '/fils/stock': 'Stock',
   '/fils/fournisseurs': 'Fournisseurs',
+  // Fournitures
+  '/fournitures': 'Fournitures',
+  '/fournitures/references': 'Références',
+  '/fournitures/stock': 'Stock',
+  '/fournitures/gestion': 'Gestion',
   // Tombé Métier
   '/tombe-metier': 'Tombé Métier',
   '/tombe-metier/references': 'Références',
