@@ -420,7 +420,9 @@ LIVA #1185 — pas d'OF, pas de pièce, pas d'expédition ; l'API refuse en 409 
   (`max(cost, base) / 0,7`) du 2026-08-26 est retirée ; ne pas la réintroduire. La pastille
   de marge s'explique au survol (`PrixTooltip`).
 - ⚠️ **L'onglet Stock de fil est scopé au client de la commande** (`IDclient`, `IDMagasin = 1`,
-  `terminé = 0` — les trois, `stock > 0` ≠ `terminé = 0`). TRM tricote à façon.
+  `terminé = 0` — les trois, `stock > 0` ≠ `terminé = 0`). TRM tricote à façon. **Sauf sur
+  un miroir : les lots affectés sur la ligne sst ETM passent quel que soit leur propriétaire**
+  (LIVA #1273 — fil Sigvaris ; jamais « tous les lots du client d'ETM »).
 - ⚠️ **Une composition est une liste de POSITIONS D'ALIMENTATION, pas de fils** : lignes en
   double légitimes, clés par `IDcomposition_ecru`, jamais regroupées par couple (fil,
   coloris). Le test de manque de lot est **par lot**, jamais par ligne.
