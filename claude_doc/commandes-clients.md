@@ -32,6 +32,14 @@
   4 des 15 lignes ouvertes, tous appartenant à un autre client).
   - ⚠️ **`stock > 0` n'équivaut PAS à `terminé = 0`** : 3 lots sont archivés avec du stock
     dessus. Les deux filtres sont nécessaires.
+  - **Exception (LIVA #1273, 2026-10-08) : sur un miroir de sst ETM, les lots AFFECTÉS à la
+    ligne sous-traitant ETM sont proposés quel que soit leur propriétaire.** Le client du
+    miroir est Ets Malterre, mais le fil peut être celui du client d'ETM (polyamide Sigvaris
+    de la 180102) : filtré, le mélange n'était jamais complet et « Créer un OF » n'apparaissait
+    pas. Seuls les lots affectés à cette ligne-là, jamais « tous les lots du client d'ETM »
+    (décision Vincent, même jour : on proposerait du fil mis de côté pour une autre commande).
+    Magasin et archivage s'appliquent toujours. La garde `check-stock-fil-commande-trm.ts`
+    compte ces lots à part.
   - `terminé` est accentué, donc lecture **scindée par plateforme** (`archivedLotIds`) :
     Windows accepte l'identifiant dans un WHERE mais rend zéro ligne sur `SELECT *` (colonnes
     memo-binaires), le pont Linux est l'exact inverse. Aucune forme ne marche des deux côtés.
