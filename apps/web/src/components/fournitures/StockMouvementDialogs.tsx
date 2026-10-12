@@ -457,11 +457,11 @@ export function StockTamponDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   article: Article | null
-  /** Bucket pre-selected (the stock line the drawer was opened on). */
+  /** The stock line the drawer was opened on — a line IS a reference ×
+   *  constructeur, so the constructeur is never chosen here (Vincent, 2026-10-12). */
   idConstructeur?: number | null
   onDone: (res: MouvementResponse) => void
 }) {
-  const [constructeur, setConstructeur] = useState(0)
   const [quantite, setQuantite] = useState('')
   const [date, setDate] = useState(todayHf())
   const [commentaire, setCommentaire] = useState('')
@@ -469,22 +469,19 @@ export function StockTamponDialog({
 
   useEffect(() => {
     if (!open) return
-    setConstructeur(idConstructeur ?? 0)
     setQuantite('')
     setDate(todayHf())
     setCommentaire('')
     setError(null)
-  }, [open, article?.id, idConstructeur])
+  }, [open, article?.id])
 
   const seaux = article?.stockParConstructeur ?? []
   const stockDe = (id: number | null) => seaux.find((s) => (s.constructeur?.id ?? null) === id)?.stock ?? 0
-  const options = seaux
-    .filter((s) => s.constructeur !== null)
-    .map((s) => ({ id: s.constructeur!.id, primary: s.constructeur!.nom, secondary: `stock ${fmtNum(s.stock)}` }))
+  const nomConstructeur = seaux.find((s) => (s.constructeur?.id ?? null) === idConstructeur)?.constructeur?.nom
 
   const qte = Number(quantite)
   const qteOk = Number.isInteger(qte) && qte > 0
-  const idC = constructeur > 0 ? constructeur : null
+  const idC = idConstructeur
   // What the stock can give before going negative — the API's repartirSortie:
   // a constructeur draws on its own stock, then on the unsplit one.
   const disponible = Math.max(0, stockDe(idC)) + (idC !== null ? Math.max(0, stockDe(null)) : 0)
@@ -534,21 +531,12 @@ export function StockTamponDialog({
           >
             <p className="text-sm">
               <span className="font-medium tabular-nums">{article.reference}</span>
-              <span className="text-muted-foreground"> · {article.type}</span>
+              <span className="text-muted-foreground"> · {article.type} · </span>
+              {nomConstructeur ?? <span className="italic text-muted-foreground">Non précisé</span>}
             </p>
             <p className="text-xs text-muted-foreground">
               Les aiguilles sortent du stock pour le stock tampon de l&apos;atelier, où les bonnetiers se servent.
             </p>
-
-            <div className="space-y-1">
-              <p className="text-[11px] font-medium text-muted-foreground">Constructeur</p>
-              <PopoverSelect
-                options={options}
-                value={constructeur}
-                onChange={setConstructeur}
-                emptyLabel="Non précisé"
-              />
-            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">

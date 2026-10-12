@@ -65,7 +65,8 @@ Partagé : `lib/fournitures.ts` (types, `useCatalogue` / `useSetCatalogue`, `eta
   Fournitures › Stock, mouvement `tampon`, réparti comme un montage (`repartirSortie`, jamais
   refusé, encart ambre si le stock passe en négatif), supprimable comme une entrée, sous
   **`edit_fournitures`** (décision de Vincent : pas de clé à part). Le constructeur est un
-  existant ou « Non précisé », jamais créé à la volée.
+  celui de la ligne
+  ouverte (une ligne = référence × constructeur), jamais choisi dans le dialogue.
 - Annuler un changement de jeu (mode édition, historique) rend le stock (ON DELETE CASCADE)
   mais ne rembobine pas le « monté ».
 - Inventaire = on tape le **compté** d'un seau (constructeur ou non ventilé) ; le serveur écrit
