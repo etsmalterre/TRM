@@ -1,14 +1,16 @@
-// Fournitures › Stock (LIVA #1263) — the two stock writes of the screen:
+// Fournitures › Stock (LIVA #1263) — the three stock writes of the screen:
 //  - « Entrée de stock »: an order received (article, constructeur or « Non
 //    précisé », quantity, date, supplier, comment);
 //  - « Inventaire »: a count of one bucket (one constructeur, or the stock not
 //    split by constructeur). The user types what they COUNTED; the API writes
-//    the correction (counted − current), and nothing when it was already right.
-// Both POST /fournitures-trm/mouvements and answer with the fresh catalogue.
+//    the correction (counted − current), and nothing when it was already right;
+//  - « Vers le stock tampon » (LIVA #1285): the régleur moves needles to the
+//    atelier's buffer stock. Taken out like a montage — never refused.
+// All POST /fournitures-trm/mouvements and answer with the fresh catalogue.
 
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { ClipboardCheck, Loader2, PackagePlus } from 'lucide-react'
+import { ClipboardCheck, Loader2, PackageMinus, PackagePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PopoverSelect, SearchableCombobox } from '@/components/ui/popover-select'
@@ -423,6 +425,197 @@ export function InventaireDialog({
             <DialogFooter className="mt-4 gap-2 sm:gap-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={mut.isPending}>
                 {info ? 'Fermer' : 'Annuler'}
+              </Button>
+              <Button type="submit" disabled={!valide || mut.isPending}>
+                {mut.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                Enregistrer
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ══════════════════════════════════════════════════════
+//  Vers le stock tampon (LIVA #1285)
+// ══════════════════════════════════════════════════════
+
+/** The atelier keeps a buffer box of needles where the bonnetiers help
+ *  themselves; its refill is a physical orange / red marker system, NOT
+ *  tracked here. What is recorded is the régleur taking needles out of the
+ *  stock to fill it — a negative movement, taken like a montage (the
+ *  constructeur's own stock, then the unsplit one, then negative). */
+export function StockTamponDialog({
+  open,
+  onOpenChange,
+  article,
+  idConstructeur = null,
+  onDone,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  article: Article | null
+  /** Bucket pre-selected (the stock line the drawer was opened on). */
+  idConstructeur?: number | null
+  onDone: (res: MouvementResponse) => void
+}) {
+  const [constructeur, setConstructeur] = useState(0)
+  const [quantite, setQuantite] = useState('')
+  const [date, setDate] = useState(todayHf())
+  const [commentaire, setCommentaire] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setConstructeur(idConstructeur ?? 0)
+    setQuantite('')
+    setDate(todayHf())
+    setCommentaire('')
+    setError(null)
+  }, [open, article?.id, idConstructeur])
+
+  const seaux = article?.stockParConstructeur ?? []
+  const stockDe = (id: number | null) => seaux.find((s) => (s.constructeur?.id ?? null) === id)?.stock ?? 0
+  const options = seaux
+    .filter((s) => s.constructeur !== null)
+    .map((s) => ({ id: s.constructeur!.id, primary: s.constructeur!.nom, secondary: `stock ${fmtNum(s.stock)}` }))
+
+  const qte = Number(quantite)
+  const qteOk = Number.isInteger(qte) && qte > 0
+  const idC = constructeur > 0 ? constructeur : null
+  // What the stock can give before going negative — the API's repartirSortie:
+  // a constructeur draws on its own stock, then on the unsplit one.
+  const disponible = Math.max(0, stockDe(idC)) + (idC !== null ? Math.max(0, stockDe(null)) : 0)
+  const manque = qteOk ? qte - disponible : 0
+  const valide = !!article && qteOk && /^\d{8}$/.test(date) && date <= todayHf()
+
+  const mut = useMutation({
+    mutationFn: () =>
+      apiFetch<MouvementResponse>('/fournitures-trm/mouvements', {
+        method: 'POST',
+        body: JSON.stringify({
+          idArticle: article!.id,
+          type: 'tampon',
+          constructeur: idC === null ? null : { id: idC },
+          quantite: qte,
+          date,
+          commentaire: commentaire.trim() || null,
+        }),
+      }),
+    onSuccess: (res) => {
+      onDone(res)
+      onOpenChange(false)
+    },
+    onError: (e) => setError(apiErrorMessage(e, "L'enregistrement a échoué. Réessayez.")),
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto" onClose={() => onOpenChange(false)}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <PackageMinus className="h-5 w-5 text-accent" />
+            Vers le stock tampon
+          </DialogTitle>
+        </DialogHeader>
+
+        {article && (
+          <form
+            className="mt-4 space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (valide && !mut.isPending) {
+                setError(null)
+                mut.mutate()
+              }
+            }}
+          >
+            <p className="text-sm">
+              <span className="font-medium tabular-nums">{article.reference}</span>
+              <span className="text-muted-foreground"> · {article.type}</span>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Les aiguilles sortent du stock pour le stock tampon de l&apos;atelier, où les bonnetiers se servent.
+            </p>
+
+            <div className="space-y-1">
+              <p className="text-[11px] font-medium text-muted-foreground">Constructeur</p>
+              <PopoverSelect
+                options={options}
+                value={constructeur}
+                onChange={setConstructeur}
+                emptyLabel="Non précisé"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted-foreground">Quantité</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  autoFocus
+                  value={quantite}
+                  onChange={(e) => setQuantite(e.target.value)}
+                  className={cn(inputClass, 'tabular-nums')}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted-foreground">Date</label>
+                <input
+                  type="date"
+                  value={hfsqlDateToInput(date)}
+                  max={hfsqlDateToInput(todayHf())}
+                  onChange={(e) => setDate(inputDateToHfsql(e.target.value))}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-md border border-border/60 bg-zinc-100/80 px-3 py-2 text-sm space-y-0.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-xs text-muted-foreground">Stock de la référence</span>
+                <span className={cn('tabular-nums', article.stock < 0 && 'text-destructive font-medium')}>
+                  {fmtNum(article.stock)}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-xs text-muted-foreground">Après la sortie</span>
+                <span
+                  className={cn('tabular-nums font-medium', qteOk && article.stock - qte < 0 && 'text-destructive')}
+                >
+                  {qteOk ? fmtNum(article.stock - qte) : '—'}
+                </span>
+              </div>
+            </div>
+
+            {manque > 0 && (
+              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800">
+                Le stock enregistré ne couvre pas cette sortie : il passera en négatif de {fmtNum(manque)}. La sortie est
+                enregistrée quand même — un inventaire corrigera le stock.
+              </p>
+            )}
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Commentaire</label>
+              <input
+                type="text"
+                value={commentaire}
+                onChange={(e) => setCommentaire(e.target.value)}
+                placeholder="Facultatif"
+                maxLength={1000}
+                className={inputClass}
+              />
+            </div>
+
+            {error && <p className="text-sm text-destructive">{error}</p>}
+
+            <DialogFooter className="mt-4 gap-2 sm:gap-2">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={mut.isPending}>
+                Annuler
               </Button>
               <Button type="submit" disabled={!valide || mut.isPending}>
                 {mut.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}

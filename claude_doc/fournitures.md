@@ -42,7 +42,8 @@ Partagé : `lib/fournitures.ts` (types, `useCatalogue` / `useSetCatalogue`, `eta
   remplacées d'un coup sur un métier.
 - `trm_fourniture_mouvement` — **le stock est un registre signé** par article × constructeur
   (NULL = non ventilé) : `entree` (+), `sortie` (− , liée au montage), `inventaire` (± la
-  correction). Stock = Σ quantite.
+  correction), `tampon` (−, vers le stock tampon de l'atelier — migration `0017`, LIVA #1285).
+  Stock = Σ quantite.
 - `trm_fourniture_fournisseur` (+ `_type`).
 
 ## Règles
@@ -55,13 +56,23 @@ Partagé : `lib/fournitures.ts` (types, `useCatalogue` / `useSetCatalogue`, `eta
   la machine, c'est le registre qui a tort ; le négatif appelle un inventaire). Le dialogue
   l'annonce en ambre avant d'enregistrer. Coche « reporter sur Changement des aiguilles »
   (par défaut ; platines → `chg_platines`), jamais en arrière.
+- ⚠️ **Le stock tampon** (LIVA #1285, Mickaël + Vincent, 2026-10-12) : une boîte d'aiguilles
+  dans l'atelier où les bonnetiers se servent pour remplacer une aiguille cassée. Son
+  réassort est **physique** (marqueurs orange / rouge : le rouge sorti, le régleur remplit et
+  replace le rouge sous les nouvelles aiguilles) — **TRM ne suit pas ce stock et ne doit pas
+  le faire** (« ce système fonctionne très bien, je ne veux pas le changer »). TRM enregistre
+  seulement la sortie du stock vers la boîte : bouton « Vers le stock tampon » du tiroir de
+  Fournitures › Stock, mouvement `tampon`, réparti comme un montage (`repartirSortie`, jamais
+  refusé, encart ambre si le stock passe en négatif), supprimable comme une entrée, sous
+  **`edit_fournitures`** (décision de Vincent : pas de clé à part). Le constructeur est un
+  existant ou « Non précisé », jamais créé à la volée.
 - Annuler un changement de jeu (mode édition, historique) rend le stock (ON DELETE CASCADE)
   mais ne rembobine pas le « monté ».
 - Inventaire = on tape le **compté** d'un seau (constructeur ou non ventilé) ; le serveur écrit
   la correction (`correctionInventaire`), rien si déjà juste. Supprimer une entrée / un
   inventaire : oui ; un mouvement de montage : non (409, se corrige depuis le métier).
 - Archiver une référence encore sur un métier : 409.
-- Droits : **`edit_fournitures`** (catalogue, entrées, inventaires, fournisseurs) ;
+- Droits : **`edit_fournitures`** (catalogue, entrées, inventaires, stock tampon, fournisseurs) ;
   **`edit_maintenance`** (ce qui est sur un métier, le changement de jeu). Lectures ouvertes.
 
 ## Reprise du sheet — `scripts/seed-fournitures-trm.ts` (API)

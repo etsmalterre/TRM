@@ -78,7 +78,7 @@ export interface Catalogue {
 
 export interface Mouvement {
   id: number
-  type: 'entree' | 'sortie' | 'inventaire'
+  type: 'entree' | 'sortie' | 'inventaire' | 'tampon'
   libelle: string
   quantite: number
   date: string | null

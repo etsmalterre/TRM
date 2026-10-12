@@ -10,7 +10,9 @@
 //   sortie     a set change on a métier — written by Atelier › Maintenance,
 //              never here, and never deleted one by one;
 //   inventaire a count — « Inventaire » here: the user types what they
-//              counted, the API writes the correction.
+//              counted, the API writes the correction;
+//   tampon     needles moved to the atelier's buffer stock — « Vers le stock
+//              tampon » here (LIVA #1285); taken like a montage, deletable.
 // One table line = a reference × a constructeur (Nicolas, 2026-10-07); the
 // drawer is the whole reference. « Non précisé » = the stock not split by constructeur (the sheet had one
 // number per reference); a set change takes from it once the constructeur's
@@ -34,6 +36,7 @@ import {
   Loader2,
   MessageSquare,
   Package,
+  PackageMinus,
   PackagePlus,
   Plus,
   Trash2,
@@ -43,7 +46,7 @@ import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { CardKV, MobileSortRow } from '@/components/stock/StockCardParts'
 import { SmartSearchInput, filterRowsByChips, type SearchChip } from '@/components/stock/SmartSearchInput'
-import { EntreeStockDialog, InventaireDialog } from '@/components/fournitures/StockMouvementDialogs'
+import { EntreeStockDialog, InventaireDialog, StockTamponDialog } from '@/components/fournitures/StockMouvementDialogs'
 import { useHasPermission } from '@/contexts/PermissionsContext'
 import { apiFetch } from '@/lib/api'
 import { formatHfsqlDate } from '@/lib/dates'
@@ -184,6 +187,7 @@ export function FournituresStock() {
   const [entreeArticle, setEntreeArticle] = useState<number | null>(null)
   const [entreeConstructeur, setEntreeConstructeur] = useState<number | null>(null)
   const [inventaireOpen, setInventaireOpen] = useState(false)
+  const [tamponOpen, setTamponOpen] = useState(false)
 
   const deferredSearch = useDeferredValue(searchQuery)
 
@@ -409,10 +413,11 @@ export function FournituresStock() {
         idConstructeur={selectedLigne?.idConstructeur ?? null}
         open={selectedKey !== null}
         canEdit={canEdit}
-        dialogOpen={entreeOpen || inventaireOpen}
+        dialogOpen={entreeOpen || inventaireOpen || tamponOpen}
         onClose={handleClose}
         onEntree={() => selected && openEntree(selected.id, selectedLigne?.idConstructeur ?? null)}
         onInventaire={() => setInventaireOpen(true)}
+        onTampon={() => setTamponOpen(true)}
         onCatalogue={setCatalogue}
       />
 
@@ -433,6 +438,14 @@ export function FournituresStock() {
         open={inventaireOpen}
         onOpenChange={setInventaireOpen}
         catalogue={catalogue}
+        article={selected}
+        idConstructeur={selectedLigne?.idConstructeur ?? null}
+        onDone={setCatalogue}
+      />
+
+      <StockTamponDialog
+        open={tamponOpen}
+        onOpenChange={setTamponOpen}
         article={selected}
         idConstructeur={selectedLigne?.idConstructeur ?? null}
         onDone={setCatalogue}
@@ -548,6 +561,7 @@ function StockDrawer({
   onClose,
   onEntree,
   onInventaire,
+  onTampon,
   onCatalogue,
 }: {
   article: Article | null
@@ -560,6 +574,7 @@ function StockDrawer({
   onClose: () => void
   onEntree: () => void
   onInventaire: () => void
+  onTampon: () => void
   onCatalogue: (cat: Partial<Catalogue> | undefined) => void
 }) {
   const drawerRef = useRef<HTMLDivElement>(null)
@@ -674,6 +689,15 @@ function StockDrawer({
                   onClick={onInventaire}
                 >
                   <ClipboardCheck className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-white/80 hover:bg-white/15 hover:text-white"
+                  title="Vers le stock tampon"
+                  onClick={onTampon}
+                >
+                  <PackageMinus className="h-4 w-4" />
                 </Button>
               </>
             )}
@@ -805,7 +829,13 @@ function StockDrawer({
         title="Supprimer le mouvement"
         description={
           aSupprimer
-            ? `Supprimer ${aSupprimer.type === 'entree' ? "l'entrée" : "l'inventaire"} du ${
+            ? `Supprimer ${
+                aSupprimer.type === 'entree'
+                  ? "l'entrée"
+                  : aSupprimer.type === 'tampon'
+                    ? 'le passage en stock tampon'
+                    : "l'inventaire"
+              } du ${
                 aSupprimer.date ? formatHfsqlDate(aSupprimer.date) : '—'
               } (${aSupprimer.quantite > 0 ? '+' : ''}${fmtNum(aSupprimer.quantite)}) ? Le stock est recalculé sans lui.`
             : undefined
