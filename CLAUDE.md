@@ -322,7 +322,10 @@ Maintenance. API `/api/fournitures-trm` (`routes/fournitures-trm.ts`), règles p
   NULL = non ventilé) ; **« Changer le jeu » sort le stock sans jamais refuser** (stock du
   constructeur, puis non ventilé, puis négatif — un inventaire corrige).
 - ⚠️ Un métier tourne avec TOUTES ses références ; une référence est **partagée** par ses métiers.
-- Droits `edit_fournitures` (catalogue, stock, fournisseurs) et `edit_maintenance` (le métier, le jeu).
+- ⚠️ **« Vers le stock tampon »** (LIVA #1285) sort du stock ce que le régleur met dans la boîte
+  de l'atelier ; **la boîte elle-même n'est pas suivie** (marqueurs orange / rouge physiques —
+  décision de Vincent, ne pas la modéliser).
+- Droits `edit_fournitures` (catalogue, stock, stock tampon, fournisseurs) et `edit_maintenance` (le métier, le jeu).
 
 ## Agents IA — le menu des agents et automates de TRM
 
