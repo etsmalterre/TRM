@@ -67,6 +67,7 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { formatHfsqlDate, hfsqlDateToInput, inputDateToHfsql } from '@/lib/dates'
 import { fmtNum } from '@/lib/format'
 import { apiFetch, API_URL } from '@/lib/api'
+import { HorsRefBadge } from '@/components/of/HorsRefBadge'
 import { SendEmailDialog } from '@/components/email/SendEmailDialog'
 import { CreateOfDialog } from '@/components/of/CreateOfDialog'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -74,6 +75,13 @@ import { postEmail } from '@/lib/email'
 import { useHasPermission } from '@/contexts/PermissionsContext'
 
 // ── Types ──────────────────────────────────────────────
+/** One off-sheet yarn (MPS API lib/hors-ref-trm.ts). */
+interface FilHorsRef {
+  IDref_fil: number
+  IDcolori_fil: number
+  label: string
+}
+
 
 type TrmPhase = 'a_lancer' | 'en_prod' | 'terminee'
 type StatusFilter = 'all' | 'open' | 'terminee'
@@ -257,6 +265,8 @@ interface AffectationPiece {
   IDordre_fabrication: number
   expedie: boolean
   defects: DefautQualite[]
+  /** Yarns its OF knitted off the reference's sheet — app only, never on the BL. */
+  hors_ref?: FilHorsRef[]
 }
 
 interface PiecesPayload {
@@ -324,6 +334,8 @@ interface OrdreFabrication {
   planning_fin: string | null
   observations: string | null
   fils: string[]
+  /** Off-sheet yarns of this OF (« hors réf »). */
+  hors_ref?: FilHorsRef[]
 }
 
 interface OrdresPayload {
@@ -1911,7 +1923,12 @@ function ProgressionDrawer({
                     />
                   ),
                 }] : []),
-                { key: 'num', label: 'Pièce N°', align: 'left', render: (p) => <span className="font-medium tabular-nums">{p.numero || `#${p.id}`}</span> },
+                { key: 'num', label: 'Pièce N°', align: 'left', render: (p) => (
+                  <span className="font-medium tabular-nums">
+                    {p.numero || `#${p.id}`}
+                    {(p.hors_ref?.length ?? 0) > 0 && <HorsRefBadge fils={p.hors_ref} className="ml-1.5 align-middle" />}
+                  </span>
+                ) },
                 { key: 'poids', label: 'Poids', align: 'right', render: (p) => `${fmtNum(p.poids, 1)} Kg` },
                 {
                   key: 'choix', label: '2nd choix', align: 'left',
@@ -2091,7 +2108,12 @@ function ProgressionDrawer({
                   key: 'fin', label: 'Finir le fil', align: 'left',
                   render: (o) => (o.finir_fil ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <span className="text-muted-foreground/50">—</span>),
                 },
-                { key: 'fils', label: 'Fils', align: 'left', render: (o) => (o.fils.length > 0 ? o.fils.join(', ') : '—') },
+                { key: 'fils', label: 'Fils', align: 'left', render: (o) => (
+                  <>
+                    {o.fils.length > 0 ? o.fils.join(', ') : '—'}
+                    {(o.hors_ref?.length ?? 0) > 0 && <HorsRefBadge fils={o.hors_ref} className="ml-1.5 align-middle" />}
+                  </>
+                ) },
                 { key: 'rea', label: 'Réalisé', align: 'right', render: (o) => `${fmtNum(o.realise, 1)} Kgs` },
                 {
                   key: 'prog', label: 'Progression', align: 'left',

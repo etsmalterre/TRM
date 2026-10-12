@@ -16,12 +16,17 @@
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
-export function HorsRefBadge({ className }: { className?: string }) {
+/** `fils` (optional) names the off-sheet yarns in the tooltip — the commande's
+ *  pieces and OFs carry them (MPS API `hors_ref`, lib/hors-ref-trm.ts). Shown
+ *  in the app only: the BL sent to a client never prints it. */
+export function HorsRefBadge({ className, fils }: { className?: string; fils?: { label: string }[] }) {
   return (
     <Badge
       variant="outline"
       className={cn('text-[10px] py-0 font-normal bg-accent/10 text-accent border-accent/30', className)}
-      title="Ce fil n'est pas dans la composition de la référence écru — variation propre à cet OF"
+      title={fils && fils.length > 0
+        ? `Tricoté avec un fil absent de la composition de la référence écru : ${fils.map((f) => f.label).join(', ')}`
+        : "Ce fil n'est pas dans la composition de la référence écru — variation propre à cet OF"}
     >
       hors réf
     </Badge>
