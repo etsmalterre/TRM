@@ -705,6 +705,7 @@ Tableau §27, `FilsStock.tsx`, API `routes/stock-fil-trm.ts` (`/api/stock/fil-tr
 Droit `create_stock_fil` (Nouveau lot · Diviser · Archiver — accordé au poste `Visitage`).
 **Dossier : `claude_doc/fils-stock.md`.**
 
+- ⚠️ **« Géré par ETM » (`stock_fil.gere_par_etm`, LIVA #1293)** : seul ce drapeau (plus le fil d'Ets Malterre, client 1) fait apparaître un lot chez ETM. Posé à la saisie d'après la liste « Fils gérés par ETM » du client (Clients › Gestion › Stocks de fil, en édition), modifiable sur le lot, recalculé si le client change ; règle API `lib/fil-gere-etm.ts` (repo ETM).
 - ⚠️ `stock` / `dernier_mouvement` ne sont **jamais écrits par le web** ; lot = `MAX+1`
   numérique **en JS** ; `controle_titrage` en INSERT positionnel dans l'ordre runtime
   `IDcontrole_titrage, titrage, nb_fil, nb_brin, IDstock_fil, IDunite_titrage, date`.

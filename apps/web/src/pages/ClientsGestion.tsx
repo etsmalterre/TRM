@@ -16,7 +16,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Users, Search, Loader2, AlertCircle, MapPin, User, Star, Pencil, Plus, X, Save,
   Trash2, FileText, Phone, Mail, Receipt, Briefcase, History, Archive, ArchiveRestore,
-  Printer, AtSign, Truck, Scale, Upload,
+  Printer, AtSign, Truck, Scale, Upload, Building2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -482,7 +482,7 @@ export function ClientsGestion() {
           isUnarchiving={unarchiveMutation.isPending}
           onPrint={() => setPlaceholder('print')} onEmail={() => setPlaceholder('email')} />}
         detail={<DetailMain client={detail ?? null} isLoading={detailLoading && selectedId !== null}
-          hasSelection={selectedId !== null} />}
+          hasSelection={selectedId !== null} isEditing={isEditing} />}
         sidebar={selectedId !== null ? <DetailSidebar client={detail ?? null} isLoading={detailLoading}
           isEditing={isEditing} clientId={selectedId} onMutationSuccess={invalidateAll}
           onSubFormsDirtyChange={setSubFormsDirty} draft={draft} onPatch={patch}
@@ -894,8 +894,8 @@ const MAIN_TABS = [
 ] as const
 type MainTab = (typeof MAIN_TABS)[number]['key']
 
-function DetailMain({ client, isLoading, hasSelection }: {
-  client: ClientDetail | null; isLoading: boolean; hasSelection: boolean
+function DetailMain({ client, isLoading, hasSelection, isEditing }: {
+  client: ClientDetail | null; isLoading: boolean; hasSelection: boolean; isEditing: boolean
 }) {
   const [activeTab, setActiveTab] = useState<MainTab>('historique')
   // Land on the historique (the client's main dataset) whenever the selection changes.
@@ -932,7 +932,7 @@ function DetailMain({ client, isLoading, hasSelection }: {
           scrolls its table internally. px-1/pb-1 keep focus rings clear of the clip. */}
       <div className="flex-1 min-h-0 flex flex-col pt-3 px-1 pb-1">
         {activeTab === 'historique' && <HistoriqueTab clientId={client.IDclient} />}
-        {activeTab === 'stock-fil' && <StockFilTab clientId={client.IDclient} />}
+        {activeTab === 'stock-fil' && <StockFilTab clientId={client.IDclient} isEditing={isEditing} />}
       </div>
     </div>
   )
@@ -1627,6 +1627,8 @@ interface StockFilLot {
   stock_initial: number
   emplacement: string | null
   termine: number
+  /** ETM sees this lot (LIVA #1293). */
+  gere_par_etm: number
 }
 
 const STOCK_FILTERS = [
@@ -1636,7 +1638,7 @@ const STOCK_FILTERS = [
 ] as const
 type StockFilter = (typeof STOCK_FILTERS)[number]['key']
 
-function StockFilTab({ clientId }: { clientId: number }) {
+function StockFilTab({ clientId, isEditing }: { clientId: number; isEditing: boolean }) {
   const [etat, setEtat] = useState<StockFilter>('encours')
   useEffect(() => { setEtat('encours') }, [clientId])
 
@@ -1648,6 +1650,7 @@ function StockFilTab({ clientId }: { clientId: number }) {
 
   return (
     <>
+      <FilsGeresEtmCard clientId={clientId} isEditing={isEditing} />
       {/* In-tab filter row — same gold-pill segmented control as the left list (§5). */}
       <div className="flex-shrink-0 flex flex-wrap items-center gap-1 mb-2">
         {STOCK_FILTERS.map((opt) => (
@@ -1682,6 +1685,11 @@ function StockFilTab({ clientId }: { clientId: number }) {
                     <td className="px-2 py-1.5 whitespace-nowrap tabular-nums">
                       {l.lot || '—'}
                       {!!l.termine && <Badge variant="outline" className="ml-1 text-[9px] py-0 px-1" title="Lot terminé">T</Badge>}
+                      {!!l.gere_par_etm && (
+                        <span title="Géré par ETM — visible dans le stock de fil d’ETM" className="ml-1 inline-flex align-middle">
+                          <Building2 className="h-3 w-3 text-sky-600" />
+                        </span>
+                      )}
                     </td>
                     <td className="px-2 py-1.5 whitespace-nowrap">{l.date_entree && /\d{8}/.test(l.date_entree) ? formatHfsqlDate(l.date_entree) : '—'}</td>
                     <td className="px-2 py-1.5 truncate max-w-[190px]" title={l.ref_fil}>{l.ref_fil || '—'}</td>
@@ -1698,5 +1706,118 @@ function StockFilTab({ clientId }: { clientId: number }) {
         </>
       )}
     </>
+  )
+}
+
+// ── Fils gérés par ETM (LIVA #1293) ─────────────────────
+// A client whose consigned yarn TRM knits on ETM orders (Sigvaris' PA66, all of
+// La Gentle Factory's…) lists that yarn here. A lot of it entered in Fils ›
+// Stock is then « géré par ETM » by default and shows in ETM's yarn stock, so
+// ETM can affect it on its order. Writes are immediate, in edit mode, under
+// edit_client_info; the lots already on the shelf follow an addition.
+
+interface FilsGeresEtm {
+  ets_malterre: boolean
+  tous: boolean
+  refs: Array<{ IDref_fil: number; reference: string }>
+  options: Array<{ IDref_fil: number; reference: string; utilise: boolean }>
+  lots_ajoutes?: number
+}
+
+function FilsGeresEtmCard({ clientId, isEditing }: { clientId: number; isEditing: boolean }) {
+  const queryClient = useQueryClient()
+  const canEdit = useHasPermission('edit_client_info')
+  const [notice, setNotice] = useState<string | null>(null)
+  useEffect(() => { setNotice(null) }, [clientId, isEditing])
+
+  const queryKey = ['trm-client-fils-geres-etm', clientId]
+  const { data, isLoading } = useQuery<FilsGeresEtm>({
+    queryKey,
+    queryFn: () => apiFetch(`/clients-trm/${clientId}/fils-geres-etm`),
+  })
+
+  const saveMut = useMutation({
+    mutationFn: (body: { tous: boolean; refs: number[] }) =>
+      apiSend<FilsGeresEtm>(`/clients-trm/${clientId}/fils-geres-etm`, { method: 'PUT', body: JSON.stringify(body) }),
+    onSuccess: (payload) => {
+      queryClient.setQueryData(queryKey, payload)
+      queryClient.invalidateQueries({ queryKey: ['trm-client-stock-fil', clientId] })
+      queryClient.invalidateQueries({ queryKey: ['stock-fil-trm'] })
+      const n = payload.lots_ajoutes ?? 0
+      setNotice(n > 0 ? `${n} lot${n > 1 ? 's' : ''} en stock désormais visible${n > 1 ? 's' : ''} chez ETM` : null)
+    },
+  })
+
+  if (isLoading || !data) return null
+  const editable = isEditing && canEdit && !data.ets_malterre
+  const refIds = data.refs.map((r) => r.IDref_fil)
+  const addable = data.options.filter((o) => !refIds.includes(o.IDref_fil))
+
+  return (
+    <div className={cn('flex-shrink-0 mb-3 p-3 rounded-lg border bg-card shadow-sm', editable && editSectionClass)}>
+      <div className="flex items-center gap-2">
+        <Building2 className="h-4 w-4 text-accent" />
+        <h3 className="text-sm font-semibold">Fils gérés par ETM</h3>
+        {saveMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />}
+        {editable && (
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Tous les fils</span>
+            <button type="button" role="switch" aria-checked={data.tous} disabled={saveMut.isPending}
+              onClick={() => saveMut.mutate({ tous: !data.tous, refs: refIds })}
+              className={cn('relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                'disabled:opacity-50 disabled:cursor-not-allowed',
+                data.tous ? 'bg-accent shadow-inner' : 'bg-zinc-300 hover:bg-zinc-400/80')}>
+              <span className={cn('inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ease-out',
+                data.tous ? 'translate-x-[18px]' : 'translate-x-0.5')} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-2 ml-6 text-xs text-muted-foreground">
+        {data.ets_malterre ? (
+          <span>Le fil d’Ets Malterre est toujours visible chez ETM.</span>
+        ) : data.tous ? (
+          <span>Tout le fil de ce client apparaît dans le stock de fil d’ETM.</span>
+        ) : data.refs.length === 0 && !editable ? (
+          <span className="italic">Aucun — le fil de ce client reste chez TRM.</span>
+        ) : (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {data.refs.map((r) => (
+              <Badge key={r.IDref_fil} className="bg-accent/10 text-accent hover:bg-accent/20 border-accent/20">
+                {r.reference}
+                {editable && (
+                  <button type="button" title="Retirer ce fil" disabled={saveMut.isPending}
+                    onClick={() => saveMut.mutate({ tous: false, refs: refIds.filter((id) => id !== r.IDref_fil) })}
+                    className="ml-1.5 rounded-full hover:bg-destructive/20 hover:text-destructive p-0.5 -mr-1 transition-colors">
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </Badge>
+            ))}
+            {editable && (
+              <div className="w-[240px]">
+                <SearchableCombobox<FilsGeresEtm['options'][number]>
+                  options={addable}
+                  value={0}
+                  onChange={(id) => { if (id > 0) saveMut.mutate({ tous: false, refs: [...refIds, id] }) }}
+                  getId={(o) => o.IDref_fil}
+                  getPrimary={(o) => o.reference}
+                  getSecondary={(o) => (o.utilise ? 'déjà reçu' : undefined)}
+                  placeholder="+ Ajouter un fil"
+                  size="sm"
+                />
+              </div>
+            )}
+          </div>
+        )}
+        {!data.ets_malterre && !data.tous && (
+          <p className="mt-1.5 text-[11px]">Un lot de ces fils saisi dans Fils › Stock sera « géré par ETM » (modifiable sur le lot).</p>
+        )}
+        {notice && <p className="mt-1.5 text-[11px] text-sky-700">{notice}</p>}
+        {saveMut.isError && <p className="mt-1.5 text-[11px] text-destructive">{(saveMut.error as Error).message}</p>}
+      </div>
+    </div>
   )
 }

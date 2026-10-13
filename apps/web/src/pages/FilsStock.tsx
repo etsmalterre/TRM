@@ -49,6 +49,7 @@ import {
   TrendingDown,
   Layers,
   FileText,
+  Building2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -98,6 +99,8 @@ interface StockRow {
   fournisseur_nom: string | null
   magasin_nom: string | null
   client_nom: string | null
+  /** ETM sees this lot in its Fils › Stock (LIVA #1293). Moot on Ets Malterre's own yarn. */
+  gere_par_etm: number | null
 }
 
 interface ControleTitrage {
@@ -159,6 +162,18 @@ interface BilanData {
 interface ClientOption {
   IDclient: number
   nom: string
+  /** The client's « fils gérés par ETM » list (Clients › Gestion › Stocks de fil). */
+  fil_gere_etm: { tous: boolean; refs: number[] }
+}
+
+/** `client.IDclient` of Ets Malterre: its yarn is ETM's by definition. */
+const ID_CLIENT_ETS_MALTERRE = 1
+
+/** What a lot of this client and yarn gets by default — mirror of the API's
+ *  gereParEtmParDefaut() (lib/fil-gere-etm.ts). */
+function gereEtmParDefaut(client: ClientOption | undefined, idRefFil: number): boolean {
+  if (!client || client.IDclient === ID_CLIENT_ETS_MALTERRE) return false
+  return client.fil_gere_etm.tous || client.fil_gere_etm.refs.includes(idRefFil)
 }
 
 interface FournisseurOption {
@@ -703,6 +718,7 @@ const StockRow = memo(function StockRow({
       </td>
       <td className="px-2 py-1.5 text-right">
         <div className="flex items-center justify-end gap-1">
+          {!!r.gere_par_etm && <GereEtmMark />}
           {!!r.bio && <Leaf className="h-3.5 w-3.5 text-green-600" />}
           {!!r.recycle && <Recycle className="h-3.5 w-3.5 text-blue-600" />}
           {!!r.termine && <Badge variant="outline" className="text-[10px] py-0">A</Badge>}
@@ -736,6 +752,7 @@ const StockLotCard = memo(function StockLotCard({
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-medium truncate">{row.ref_fil ?? '—'}</p>
         <div className="flex items-center gap-1 flex-shrink-0">
+          {!!row.gere_par_etm && <GereEtmMark />}
           {!!row.bio && <Leaf className="h-3.5 w-3.5 text-green-600" />}
           {!!row.recycle && <Recycle className="h-3.5 w-3.5 text-blue-600" />}
           {!!row.termine && <Badge variant="outline" className="text-[10px] py-0">A</Badge>}
@@ -786,6 +803,7 @@ function StockDetailDrawer({ id, canMutate, canEditStock, onClose, onMutationSuc
   const [editLotFrs, setEditLotFrs] = useState('')
   const [editPointage, setEditPointage] = useState('')
   const [editClient, setEditClient] = useState(0)
+  const [editGere, setEditGere] = useState(false)
   // The manual stock correction (edit_stock_fil) rides the same edit mode:
   // the field is only rendered as an input when the viewer holds the key, and
   // only sent (PUT /stock) when it actually changed.
@@ -802,6 +820,7 @@ function StockDetailDrawer({ id, canMutate, canEditStock, onClose, onMutationSuc
     lotFrs: string
     pointage: string
     client: number
+    gere: boolean
     stock: string
   } | null>(null)
 
@@ -842,6 +861,7 @@ function StockDetailDrawer({ id, canMutate, canEditStock, onClose, onMutationSuc
       lotFrs: detail.lot_frs ?? '',
       pointage: hfsqlDateToInput(detail.dernier_pointage),
       client: detail.IDclient ?? 0,
+      gere: !!detail.gere_par_etm,
       // Two decimals (user decision, 2026-09-02): `stock` is a 4-byte real and
       // the raw double would make an untouched field read as changed — and a
       // scale does not read below 10 g anyway.
@@ -853,6 +873,7 @@ function StockDetailDrawer({ id, canMutate, canEditStock, onClose, onMutationSuc
     setEditLotFrs(snapshot.lotFrs)
     setEditPointage(snapshot.pointage)
     setEditClient(snapshot.client)
+    setEditGere(snapshot.gere)
     setEditStock(snapshot.stock)
     originalDraftRef.current = snapshot
     setIsEditing(true)
@@ -881,6 +902,14 @@ function StockDetailDrawer({ id, canMutate, canEditStock, onClose, onMutationSuc
           body: JSON.stringify({ stock }),
         })
       }
+      // « Géré par ETM » is sent only when it departs from what the server
+      // would do anyway (keep it, or re-derive it for a new owner) — the
+      // explicit write needs create_stock_fil, an emplacement edit does not.
+      const o = originalDraftRef.current
+      const clientChanged = !!o && editClient !== o.client
+      const gereAttendu = clientChanged
+        ? gereEtmParDefaut(clientsQuery.data?.find((c) => c.IDclient === editClient), detail?.IDref_fil ?? 0)
+        : !!o?.gere
       await apiFetch(`/stock/fil-trm/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({
@@ -890,6 +919,7 @@ function StockDetailDrawer({ id, canMutate, canEditStock, onClose, onMutationSuc
           lot_frs: editLotFrs,
           IDclient: editClient,
           dernier_pointage: editPointage ? inputDateToHfsql(editPointage) : '',
+          ...(editGere !== gereAttendu ? { gere_par_etm: editGere } : {}),
         }),
       })
     },
@@ -909,9 +939,10 @@ function StockDetailDrawer({ id, canMutate, canEditStock, onClose, onMutationSuc
     if (editLotFrs !== o.lotFrs) return true
     if (editPointage !== o.pointage) return true
     if (editClient !== o.client) return true
+    if (editGere !== o.gere) return true
     if (editStock !== o.stock) return true
     return false
-  }, [isEditing, editCommentaire, editEmplacement, editNiveau, editLotFrs, editPointage, editClient, editStock])
+  }, [isEditing, editCommentaire, editEmplacement, editNiveau, editLotFrs, editPointage, editClient, editGere, editStock])
 
   useEffect(() => { onDirtyChange(isDirty) }, [isDirty, onDirtyChange])
   useEffect(() => () => { onDirtyChange(false) }, [onDirtyChange])
@@ -1150,16 +1181,35 @@ function StockDetailDrawer({ id, canMutate, canEditStock, onClose, onMutationSuc
             {/* Client (owner of the yarn — TRM knits à façon) */}
             <DrawerCard icon={<User className="h-4 w-4 text-accent" />} title="Client" highlight={isEditing}>
               {isEditing ? (
-                <SearchableCombobox<ClientOption>
-                  options={clientsQuery.data ?? []}
-                  value={editClient}
-                  onChange={(cid) => setEditClient(cid)}
-                  getId={(c) => c.IDclient}
-                  getPrimary={(c) => c.nom}
-                  placeholder="Sélectionner un client"
-                />
+                <div className="space-y-2">
+                  <SearchableCombobox<ClientOption>
+                    options={clientsQuery.data ?? []}
+                    value={editClient}
+                    onChange={(cid) => {
+                      setEditClient(cid)
+                      // A new owner brings its own list (same rule as the server).
+                      if (cid > 0) setEditGere(gereEtmParDefaut(clientsQuery.data?.find((c) => c.IDclient === cid), detail.IDref_fil ?? 0))
+                    }}
+                    getId={(c) => c.IDclient}
+                    getPrimary={(c) => c.nom}
+                    placeholder="Sélectionner un client"
+                  />
+                  {editClient > 0 && editClient !== ID_CLIENT_ETS_MALTERRE && (
+                    <GereEtmSwitch
+                      checked={editGere}
+                      disabled={!canMutate}
+                      onChange={setEditGere}
+                      hint={editGere ? 'Visible dans le stock de fil d’ETM' : 'Non visible chez ETM'}
+                    />
+                  )}
+                </div>
               ) : (
-                <KV label="Propriétaire du fil" value={detail.client_nom ?? '—'} />
+                <div className="space-y-1.5">
+                  <KV label="Propriétaire du fil" value={detail.client_nom ?? '—'} />
+                  {detail.IDclient !== ID_CLIENT_ETS_MALTERRE && (
+                    <KV label="Géré par ETM" value={detail.gere_par_etm ? 'Oui' : 'Non'} />
+                  )}
+                </div>
               )}
             </DrawerCard>
 
@@ -1435,6 +1485,54 @@ function DrawerCard({
   )
 }
 
+/** Row marker of a lot ETM sees (LIVA #1293). */
+function GereEtmMark() {
+  return (
+    <span title="Géré par ETM — visible dans le stock de fil d’ETM" className="inline-flex">
+      <Building2 className="h-3.5 w-3.5 text-sky-600" />
+    </span>
+  )
+}
+
+/** « Géré par ETM » switch row (mps_designer §35): the lot shows in ETM's
+ *  Fils › Stock, so ETM can affect it on an ETM order knitted here (LIVA #1293). */
+function GereEtmSwitch({ checked, disabled, onChange, hint }: {
+  checked: boolean
+  disabled?: boolean
+  onChange: (v: boolean) => void
+  hint: string
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-border/60 bg-white shadow-sm">
+      <div className="min-w-0 flex-1">
+        <div className="text-xs font-semibold">Géré par ETM</div>
+        <p className="text-[10px] text-muted-foreground mt-0.5">{hint}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={cn(
+          'relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors',
+          'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'disabled:opacity-50 disabled:cursor-not-allowed',
+          checked ? 'bg-accent shadow-inner' : 'bg-zinc-300',
+          !disabled && !checked && 'hover:bg-zinc-400/80',
+        )}
+      >
+        <span
+          className={cn(
+            'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ease-out',
+            checked ? 'translate-x-[18px]' : 'translate-x-0.5',
+          )}
+        />
+      </button>
+    </div>
+  )
+}
+
 function KV({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-2">
@@ -1478,10 +1576,15 @@ function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogP
   const [dateEntree, setDateEntree] = useState(todayInputDate())
   const [pointage, setPointage] = useState(todayInputDate())
   const [commentaire, setCommentaire] = useState('')
+  // « Géré par ETM »: follows the client's list until the operator flips it.
+  const [gereEtm, setGereEtm] = useState(false)
+  const [gereEtmTouched, setGereEtmTouched] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
+      setGereEtm(false)
+      setGereEtmTouched(false)
       setIDclient(0)
       setIDfournisseur('')
       setIDrefFil('')
@@ -1543,6 +1646,12 @@ function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogP
     setIDcolori('')
   }, [IDref_fil])
 
+  const selectedClient = clientsQuery.data?.find((c) => c.IDclient === IDclient)
+  useEffect(() => {
+    if (gereEtmTouched) return
+    setGereEtm(gereEtmParDefaut(selectedClient, typeof IDref_fil === 'number' ? IDref_fil : 0))
+  }, [selectedClient, IDref_fil, gereEtmTouched])
+
   const createMutation = useMutation({
     mutationFn: async () => {
       if (typeof IDref_fil !== 'number' || typeof IDcolori_fil !== 'number') {
@@ -1562,6 +1671,7 @@ function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogP
           date_entree: inputDateToHfsql(dateEntree),
           dernier_pointage: pointage ? inputDateToHfsql(pointage) : '',
           commentaire,
+          gere_par_etm: IDclient !== ID_CLIENT_ETS_MALTERRE && gereEtm,
         }),
       })
     },
@@ -1650,6 +1760,20 @@ function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogP
               }
             />
           </div>
+
+          {IDclient > 0 && IDclient !== ID_CLIENT_ETS_MALTERRE && (
+            <div className="col-span-full">
+              <GereEtmSwitch
+                checked={gereEtm}
+                onChange={(v) => { setGereEtm(v); setGereEtmTouched(true) }}
+                hint={
+                  gereEtm
+                    ? 'Le lot apparaît aussi dans le stock de fil d’ETM'
+                    : 'Le lot reste chez TRM, ETM ne le voit pas'
+                }
+              />
+            </div>
+          )}
 
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">Stock initial (kg) *</label>
