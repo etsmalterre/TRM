@@ -61,6 +61,12 @@ event strings, formulas) lives in the plan `~/.claude/plans/golden-petting-shell
     soldée** (409 `commande_soldee`, message affiché tel quel) — on ne la rouvre pas pour
     l'utilisateur : sur un miroir, ETM a peut-être déjà clôturé la sienne après « Soldée
     par TRM ». L'écran suit l'OF dans l'onglet Attente. Garde : `check-of-trm.ts`.
+    ⚠️ **Aucune pièce n'est touchée** : l'OF revient avec sa dernière pièce FERMÉE alors
+    que le métier tricote. La PWA (`POST /atelier/of/:id/evenement`, branche ETM
+    `feat/piece-reactivee`) enregistre d'abord la pièce tricotée depuis (n° + 1, débutée
+    à la fin de la précédente) avant toute saisie hors Lancement / Relancer. Sans ça,
+    OF 3601 (2026-10-13) : « Dernière pièce » a refermé la pièce 11, la 12 jamais créée
+    (réparée à la main en prod le jour même).
 - **Form mapping**: consigne = `observations`; Ouvert au large = `ouvert_visiteuse`;
   1/2 Nettoyages = `Nettoyage` (capital N); Visitage int = 1 « 2 premières pièces et
   toutes les 3 pièces » / 2 « Toutes les pièces » (0 = 20 legacy rows, shown « — »);
