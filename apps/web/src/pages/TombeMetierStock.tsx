@@ -257,9 +257,15 @@ function rowHaystacks(r: StockEcruTrmRow): string[] {
 
 export function TombeMetierStock() {
   const [searchQuery, setSearchQuery] = useState('')
+  // `?ref=<reference>` (link from Tombé Métier › Références) opens on that
+  // reference's pieces: a « Référence : » chip, all statuses.
+  const [initialParams] = useSearchParams()
+  const linkedRef = initialParams.get('ref')?.trim() || null
   // Field-scoped chips (see SEARCH_FIELDS above).
-  const [searchChips, setSearchChips] = useState<SearchChip<SearchFieldKey>[]>([])
-  const [statut, setStatut] = useState<StatutCode>(1)
+  const [searchChips, setSearchChips] = useState<SearchChip<SearchFieldKey>[]>(
+    linkedRef ? [{ field: 'ref_ecru', value: linkedRef }] : [],
+  )
+  const [statut, setStatut] = useState<StatutCode>(linkedRef ? 3 : 1)
   const [secondChoix, setSecondChoix] = useState(false)
   const [sort, setSort] = useState<SortState>({ key: 'date_saisie', dir: 'desc' })
   const [selectedId, setSelectedId] = useState<number | null>(null)

@@ -59,7 +59,18 @@ import { FournituresGestion } from '@/pages/FournituresGestion'
 // Tombé Métier
 // Références is shared verbatim with ETM — imported from the sister repo
 // via the @etm alias (see vite.config.ts). Edit it there; both apps update.
-import { TombeMetierReferences } from '@etm/pages/TombeMetierReferences'
+import { TombeMetierReferences, type RefEcruScreenVariant } from '@etm/pages/TombeMetierReferences'
+// What TRM owns on that shared screen: régleurs land on Réglages, the sidebar
+// counts TRM's own pieces (not ETM's — « en stock » differs per company), the
+// stock link opens TRM's screen, no Finis screen to link to, and the fiche
+// technique is signed by Tricotage Malterre.
+const TRM_REF_ECRU_VARIANT: Partial<RefEcruScreenVariant> = {
+  defaultTab: 'reglages',
+  stockPath: '/stock/ecru-trm/par-reference',
+  stockHref: (reference) => `/tombe-metier/stock?ref=${encodeURIComponent(reference)}`,
+  finiHref: null,
+  ficheTechnique: 'fiche-technique-trm',
+}
 // …with one TRM-only graft: its « Obs OF » tab becomes editable. obs_ref_ecru
 // is the régleur's standing note on an écru reference — meaningful here, not in
 // ETM, which buys its écru and has no métiers. The shared file takes the whole
@@ -175,7 +186,7 @@ export const router = createBrowserRouter([
       { path: 'fournitures/stock', element: <FournituresStock /> },
       { path: 'fournitures/gestion', element: <FournituresGestion /> },
       { path: 'tombe-metier', element: <Navigate to="/tombe-metier/references" replace /> },
-      { path: 'tombe-metier/references', element: <TombeMetierReferences obsOfEditor={ObsOfEditor} clientsLookupPath={TRM_CLIENTS_LOOKUP} /> },
+      { path: 'tombe-metier/references', element: <TombeMetierReferences obsOfEditor={ObsOfEditor} clientsLookupPath={TRM_CLIENTS_LOOKUP} variant={TRM_REF_ECRU_VARIANT} /> },
       { path: 'tombe-metier/echantillons', element: <TmEchantillonsPage /> },
       { path: 'tombe-metier/stock', element: <TombeMetierStock /> },
 

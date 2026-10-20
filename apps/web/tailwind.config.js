@@ -10,6 +10,8 @@ export default {
     "../../../ETM/apps/web/src/pages/TombeMetierReferences.tsx",
     // Its Rectiligne mode (LIVA #1185), a sibling file it imports relatively.
     "../../../ETM/apps/web/src/pages/tombe-metier/RectiligneReferences.tsx",
+    // Spec tiles shared by both modes of Références (relative import too).
+    "../../../ETM/apps/web/src/pages/tombe-metier/spec-tiles.tsx",
     "../../../ETM/apps/web/src/pages/FilsReferences.tsx",
     "../../../ETM/apps/web/src/pages/FilsGestion.tsx",
     "../../../ETM/apps/web/src/pages/RapportFinance.tsx",
