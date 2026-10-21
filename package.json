@@ -1,6 +1,6 @@
 {
   "name": "trm",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "private": true,
   "description": "TRM - ERP for Tricotage Malterre (knitting production, Malterre Holding)",
   "scripts": {
