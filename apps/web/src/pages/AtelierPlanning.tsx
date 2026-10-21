@@ -25,6 +25,12 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PopoverSelect } from '@/components/ui/popover-select'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import {
+  FairePlanningBouton,
+  FairePlanningDialog,
+  TricobotBandeau,
+  useTricobotSemaine,
+} from '@/components/planning/TricobotPlanning'
 
 // Atelier › Planning — weekly bonnetier schedule grid (legacy FI_Planning_Atelier).
 // Rows = active bonnetiers (archivé=0, regleur=0), columns = Dimanche → Samedi.
@@ -176,6 +182,7 @@ export function AtelierPlanning() {
   const [desiderataOpen, setDesiderataOpen] = useState(false)
   const [printOpen, setPrintOpen] = useState(false)
   const [visibilityOpen, setVisibilityOpen] = useState(false)
+  const [fairePlanningOpen, setFairePlanningOpen] = useState(false)
   const [hiddenIds, setHiddenIds] = useState<Set<number>>(loadHiddenBonnetiers)
 
   // Persist the hide/show preference for this workstation.
@@ -232,7 +239,29 @@ export function AtelierPlanning() {
     return map
   }, [entries])
 
-  const invalidatePlanning = () => queryClient.invalidateQueries({ queryKey: ['atelier-planning'] })
+  // Tricobot's run of the week, if any (LIVA #1296) — its gaps follow every edit of the grid.
+  const { data: tricobot } = useTricobotSemaine(from)
+  const invalidatePlanning = () => {
+    queryClient.invalidateQueries({ queryKey: ['atelier-planning'] })
+    queryClient.invalidateQueries({ queryKey: ['atelier-tricobot'] })
+  }
+
+  // « Faire le planning » only on a week with no créneau on any grid row, from
+  // the current week on, when the agent is in service (the API refuses otherwise).
+  const semaineVide = useMemo(() => {
+    if (!bonnetiers || !entries) return false
+    const ids = new Set(bonnetiers.map((b) => b.IDbonnetier))
+    return !entries.some((e) => ids.has(e.IDbonnetier))
+  }, [bonnetiers, entries])
+  const peutFairePlanning =
+    semaineVide && from >= fmtLocalDate(sundayOf(new Date())) && !!tricobot && tricobot.mode !== 'off'
+
+  const { data: desiderataEnCours } = useQuery<Desiderata[]>({
+    queryKey: ['atelier-desiderata', 'encours'],
+    queryFn: () => apiFetch('/planning-atelier/desiderata?statut=encours'),
+    enabled: fairePlanningOpen,
+  })
+  const nbDesiderataSemaine = (desiderataEnCours ?? []).filter((d) => d.date >= from && d.date <= to).length
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => apiFetch(`/planning-atelier/entries/${id}`, { method: 'DELETE' }),
@@ -293,6 +322,7 @@ export function AtelierPlanning() {
         <div className="flex-1" />
 
         {/* Screen actions — top right */}
+        {peutFairePlanning && <FairePlanningBouton onClick={() => setFairePlanningOpen(true)} />}
         <Button
           variant="outline"
           size="icon"
@@ -325,6 +355,8 @@ export function AtelierPlanning() {
           <Printer className="h-4 w-4" />
         </Button>
       </div>
+
+      {tricobot?.run && !semaineVide && <TricobotBandeau semaine={from} run={tricobot.run} />}
 
       {/* Grid card */}
       <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border/60 bg-white shadow-sm overflow-hidden">
@@ -550,6 +582,19 @@ export function AtelierPlanning() {
         onSaved={() => {
           invalidatePlanning()
           setFillTarget(null)
+        }}
+      />
+
+      <FairePlanningDialog
+        open={fairePlanningOpen}
+        semaine={from}
+        numeroSemaine={semaineDeLaGrille(weekStart)}
+        derniereInstruction={tricobot?.derniereInstruction ?? ''}
+        nbDesiderata={nbDesiderataSemaine}
+        onClose={() => setFairePlanningOpen(false)}
+        onDone={() => {
+          setFairePlanningOpen(false)
+          invalidatePlanning()
         }}
       />
 

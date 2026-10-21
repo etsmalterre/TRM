@@ -105,6 +105,7 @@ warnings that would bite in the first hour) with a pointer to the dossier.
 | `claude_doc/rapports-pointage-email.md` | Rapports de pointage par email (ex-n8n) : onglet Destinataires de l'automate, règles, anomalies seules |
 | `claude_doc/fournitures.md` | Menu Fournitures (aiguilles, platines… : références, stock en registre, fournisseurs) + onglet Aiguilles de la maintenance, reprise du sheet de Nicolas |
 | `claude_doc/agents-ia.md` | Agents IA (Agents + Automates) : écrans d'ETM sur les montages TRM de l'API, `app: 'trm'`, droits |
+| `claude_doc/atelier-planning.md` | Atelier › Planning : comment l'atelier fait son planning (binômes, cycle de 4 semaines) + Tricobot « Faire le planning » (LIVA #1296) |
 
 ## Atelier — la PWA mobile de l'atelier (`apps/atelier`)
 
@@ -330,7 +331,7 @@ Maintenance. API `/api/fournitures-trm` (`routes/fournitures-trm.ts`), règles p
 ## Agents IA — le menu des agents et automates de TRM
 
 Menu **« Agents IA »** (`screen_agents_ia`, **`seed: false`**) : Agents (`/agents-ia/agents`,
-vide pour l'instant) et **Automates** (`/agents-ia/automates`, le Rapport de pointage et le
+« Planning atelier » depuis LIVA #1296) et **Automates** (`/agents-ia/automates`, le Rapport de pointage et le
 Bilan des heures annualisées, venus du menu d'ETM le 2026-10-01). **Les écrans sont ceux
 d'ETM** (`@etm/pages/AgentsIa`, `@etm/pages/Automates`), la seule différence est la prop
 `basePath` (`/agents-ia-trm`, `/automates-trm`). **Dossier : `claude_doc/agents-ia.md`.**
@@ -338,6 +339,10 @@ d'ETM** (`@etm/pages/AgentsIa`, `@etm/pages/Automates`), la seule différence es
 - ⚠️ **Un agent / automate appartient à une app par `app: 'trm'` dans son catalogue**
   (API `lib/agents/catalog.ts`, `lib/automates/catalog.ts`, absent = ETM) ; chaque montage
   ne liste que les siens et répond 404 aux autres. Le moteur les fait tous tourner.
+- **« Planning atelier » (LIVA #1296)** ne tourne jamais seul (`declenchement: { type: 'ecran' }`) :
+  bouton Tricobot « Faire le planning » d'Atelier › Planning sur une semaine vide, consignes d'Isa,
+  semaine écrite puis « Valider le planning » = son retour. ⚠️ À l'arrêt par défaut : le passer **En
+  service** dans Agents IA, sinon le bouton n'apparaît pas. Dossier `claude_doc/atelier-planning.md`.
 - Droits `edit_agents_ia` / `evaluer_agents_ia` du **store TRM** (`permission-keys-trm.ts`),
   vérifiés sur chaque écriture des montages TRM.
 
@@ -384,7 +389,7 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 3b. **Fournitures** — Références, Stock, Gestion (`/fournitures/*`, TRM-only — see « Fournitures » above)
 4. **Tombé Métier** — **Références** (`/tombe-metier/references`, implemented — shared verbatim with ETM, see "Shared screens" below), Échantillons, **Stock** (`/tombe-metier/stock`, implemented — TRM-specific, NOT shared, see below). Menu icon is the custom `TmRollIcon`.
 5. **Production** — **Ordres de fabrication** (`/production/of`, implemented — see "Production › Ordres de fabrication" below), **Planning** (`/production/planning`, implemented — see "Production › Planning" below), **Visitage** (`/production/visitage`, implemented — see "Production › Visitage" below), **Prime** (`/production/prime`, implemented — see "Production › Prime" below), **TRS** (`/production/trs`, implemented — see "Production › TRS" below)
-6. **Atelier** — **Maintenance** (`/atelier/maintenance`, implemented — see "Atelier › Maintenance" below), Bonnetier, **Planning** (`/atelier/planning`, implemented — weekly bonnetier grid over `planning_bonnetier` + desiderata dialog; API route `ETM/apps/api/src/routes/planning-atelier.ts`)
+6. **Atelier** — **Maintenance** (`/atelier/maintenance`, implemented — see "Atelier › Maintenance" below), Bonnetier, **Planning** (`/atelier/planning`, implemented — weekly bonnetier grid over `planning_bonnetier` + desiderata dialog + Tricobot « Faire le planning »; API route `ETM/apps/api/src/routes/planning-atelier.ts`; dossier `claude_doc/atelier-planning.md`)
 7. **Qualité** — Défauts récents, **Retour client** (`/qualite/retour-client`, implemented — the menu’s index redirect, see "Qualité › Retour client" below), Analyse
 8. **Rapports** — **Finance** (`/rapports/finance`, implemented — the menu's only screen, shared verbatim with ETM; see "Rapports › Finance" below). The Production / Lots de fils / État stock fil / Analyse placeholders were removed with it.
 9. **Pointage** — Horaires, Semaines, Prévisionnel, Paie, Salariés (see « Pointage — le menu de l'ERP »).

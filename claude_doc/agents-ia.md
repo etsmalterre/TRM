@@ -1,7 +1,8 @@
 # Agents IA (TRM) — `/agents-ia/agents`, `/agents-ia/automates`
 
 TRM's own « Agents IA » menu since 2026-10-01: the same two screens as ETM's, over
-TRM's own agents and automates. Today TRM has **no agent** and **two automates**, the
+TRM's own agents and automates. Today TRM has **one agent**, « Planning atelier »
+(LIVA #1296, started from Atelier › Planning only — dossier `atelier-planning.md`), and **two automates**, the
 pointage report emails (dossier `rapports-pointage-email.md`), which moved here from
 ETM's menu the same day. Vidéosurveillance stays ETM's (it reads the TRM planning, but
 it drives the factory's NVR and was ETM's from the start).
@@ -44,7 +45,9 @@ it drives the factory's NVR and was ETM's from the start).
 
 ## Notes
 
-- `/agents-ia` lands on **Automates** here (ETM lands on Agents): TRM's Agents list is
-  empty (« Aucun agent ») until its first agent.
+- `/agents-ia` lands on **Automates** here (ETM lands on Agents).
+- An agent with `declenchement: { type: 'ecran' }` (Planning atelier) has no « Lancer
+  maintenant » and no mailbox card; its runs open `PlanningRunDialog` (ETM `AgentsIa.tsx`), and
+  a run nobody validated reads « Non validé » (a réussite by default), never « À évaluer ».
 - Modes and history of the two automates did not move or reset — same slugs, same
   `data/automates/` state.
