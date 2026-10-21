@@ -12,6 +12,10 @@ export default {
     "../../../ETM/apps/web/src/pages/tombe-metier/RectiligneReferences.tsx",
     // Spec tiles shared by both modes of Références (relative import too).
     "../../../ETM/apps/web/src/pages/tombe-metier/spec-tiles.tsx",
+    // The composition row Références and Échantillons share (relative import).
+    "../../../ETM/apps/web/src/pages/tombe-metier/composition-fil.tsx",
+    // Tombé Métier › Échantillons.
+    "../../../ETM/apps/web/src/pages/TombeMetierEchantillons.tsx",
     "../../../ETM/apps/web/src/pages/FilsReferences.tsx",
     "../../../ETM/apps/web/src/pages/FilsGestion.tsx",
     "../../../ETM/apps/web/src/pages/RapportFinance.tsx",
