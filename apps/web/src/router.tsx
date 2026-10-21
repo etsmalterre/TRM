@@ -7,7 +7,6 @@ import { PagePlaceholder } from '@/components/shared/PagePlaceholder'
 // app's registry, which is where TRM's widgets live.
 import { Dashboard } from '@etm/pages/Dashboard'
 import {
-  Layers,
   ClipboardList,
   AlertTriangle,
   Undo2,
@@ -60,6 +59,9 @@ import { FournituresGestion } from '@/pages/FournituresGestion'
 // Références is shared verbatim with ETM — imported from the sister repo
 // via the @etm alias (see vite.config.ts). Edit it there; both apps update.
 import { TombeMetierReferences, type RefEcruScreenVariant } from '@etm/pages/TombeMetierReferences'
+// Échantillons too, through its TRM mount of the API: TRM's Écrans grant and
+// its own client ledger (routes/echantillons.ts).
+import { TombeMetierEchantillons } from '@etm/pages/TombeMetierEchantillons'
 // What TRM owns on that shared screen: régleurs land on Réglages, the sidebar
 // counts TRM's own pieces (not ETM's — « en stock » differs per company), the
 // stock link opens TRM's screen, no Finis screen to link to, and the fiche
@@ -79,7 +81,6 @@ import { ObsOfEditor } from '@/components/of/ObsRefEcru'
 // `client` is partitioned by IDsociete: the Client picker lists TRM's ledger
 // (the Commandes lookup), not ETM's (LIVA #1201).
 const TRM_CLIENTS_LOOKUP = '/commandes-trm/lookups/clients'
-const TmEchantillonsPage = createPlaceholder('Échantillons', 'Échantillons tombé métier', Layers)
 // Stock is NOT shared with ETM: `stock_ecru` is partitioned by IDsociete and the
 // two halves are different objects (TRM pieces come off an OF on a métier; ETM
 // pieces sit in a magasin waiting for teinture). Own screen, own endpoints.
@@ -187,7 +188,7 @@ export const router = createBrowserRouter([
       { path: 'fournitures/gestion', element: <FournituresGestion /> },
       { path: 'tombe-metier', element: <Navigate to="/tombe-metier/references" replace /> },
       { path: 'tombe-metier/references', element: <TombeMetierReferences obsOfEditor={ObsOfEditor} clientsLookupPath={TRM_CLIENTS_LOOKUP} variant={TRM_REF_ECRU_VARIANT} /> },
-      { path: 'tombe-metier/echantillons', element: <TmEchantillonsPage /> },
+      { path: 'tombe-metier/echantillons', element: <TombeMetierEchantillons apiBase="/echantillons-trm" /> },
       { path: 'tombe-metier/stock', element: <TombeMetierStock /> },
 
       // Production
