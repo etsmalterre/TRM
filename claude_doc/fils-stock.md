@@ -119,3 +119,21 @@ shared screen: TRM adds the lifecycle actions ETM's screen doesn't have.
 - Dev note: `apps/web` `pnpm dev` **hardcodes `VITE_API_URL=:8080` via cross-env**,
   overriding `.env.development.local` — for a worktree API pair run
   `VITE_API_URL=http://localhost:808N/api pnpm exec vite --port 5175` instead.
+
+### Colonnes affichées (LIVA #1320, 2026-10-23)
+
+Bouton « Colonnes » (icône `Columns3`) dans l'en-tête de la colonne d'icônes, en haut à
+droite du tableau : dialogue de cases à cocher, appliqué à chaque clic (pas d'Enregistrer).
+Demandé par Vincent **à la place** d'un redimensionnement des colonnes à la souris.
+
+- **Fil, Coloris, Lot et Stock ne se cachent jamais** (`locked` dans `COLUMNS`, décision
+  de Vincent) ; toutes les autres oui.
+- Les largeurs sont des **pourcentages remis à l'échelle** sur les colonnes visibles
+  (`visibleColumns()`) : la place d'une colonne cachée se répartit au prorata, Fil compris.
+- Choix gardé **par utilisateur et par poste** en `localStorage`
+  (`mps:trm:fils-stock:hidden-columns:<IDutilisateur>`), relu quand l'utilisateur change ;
+  une clé devenue verrouillée ou disparue est ignorée à la lecture.
+- Une ligne rend ses cellules depuis `CELLS[key]` : **une nouvelle colonne = une entrée
+  dans `COLUMNS` ET dans `CELLS`** (le `Record` l'impose au typage).
+- Desktop seulement ; les cartes mobiles ne changent pas. Cacher la colonne triée garde
+  le tri (sans flèche visible).
