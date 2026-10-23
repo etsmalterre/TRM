@@ -15,7 +15,7 @@
 // — a stopgap until the HFSQL migration lands a movement ledger (LIVA #1101);
 // the field says what the correction costs.
 
-import { useState, useMemo, useCallback, useEffect, useRef, useDeferredValue, memo } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef, useDeferredValue, memo, Fragment, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { UnsavedChangesDialog } from '@/components/shared/UnsavedChangesDialog'
@@ -50,6 +50,7 @@ import {
   Layers,
   FileText,
   Building2,
+  Columns3,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -61,6 +62,7 @@ import { formatHfsqlDate, hfsqlDateToInput, inputDateToHfsql } from '@/lib/dates
 import { apiFetch, API_URL } from '@/lib/api'
 import { fmtNum } from '@/lib/format'
 import { useHasPermission } from '@/contexts/PermissionsContext'
+import { useUser } from '@/contexts/UserContext'
 import { CardKV, MobileSortRow } from '@/components/stock/StockCardParts'
 import {
   SmartSearchInput,
@@ -317,27 +319,106 @@ interface SortState {
 
 // Column set mirrors the legacy TRM list (Fil, Colori, Lot, Stock, Stock
 // initial, Client, Emplacement, Niveau, Fournisseur, Date entrée, Dernier
-// mouvement, Dernier pointage, Commentaire). Widths sum to 100% minus the
-// trailing icon column.
-const COLUMNS: { key: SortKey; label: string; width: string; align?: 'left' | 'right' }[] = [
+// mouvement, Dernier pointage, Commentaire). Widths are percentages summing to
+// 100 minus the trailing icon column; `locked` columns can't be hidden.
+interface Column {
+  key: SortKey
+  label: string
+  width: number
+  align?: 'left' | 'right'
+  locked?: boolean
+}
+const COLUMNS: Column[] = [
   // Widths favor the text columns (Fil / Coloris / Client / Fournisseur used
   // to truncate while the numeric and date columns idled half-empty) — the
   // numbers and dd/mm/yy dates need little room at the 13px table font.
-  { key: 'ref_fil', label: 'Fil', width: '13%' },
-  { key: 'colori_reference', label: 'Coloris', width: '9%' },
-  { key: 'lot', label: 'Lot', width: '5%' },
-  { key: 'stock', label: 'Stock', width: '6%', align: 'right' },
-  { key: 'stock_initial', label: 'Initial', width: '6%', align: 'right' },
-  { key: 'client_nom', label: 'Client', width: '10%' },
-  { key: 'emplacement', label: 'Empl.', width: '6%' },
-  { key: 'niveau', label: 'Niv.', width: '3%', align: 'right' },
-  { key: 'fournisseur_nom', label: 'Fournisseur', width: '10%' },
-  { key: 'date_entree', label: 'Entrée', width: '6.5%' },
-  { key: 'dernier_mouvement', label: 'Mouv.', width: '6.5%' },
-  { key: 'dernier_pointage', label: 'Pointage', width: '6.5%' },
-  { key: 'commentaire', label: 'Commentaire', width: '9.5%' },
+  { key: 'ref_fil', label: 'Fil', width: 13, locked: true },
+  { key: 'colori_reference', label: 'Coloris', width: 9, locked: true },
+  { key: 'lot', label: 'Lot', width: 5, locked: true },
+  { key: 'stock', label: 'Stock', width: 6, align: 'right', locked: true },
+  { key: 'stock_initial', label: 'Initial', width: 6, align: 'right' },
+  { key: 'client_nom', label: 'Client', width: 10 },
+  { key: 'emplacement', label: 'Empl.', width: 6 },
+  { key: 'niveau', label: 'Niv.', width: 3, align: 'right' },
+  { key: 'fournisseur_nom', label: 'Fournisseur', width: 10 },
+  { key: 'date_entree', label: 'Entrée', width: 6.5 },
+  { key: 'dernier_mouvement', label: 'Mouv.', width: 6.5 },
+  { key: 'dernier_pointage', label: 'Pointage', width: 6.5 },
+  { key: 'commentaire', label: 'Commentaire', width: 9.5 },
 ]
-const ICON_COL_WIDTH = '3%'
+const ICON_COL_WIDTH = 3
+
+// One <td> per column key, so the row renders only the visible columns.
+const CELLS: Record<SortKey, (r: StockRow) => ReactNode> = {
+  ref_fil: (r) => <td className="px-2 py-1.5 font-medium truncate" title={r.ref_fil ?? undefined}>{r.ref_fil ?? '—'}</td>,
+  colori_reference: (r) => <td className="px-2 py-1.5 truncate" title={r.colori_reference ?? undefined}>{r.colori_reference ?? '—'}</td>,
+  lot: (r) => <td className="px-2 py-1.5 tabular-nums truncate">{r.lot ?? '—'}</td>,
+  // Kg without the unit in the table — the header names it, and the fr-FR
+  // thousand separators wrap inside tight cells
+  stock: (r) => (
+    <td className="px-2 py-1.5 text-right tabular-nums font-medium whitespace-nowrap truncate">
+      {r.stock != null ? fmtNum(r.stock, 1) : '—'}
+    </td>
+  ),
+  stock_initial: (r) => (
+    <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground whitespace-nowrap truncate">
+      {r.stock_initial != null ? fmtNum(r.stock_initial, 1) : '—'}
+    </td>
+  ),
+  client_nom: (r) => <td className="px-2 py-1.5 truncate" title={r.client_nom ?? undefined}>{r.client_nom ?? '—'}</td>,
+  emplacement: (r) => <td className="px-2 py-1.5 truncate" title={r.emplacement ?? undefined}>{r.emplacement ?? '—'}</td>,
+  niveau: (r) => <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{r.niveau ?? '—'}</td>,
+  fournisseur_nom: (r) => <td className="px-2 py-1.5 truncate" title={r.fournisseur_nom ?? undefined}>{r.fournisseur_nom ?? '—'}</td>,
+  date_entree: (r) => (
+    <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">{fmtDateShort(r.date_entree)}</td>
+  ),
+  dernier_mouvement: (r) => (
+    <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">{fmtDateShort(r.dernier_mouvement)}</td>
+  ),
+  dernier_pointage: (r) => (
+    <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">{fmtDateShort(r.dernier_pointage)}</td>
+  ),
+  commentaire: (r) => (
+    <td className="px-2 py-1.5 text-muted-foreground truncate" title={r.commentaire ?? undefined}>{r.commentaire?.trim() || ''}</td>
+  ),
+}
+
+// Hidden columns (LIVA #1320), remembered per user on this PC: hiding a
+// column hands its width to the visible ones, so a long Fil designation
+// gets room to show in full.
+const HIDDEN_COLS_KEY_BASE = 'mps:trm:fils-stock:hidden-columns'
+const hiddenColsKey = (userId: number | null) =>
+  userId == null ? HIDDEN_COLS_KEY_BASE : `${HIDDEN_COLS_KEY_BASE}:${userId}`
+const HIDEABLE_KEYS = new Set<SortKey>(COLUMNS.filter((c) => !c.locked).map((c) => c.key))
+
+function loadHiddenColumns(userId: number | null): SortKey[] {
+  try {
+    const raw = localStorage.getItem(hiddenColsKey(userId))
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    // Drop keys that no longer exist or have since become locked.
+    return parsed.filter((k): k is SortKey => HIDEABLE_KEYS.has(k))
+  } catch {
+    return []
+  }
+}
+
+function saveHiddenColumns(userId: number | null, keys: SortKey[]): void {
+  try {
+    localStorage.setItem(hiddenColsKey(userId), JSON.stringify(keys))
+  } catch {
+    /* ignore quota / privacy-mode errors */
+  }
+}
+
+// Visible columns with their widths rescaled so they fill the table again.
+function visibleColumns(hidden: readonly SortKey[]): Column[] {
+  const shown = COLUMNS.filter((c) => !hidden.includes(c.key))
+  const sum = shown.reduce((s, c) => s + c.width, 0)
+  const scale = (100 - ICON_COL_WIDTH) / sum
+  return shown.map((c) => ({ ...c, width: c.width * scale }))
+}
 
 function compareRows(a: StockRow, b: StockRow, key: SortKey): number {
   const va = a[key]
@@ -432,6 +513,20 @@ export function FilsStock() {
     })
     return out
   }, [rows, deferredSearch, searchChips, sort])
+
+  const { user } = useUser()
+  const userId = user?.IDutilisateur ?? null
+  const [hiddenCols, setHiddenCols] = useState<SortKey[]>(() => loadHiddenColumns(userId))
+  const [columnsOpen, setColumnsOpen] = useState(false)
+  // Another user picked on this PC → their own choice.
+  useEffect(() => {
+    setHiddenCols(loadHiddenColumns(userId))
+  }, [userId])
+  const columns = useMemo(() => visibleColumns(hiddenCols), [hiddenCols])
+  const updateHiddenCols = useCallback((next: SortKey[]) => {
+    setHiddenCols(next)
+    saveHiddenColumns(userId, next)
+  }, [userId])
 
   const handleSort = useCallback((key: SortKey) => {
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
@@ -530,15 +625,10 @@ export function FilsStock() {
             {/* 13px table font (vs the app's text-sm) — user-requested density:
                 13 columns is the widest table in the app. */}
             <table className="w-full text-[13px]" style={{ tableLayout: 'fixed' }}>
-              <colgroup>
-                {COLUMNS.map((c) => (
-                  <col key={c.key} style={{ width: c.width }} />
-                ))}
-                <col style={{ width: ICON_COL_WIDTH }} />
-              </colgroup>
+              <ColGroup columns={columns} />
               <thead className="bg-zinc-200/60 border-b border-border/60">
                 <tr className="text-xs uppercase tracking-wide text-muted-foreground">
-                  {COLUMNS.map((c) => (
+                  {columns.map((c) => (
                     <SortHeader
                       key={c.key}
                       label={c.label}
@@ -548,24 +638,32 @@ export function FilsStock() {
                       align={c.align}
                     />
                   ))}
-                  <th className="px-2 py-2.5 text-left font-semibold"></th>
+                  <th className="px-1 py-1 text-right font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setColumnsOpen(true)}
+                      title="Colonnes affichées"
+                      className={cn(
+                        'relative inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-accent/10 hover:text-accent',
+                        hiddenCols.length > 0 && 'text-accent'
+                      )}
+                    >
+                      <Columns3 className="h-4 w-4" />
+                    </button>
+                  </th>
                 </tr>
               </thead>
             </table>
 
             <div className="flex-1 min-h-0 overflow-auto scrollbar-transparent">
               <table className="w-full text-[13px]" style={{ tableLayout: 'fixed' }}>
-                <colgroup>
-                  {COLUMNS.map((c) => (
-                    <col key={c.key} style={{ width: c.width }} />
-                  ))}
-                  <col style={{ width: ICON_COL_WIDTH }} />
-                </colgroup>
+                <ColGroup columns={columns} />
                 <tbody>
                   {filteredSorted.map((r) => (
                     <StockRow
                       key={r.IDstock_fil}
                       row={r}
+                      columns={columns}
                       selected={r.IDstock_fil === selectedId}
                       onRowClick={handleRowClick}
                     />
@@ -626,6 +724,13 @@ export function FilsStock() {
         isSaving={guard.isSaving}
       />
 
+      <ColumnsDialog
+        open={columnsOpen}
+        onOpenChange={setColumnsOpen}
+        hidden={hiddenCols}
+        onHiddenChange={updateHiddenCols}
+      />
+
       <NewStockFilDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
@@ -666,6 +771,93 @@ function SortHeader({ label, sortKey, sort, onSort, align = 'left' }: SortHeader
   )
 }
 
+// ── Column visibility ──────────────────────────────────
+
+function ColGroup({ columns }: { columns: Column[] }) {
+  return (
+    <colgroup>
+      {columns.map((c) => (
+        <col key={c.key} style={{ width: `${c.width}%` }} />
+      ))}
+      <col style={{ width: `${ICON_COL_WIDTH}%` }} />
+    </colgroup>
+  )
+}
+
+// Applies each tick at once (no Annuler / Enregistrer): the table behind the
+// dialog shows the result as the user picks.
+function ColumnsDialog({
+  open,
+  onOpenChange,
+  hidden,
+  onHiddenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  hidden: SortKey[]
+  onHiddenChange: (next: SortKey[]) => void
+}) {
+  const toggle = (key: SortKey) =>
+    onHiddenChange(hidden.includes(key) ? hidden.filter((k) => k !== key) : [...hidden, key])
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md" onClose={() => onOpenChange(false)}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Columns3 className="h-5 w-5 text-accent" />
+            Colonnes affichées
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="mt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              Masquer une colonne élargit les autres.
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-accent hover:text-accent hover:bg-accent/10"
+              onClick={() => onHiddenChange([])}
+              disabled={hidden.length === 0}
+            >
+              Tout afficher
+            </Button>
+          </div>
+
+          <div className="max-h-[50vh] overflow-y-auto scrollbar-transparent rounded-md border border-border/60 divide-y divide-border/40">
+            {COLUMNS.map((c) => (
+              <label
+                key={c.key}
+                className={cn(
+                  'flex items-center gap-2.5 px-3 py-2 text-sm select-none transition-colors',
+                  c.locked ? 'text-muted-foreground' : 'cursor-pointer hover:bg-accent/5'
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={!hidden.includes(c.key)}
+                  disabled={c.locked}
+                  onChange={() => toggle(c.key)}
+                  className="h-4 w-4 rounded border-input text-accent focus:ring-2 focus:ring-ring cursor-pointer disabled:cursor-default"
+                />
+                <span>{c.label}</span>
+                {c.locked && <span className="ml-auto text-xs">toujours affichée</span>}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Fermer
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Table row (memoized) ──────────────────────────────
 // Up to 1.7k rows × 14 cells in "Tous" — memoized on (row, selected) so a
 // search keystroke or a selection change only re-renders the rows that
@@ -673,10 +865,12 @@ function SortHeader({ label, sortKey, sort, onSort, align = 'left' }: SortHeader
 
 const StockRow = memo(function StockRow({
   row: r,
+  columns,
   selected,
   onRowClick,
 }: {
   row: StockRow
+  columns: Column[]
   selected: boolean
   onRowClick: (id: number) => void
 }) {
@@ -689,33 +883,9 @@ const StockRow = memo(function StockRow({
         selected ? 'bg-accent/10' : 'hover:bg-accent/5'
       )}
     >
-      <td className="px-2 py-1.5 font-medium truncate" title={r.ref_fil ?? undefined}>{r.ref_fil ?? '—'}</td>
-      <td className="px-2 py-1.5 truncate" title={r.colori_reference ?? undefined}>{r.colori_reference ?? '—'}</td>
-      <td className="px-2 py-1.5 tabular-nums truncate">{r.lot ?? '—'}</td>
-      {/* Kg without the unit in the table — the header names it, and the
-          fr-FR thousand separators wrap inside tight cells */}
-      <td className="px-2 py-1.5 text-right tabular-nums font-medium whitespace-nowrap truncate">
-        {r.stock != null ? fmtNum(r.stock, 1) : '—'}
-      </td>
-      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground whitespace-nowrap truncate">
-        {r.stock_initial != null ? fmtNum(r.stock_initial, 1) : '—'}
-      </td>
-      <td className="px-2 py-1.5 truncate" title={r.client_nom ?? undefined}>{r.client_nom ?? '—'}</td>
-      <td className="px-2 py-1.5 truncate" title={r.emplacement ?? undefined}>{r.emplacement ?? '—'}</td>
-      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{r.niveau ?? '—'}</td>
-      <td className="px-2 py-1.5 truncate" title={r.fournisseur_nom ?? undefined}>{r.fournisseur_nom ?? '—'}</td>
-      <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">
-        {fmtDateShort(r.date_entree)}
-      </td>
-      <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">
-        {fmtDateShort(r.dernier_mouvement)}
-      </td>
-      <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap truncate">
-        {fmtDateShort(r.dernier_pointage)}
-      </td>
-      <td className="px-2 py-1.5 text-muted-foreground truncate" title={r.commentaire ?? undefined}>
-        {r.commentaire?.trim() || ''}
-      </td>
+      {columns.map((c) => (
+        <Fragment key={c.key}>{CELLS[c.key](r)}</Fragment>
+      ))}
       <td className="px-2 py-1.5 text-right">
         <div className="flex items-center justify-end gap-1">
           {!!r.gere_par_etm && <GereEtmMark />}
