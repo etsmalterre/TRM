@@ -137,3 +137,20 @@ Demandé par Vincent **à la place** d'un redimensionnement des colonnes à la s
   dans `COLUMNS` ET dans `CELLS`** (le `Record` l'impose au typage).
 - Desktop seulement ; les cartes mobiles ne changent pas. Cacher la colonne triée garde
   le tri (sans flèche visible).
+
+### Nouveau lot — client d'abord, puis la commande livrée (2026-10-23)
+
+`NewStockFilDialog` est un dialogue **en étapes**, sans second dialogue empilé (demande de Vincent) :
+
+1. **« Pour quel client ? »** seul : liste avec recherche, Ets Malterre en tête. Rien d'autre
+   ni de bouton « Créer » tant qu'il n'est pas choisi ; bandeau « Client · Changer » ensuite.
+2. **Ets Malterre → « Commande livrée » seule** (`GET /stock/fil-trm/commandes-attente`,
+   ligne `ref_fil_commande` encore attendue). Le clic ouvre la saisie avec un bandeau commande
+   (fil, fournisseur, N° de cde, kg attendus / réservés clients, « Changer ») et pré-remplit le
+   stock initial avec le reste attendu. Le lot naît lié à la ligne (`IDref_fil_commande` dans le
+   POST) et la réservation de fil des commandes clients ETM passe dessus (API `lib/reservation-fil.ts`).
+   « Lot sans commande fournisseur » (retour, lot fictif) rouvre la saisie manuelle.
+3. **Autre client → saisie manuelle** (Fournisseur / Fil / Coloris + « Géré par ETM »), comme avant.
+
+⚠️ Écran dépendant de l'API de la réservation de fil (paire `feat/reservation-fil`) : le web
+TRM ne se déploie pas avant elle.

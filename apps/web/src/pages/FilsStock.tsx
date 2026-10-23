@@ -51,6 +51,8 @@ import {
   FileText,
   Building2,
   Columns3,
+  Search,
+  Truck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -1734,8 +1736,37 @@ const NIVEAU_OPTIONS = [
   { id: 4, primary: '3' },
 ]
 
+/** An Ets Malterre yarn order line still awaited (MPS API GET /stock/fil-trm/commandes-attente). */
+interface CommandeFilAttente {
+  IDref_fil_commande: number
+  IDcommande_fil: number
+  IDfournisseur: number
+  fournisseur: string
+  IDref_fil: number
+  ref_fil: string
+  IDcolori_fil: number
+  coloris: string
+  quantite: number
+  recu: number
+  reste: number
+  /** kg reserved on it for ETM client order lines — they move onto the lot */
+  reserve: number
+  date_livraison: string | null
+  date_commande: string | null
+}
+
 function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogProps) {
   const [IDclient, setIDclient] = useState<number>(0)
+  // Ets Malterre's yarn is received against its order line (decision Vincent 2026-10-23): the
+  // operator picks the line the delivery belongs to, the lot is born linked to it and the yarn
+  // reserved on it for ETM client orders moves onto the lot. « Sans commande » keeps the manual
+  // entry (returns, lots fictifs).
+  const [IDligneCommande, setIDligneCommande] = useState(0)
+  const [sansCommande, setSansCommande] = useState(false)
+  const [rechercheCommande, setRechercheCommande] = useState('')
+  // The client is asked first, alone: it decides the rest of the form (order picker for Ets
+  // Malterre, manual yarn entry + « Géré par ETM » for the others).
+  const [rechercheClient, setRechercheClient] = useState('')
   const [IDfournisseur, setIDfournisseur] = useState<number | ''>('')
   const [IDref_fil, setIDrefFil] = useState<number | ''>('')
   const [IDcolori_fil, setIDcolori] = useState<number | ''>('')
@@ -1767,8 +1798,28 @@ function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogP
       setPointage(todayInputDate())
       setCommentaire('')
       setError(null)
+      setIDligneCommande(0)
+      setSansCommande(false)
+      setRechercheCommande('')
+      setRechercheClient('')
     }
   }, [open])
+
+  const surCommande = IDclient === ID_CLIENT_ETS_MALTERRE && !sansCommande
+  const attenteQuery = useQuery<CommandeFilAttente[]>({
+    queryKey: ['stock-fil-trm', 'commandes-attente'],
+    queryFn: () => apiFetch<CommandeFilAttente[]>('/stock/fil-trm/commandes-attente'),
+    enabled: open && surCommande,
+    staleTime: 0,
+  })
+  const commandesFiltrees = useMemo(() => {
+    const q = rechercheCommande.trim().toLowerCase()
+    const rows = attenteQuery.data ?? []
+    if (!q) return rows
+    return rows.filter((c) =>
+      [c.fournisseur, c.ref_fil, c.coloris, String(c.IDcommande_fil)].some((v) => v.toLowerCase().includes(q)))
+  }, [attenteQuery.data, rechercheCommande])
+  const ligneChoisie = (attenteQuery.data ?? []).find((c) => c.IDref_fil_commande === IDligneCommande) ?? null
 
   const clientsQuery = useClientsLookup(open)
 
@@ -1817,6 +1868,21 @@ function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogP
   }, [IDref_fil])
 
   const selectedClient = clientsQuery.data?.find((c) => c.IDclient === IDclient)
+  const clientsFiltres = useMemo(() => {
+    const q = rechercheClient.trim().toLowerCase()
+    const rows = (clientsQuery.data ?? []).filter((c) => !q || c.nom.toLowerCase().includes(q))
+    // Ets Malterre on top: most lots are its own yarn.
+    return [...rows].sort((a, b) =>
+      Number(b.IDclient === ID_CLIENT_ETS_MALTERRE) - Number(a.IDclient === ID_CLIENT_ETS_MALTERRE)
+      || a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }))
+  }, [clientsQuery.data, rechercheClient])
+  const choisirClient = (id: number) => {
+    setIDclient(id)
+    setIDligneCommande(0)
+    setSansCommande(false)
+    setRechercheCommande('')
+    setError(null)
+  }
   useEffect(() => {
     if (gereEtmTouched) return
     setGereEtm(gereEtmParDefaut(selectedClient, typeof IDref_fil === 'number' ? IDref_fil : 0))
@@ -1824,16 +1890,21 @@ function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogP
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (typeof IDref_fil !== 'number' || typeof IDcolori_fil !== 'number') {
-        throw new Error('Référence et coloris requis')
+      if (surCommande ? !ligneChoisie : (typeof IDref_fil !== 'number' || typeof IDcolori_fil !== 'number')) {
+        throw new Error(surCommande ? 'Choisissez la commande livrée' : 'Référence et coloris requis')
       }
       return apiFetch<{ IDstock_fil: number | null; lot: string }>('/stock/fil-trm', {
         method: 'POST',
         body: JSON.stringify({
           IDclient,
-          IDfournisseur,
-          IDref_fil,
-          IDcolori_fil,
+          ...(surCommande && ligneChoisie
+            ? {
+              IDref_fil_commande: ligneChoisie.IDref_fil_commande,
+              IDfournisseur: ligneChoisie.IDfournisseur,
+              IDref_fil: ligneChoisie.IDref_fil,
+              IDcolori_fil: ligneChoisie.IDcolori_fil,
+            }
+            : { IDfournisseur, IDref_fil, IDcolori_fil }),
           lot_frs: lotFrs,
           stock_initial: parseFloat(stockInitial) || 0,
           emplacement,
@@ -1856,9 +1927,9 @@ function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogP
 
   const canSubmit =
     IDclient > 0 &&
-    typeof IDfournisseur === 'number' &&
-    typeof IDref_fil === 'number' &&
-    typeof IDcolori_fil === 'number' &&
+    (surCommande
+      ? ligneChoisie !== null
+      : typeof IDfournisseur === 'number' && typeof IDref_fil === 'number' && typeof IDcolori_fil === 'number') &&
     stockInitial.trim() !== '' &&
     !isNaN(parseFloat(stockInitial)) &&
     parseFloat(stockInitial) > 0
@@ -1870,19 +1941,162 @@ function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogP
           <DialogTitle className="font-heading">Nouveau lot de fil</DialogTitle>
         </DialogHeader>
 
+        {IDclient === 0 ? (
+          <div className="mt-3 space-y-1.5">
+            <label className="text-xs text-muted-foreground block">Pour quel client ?</label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                autoFocus
+                value={rechercheClient}
+                onChange={(e) => setRechercheClient(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && clientsFiltres.length === 1) choisirClient(clientsFiltres[0].IDclient)
+                }}
+                placeholder="Rechercher un client…"
+                className="w-full h-9 pl-8 pr-3 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div className="max-h-[50dvh] overflow-y-auto rounded-md border border-border/60 bg-zinc-100/80 p-1.5 space-y-1.5 scrollbar-transparent">
+              {clientsQuery.isLoading ? (
+                <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-accent" /></div>
+              ) : clientsFiltres.length === 0 ? (
+                <p className="py-4 text-center text-xs text-muted-foreground italic">Aucun client ne correspond</p>
+              ) : clientsFiltres.map((c) => (
+                <button
+                  key={c.IDclient}
+                  type="button"
+                  onClick={() => choisirClient(c.IDclient)}
+                  className="w-full text-left rounded-md border border-border/60 bg-white px-2.5 py-2 transition-colors hover:border-accent/50"
+                >
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-accent flex-shrink-0" />
+                    <span className="text-sm font-medium truncate">{c.nom}</span>
+                    {c.IDclient === ID_CLIENT_ETS_MALTERRE && (
+                      <span className="ml-auto text-[11px] text-muted-foreground whitespace-nowrap">réception sur commande</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-          <div className="col-span-full">
-            <label className="text-xs text-muted-foreground mb-1 block">Client *</label>
-            <SearchableCombobox<ClientOption>
-              options={clientsQuery.data ?? []}
-              value={IDclient}
-              onChange={(id) => setIDclient(id)}
-              getId={(c) => c.IDclient}
-              getPrimary={(c) => c.nom}
-              placeholder="Choix du client"
-            />
+          <div className="col-span-full flex items-center justify-between gap-2 rounded-md border border-border/60 bg-zinc-100/80 px-2.5 py-1.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <Building2 className="h-4 w-4 text-accent flex-shrink-0" />
+              <span className="text-xs text-muted-foreground">Client</span>
+              <span className="text-sm font-medium truncate">{selectedClient?.nom ?? '—'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => choisirClient(0)}
+              disabled={createMutation.isPending}
+              className="text-xs text-accent hover:underline underline-offset-2 flex-shrink-0"
+            >
+              Changer
+            </button>
           </div>
 
+          {surCommande && !ligneChoisie && (
+            <div className="col-span-full space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs text-muted-foreground">Commande livrée *</label>
+                <button
+                  type="button"
+                  onClick={() => { setSansCommande(true); setIDligneCommande(0) }}
+                  className="text-[11px] text-muted-foreground hover:text-accent underline-offset-2 hover:underline"
+                >
+                  Lot sans commande fournisseur
+                </button>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={rechercheCommande}
+                  onChange={(e) => setRechercheCommande(e.target.value)}
+                  placeholder="Fournisseur, fil, coloris, N° de commande…"
+                  className="w-full h-9 pl-8 pr-3 text-sm rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div className="max-h-[50dvh] overflow-y-auto rounded-md border border-border/60 bg-zinc-100/80 p-1.5 space-y-1.5 scrollbar-transparent">
+                {attenteQuery.isLoading ? (
+                  <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-accent" /></div>
+                ) : commandesFiltrees.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-muted-foreground italic">
+                    {(attenteQuery.data ?? []).length === 0 ? 'Aucune commande de fil en attente' : 'Aucune commande ne correspond'}
+                  </p>
+                ) : commandesFiltrees.map((c) => {
+                  return (
+                    <button
+                      key={c.IDref_fil_commande}
+                      type="button"
+                      onClick={() => {
+                        setIDligneCommande(c.IDref_fil_commande)
+                        // The delivery is entered right after the pick: start from what is awaited.
+                        setStockInitial(c.reste > 0 ? String(c.reste) : '')
+                      }}
+                      className="w-full text-left rounded-md border border-border/60 bg-white px-2.5 py-2 transition-colors hover:border-accent/50"
+                    >
+                      <div className="flex items-center gap-2">
+                        <BobineIcon className="h-4 w-4 text-accent flex-shrink-0" />
+                        <span className="text-sm font-medium truncate">{c.ref_fil}{c.coloris ? ` - ${c.coloris}` : ''}</span>
+                        <span className="ml-auto text-xs font-semibold tabular-nums whitespace-nowrap">{fmtNum(c.reste, 1)} kg attendus</span>
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground pl-6">
+                        <Truck className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{c.fournisseur || '—'} · cde N° {c.IDcommande_fil}</span>
+                        {c.date_livraison && <span className="whitespace-nowrap">· prévue le {formatHfsqlDate(c.date_livraison)}</span>}
+                        {c.reserve > 0 && (
+                          <span className="ml-auto whitespace-nowrap">{fmtNum(c.reserve, 1)} kg réservés clients</span>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {surCommande && ligneChoisie && (
+            <div className="col-span-full -mt-1 rounded-md border border-border/60 bg-zinc-100/80 px-2.5 py-1.5">
+              <div className="flex items-center gap-2">
+                <BobineIcon className="h-4 w-4 text-accent flex-shrink-0" />
+                <span className="text-sm font-medium truncate">
+                  {ligneChoisie.ref_fil}{ligneChoisie.coloris ? ` - ${ligneChoisie.coloris}` : ''}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIDligneCommande(0)}
+                  disabled={createMutation.isPending}
+                  className="ml-auto text-xs text-accent hover:underline underline-offset-2 flex-shrink-0"
+                >
+                  Changer
+                </button>
+              </div>
+              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground pl-6">
+                <Truck className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">{ligneChoisie.fournisseur || '—'} · cde N° {ligneChoisie.IDcommande_fil}</span>
+                <span className="whitespace-nowrap">· {fmtNum(ligneChoisie.reste, 1)} kg attendus</span>
+                {ligneChoisie.reserve > 0 && (
+                  <span className="ml-auto whitespace-nowrap">{fmtNum(ligneChoisie.reserve, 1)} kg réservés clients</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {IDclient === ID_CLIENT_ETS_MALTERRE && sansCommande && (
+            <div className="col-span-full -mt-1 flex items-center justify-between gap-2 rounded-md border border-border/60 bg-zinc-100/80 px-2.5 py-1.5 text-xs text-muted-foreground">
+              <span>Lot sans commande fournisseur (retour, lot fictif…)</span>
+              <button type="button" onClick={() => setSansCommande(false)} className="text-accent hover:underline underline-offset-2">
+                Choisir une commande
+              </button>
+            </div>
+          )}
+
+          {!surCommande && (<>
           <div className="col-span-full">
             <label className="text-xs text-muted-foreground mb-1 block">Fournisseur *</label>
             <SearchableCombobox<FournisseurOption>
@@ -1930,7 +2144,9 @@ function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogP
               }
             />
           </div>
+          </>)}
 
+          {(!surCommande || ligneChoisie) && (<>
           {IDclient > 0 && IDclient !== ID_CLIENT_ETS_MALTERRE && (
             <div className="col-span-full">
               <GereEtmSwitch
@@ -2020,7 +2236,9 @@ function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogP
           <p className="col-span-full text-xs text-muted-foreground">
             Le N° de lot interne est attribué automatiquement à la création.
           </p>
+          </>)}
         </div>
+        )}
 
         {error && (
           <div className="mt-3 flex items-center gap-2 text-sm text-destructive">
@@ -2033,6 +2251,7 @@ function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogP
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={createMutation.isPending}>
             Annuler
           </Button>
+          {IDclient > 0 && (!surCommande || ligneChoisie) && (
           <Button onClick={() => createMutation.mutate()} disabled={!canSubmit || createMutation.isPending}>
             {createMutation.isPending ? (
               <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
@@ -2041,6 +2260,7 @@ function NewStockFilDialog({ open, onOpenChange, onCreated }: NewStockFilDialogP
             )}
             Créer
           </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
