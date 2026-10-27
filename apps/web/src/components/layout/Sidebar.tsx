@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu'
 import { useUser } from '@/contexts/UserContext'
-import { useVisibleMainNavigation, useVisibleSettingsItem } from '@/hooks/useSubmenuFilter'
+import { useVisibleMainNavigation } from '@/hooks/useSubmenuFilter'
 import { AppLogo } from '@etm/components/layout/AppLogo'
 
 interface SidebarProps {
@@ -95,13 +95,8 @@ export function Sidebar({ collapsed, onToggle, className }: SidebarProps) {
     navigate(href)
   }
 
-  // Paramètres is a menu of the Écrans axis like every other (grant
-  // `screen_settings`, Outils hideable); Utilisateurs additionally needs the
-  // EFFECTIVE admin (an admin impersonating someone sees exactly what they
-  // see). The menu disappears when nothing is left. The admin can still
-  // switch back to themselves via the « Voir comme » pill (bottom-left)
-  // button to regain access.
-  const visibleSettings = useVisibleSettingsItem()
+  // Paramètres and Agents IA live in the Console Administration since
+  // 2026-10-27 (profile menu « Administration »).
 
   return (
     <aside
@@ -141,19 +136,6 @@ export function Sidebar({ collapsed, onToggle, className }: SidebarProps) {
           ))}
         </nav>
       </ScrollArea>
-
-      {/* Settings at bottom — only rendered when at least one submenu is
-          visible to the current user (admin-only entries are hidden for non-admins) */}
-      {visibleSettings && (
-        <div className="border-t border-white/10 px-2 py-2">
-          <NavItem
-            item={visibleSettings}
-            collapsed={collapsed}
-            pathname={location.pathname}
-            onNavigate={handleNavigate}
-          />
-        </div>
-      )}
 
       {/* Collapse Toggle */}
       <div className="border-t border-white/10 p-2">

@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   mainNavigation,
-  settingsItem,
   screenAccessMenus,
-  visibleSettingsItem,
   visibleMainNavigation,
   visibleSubmenus,
   canOpenScreen,
@@ -121,11 +119,10 @@ describe('screen access — interaction with the action catalog', () => {
     expect(ids(visibleMainNavigation(withKey))).toEqual(['rapports'])
   })
 
-  it('leaves non-nav routes alone (dashboard, unknown) but gates Paramètres', () => {
+  it('leaves non-nav routes alone (dashboard, unknown)', () => {
     const v = viewer([])
     expect(canOpenScreen('/', v)).toBe(true)
     expect(canOpenScreen('/nulle-part', v)).toBe(true)
-    expect(canOpenScreen('/settings/outils', v)).toBe(false)
   })
 })
 
@@ -137,37 +134,14 @@ describe('screen access — a shop-floor viewer', () => {
   })
 })
 
-describe('Paramètres — a menu of the Écrans axis', () => {
-  const titles = (v: NavAccess) => visibleSettingsItem(v)?.submenus.map((s) => s.title) ?? null
-  const SETTINGS = menuAccessKey('/settings')
-
-  it('shows Outils to a non-admin granted the Paramètres menu, and nothing else', () => {
-    expect(titles(viewer([SETTINGS]))).toEqual(['Outils'])
-    expect(canOpenScreen('/settings/outils', viewer([SETTINGS]))).toBe(true)
+describe('Console Administration — not menus of the ERP (2026-10-27)', () => {
+  it('has no Agents IA nor Paramètres in the navigation, whatever the grants', () => {
+    const v = viewer([...ALL_MENUS, menuAccessKey('/agents-ia'), menuAccessKey('/settings')])
+    expect(ids(visibleMainNavigation(v))).not.toContain('agents-ia')
+    expect(firstVisibleScreenHref('/settings', admin())).toBeNull()
   })
 
-  it('hides the whole menu from a non-admin without the grant, even holding every other menu', () => {
-    expect(titles(viewer(ALL_MENUS))).toBeNull()
-    expect(canOpenScreen('/settings/outils', viewer(ALL_MENUS))).toBe(false)
-  })
-
-  it('drops the menu when its only screen is hidden', () => {
-    const v = viewer([SETTINGS, screenHideKey('/settings/outils')])
-    expect(titles(v)).toBeNull()
-    expect(firstVisibleScreenHref('/settings', v)).toBeNull()
-  })
-
-  it('never opens Utilisateurs to a non-admin, whatever they hold', () => {
-    expect(canOpenScreen('/settings/utilisateurs', viewer([SETTINGS]))).toBe(false)
-    expect(firstVisibleScreenHref('/settings', viewer([SETTINGS]))).toBe('/settings/outils')
-  })
-
-  it('shows both entries to the effective admin', () => {
-    expect(titles(admin())).toEqual(['Utilisateurs', 'Outils'])
-    expect(firstVisibleScreenHref('/settings', admin())).toBe('/settings/utilisateurs')
-  })
-
-  it('is part of the Écrans tree next to the main menus', () => {
-    expect(screenAccessMenus().map((m) => m.id)).toEqual([...ids(mainNavigation), settingsItem.id])
+  it('keeps the Écrans tree to the main navigation', () => {
+    expect(screenAccessMenus().map((m) => m.id)).toEqual(ids(mainNavigation))
   })
 })

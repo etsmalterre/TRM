@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { dashboardItem, type MainMenuItem } from '@/config/navigation'
-import { useVisibleMainNavigation, useVisibleSettingsItem } from '@/hooks/useSubmenuFilter'
+import { useVisibleMainNavigation } from '@/hooks/useSubmenuFilter'
 import { AppLogo } from '@etm/components/layout/AppLogo'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -16,7 +16,6 @@ interface MobileNavProps {
 
 export function MobileNav({ open, onOpenChange }: MobileNavProps) {
   const visibleMain = useVisibleMainNavigation()
-  const visibleSettings = useVisibleSettingsItem()
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -46,17 +45,6 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
               />
             ))}
 
-            {/* Separator */}
-            <div className="my-2 border-t border-white/10" />
-
-            {/* Settings — same entry filter as the sidebar; hidden when
-                the viewer may open none of its screens. */}
-            {visibleSettings && (
-              <MobileNavItem
-                item={visibleSettings}
-                onNavigate={() => onOpenChange(false)}
-              />
-            )}
           </nav>
         </ScrollArea>
       </SheetContent>

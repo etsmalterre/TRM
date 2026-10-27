@@ -328,9 +328,14 @@ Maintenance. API `/api/fournitures-trm` (`routes/fournitures-trm.ts`), règles p
   décision de Vincent, ne pas la modéliser).
 - Droits `edit_fournitures` (catalogue, stock, stock tampon, fournisseurs) et `edit_maintenance` (le métier, le jeu).
 
-## Agents IA — le menu des agents et automates de TRM
+## Agents IA — les agents et automates de TRM
 
-Menu **« Agents IA »** (`screen_agents_ia`, **`seed: false`**) : Agents (`/agents-ia/agents`,
+⚠️ **Plus un menu de TRM depuis le 2026-10-27 : dans la Console Administration**
+(`admin.intra.etsmalterre.com`, repo `admin-malterre`, vue TRM `/agents/trm` et `/automates/trm`),
+réservée aux membres `admin` (ETM `claude_doc/auth_permissions.md` § Console). Les anciennes
+adresses `/agents-ia/*` redirigent (`ConsoleRedirect`). Ce qui suit reste vrai des écrans.
+
+Anciennement menu **« Agents IA »** (`screen_agents_ia`, **`seed: false`**) : Agents (`/agents-ia/agents`,
 « Planning atelier » depuis LIVA #1296) et **Automates** (`/agents-ia/automates`, le Rapport de pointage et le
 Bilan des heures annualisées, venus du menu d'ETM le 2026-10-01). **Les écrans sont ceux
 d'ETM** (`@etm/pages/AgentsIa`, `@etm/pages/Automates`), la seule différence est la prop
@@ -393,8 +398,8 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 7. **Qualité** — Défauts récents, **Retour client** (`/qualite/retour-client`, implemented — the menu’s index redirect, see "Qualité › Retour client" below), Analyse
 8. **Rapports** — **Finance** (`/rapports/finance`, implemented — the menu's only screen, shared verbatim with ETM; see "Rapports › Finance" below). The Production / Lots de fils / État stock fil / Analyse placeholders were removed with it.
 9. **Pointage** — Horaires, Semaines, Prévisionnel, Paie, Salariés (see « Pointage — le menu de l'ERP »).
-10. **Agents IA** — Agents (`/agents-ia/agents`), **Automates** (`/agents-ia/automates`) — ETM's screens, TRM's jobs (see « Agents IA » above).
-11. **Paramètres** — **Utilisateurs** (`/settings/utilisateurs`, implemented, admin-only — see "Paramètres › Utilisateurs" below), **Outils** (`/settings/outils`, given in Écrans › Paramètres — no action key, the API checks the screen grant): the weekly Sage balance import, ETM's `SettingsOutils.tsx` through `@etm` with `basePath="/outils-trm/import-sage"` — edit it in ETM (rules + refusal of an ETM file: ETM `screen_notes.md` § 14). `/settings` lands on the first Paramètres screen the viewer may open (`@etm/pages/SettingsIndex`).
+10. ~~Agents IA~~ and ~~Paramètres~~ — **moved to the Console Administration on 2026-10-27** (`admin.intra.etsmalterre.com`, repo `admin-malterre`, TRM view `/agents/trm`, `/automates/trm`, `/utilisateurs/trm`, `/outils/trm`; membership `admin`, ETM `claude_doc/auth_permissions.md` § Console). Old URLs redirect (`@etm/components/layout/ConsoleRedirect`); the profile menu links to it. What follows describes those screens as they were mounted here.
+11. (former) **Paramètres** — **Utilisateurs** (`/settings/utilisateurs`, implemented, admin-only — see "Paramètres › Utilisateurs" below), **Outils** (`/settings/outils`, given in Écrans › Paramètres — no action key, the API checks the screen grant): the weekly Sage balance import, ETM's `SettingsOutils.tsx` through `@etm` with `basePath="/outils-trm/import-sage"` — edit it in ETM (rules + refusal of an ETM file: ETM `screen_notes.md` § 14). `/settings` lands on the first Paramètres screen the viewer may open (`@etm/pages/SettingsIndex`).
 
 All other screens are `PagePlaceholder`s for now. Legacy references for each domain: `FEN_Gestion_des_OF.wdw`, `FEN_Machines.wdw`, `FEN_Rapport_de_production.wdw`, etc. in `C:\Mes Projets\TRMPROD\` and the main MPS WinDev project (`FI_Planning_Atelier.wdw`, `FEN_Desiderata.wdw` in TRM mode).
 

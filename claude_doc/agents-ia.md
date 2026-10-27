@@ -1,5 +1,11 @@
 # Agents IA (TRM) — `/agents-ia/agents`, `/agents-ia/automates`
 
+> ⚠️ **Since 2026-10-27 these screens live in the Console Administration**
+> (`admin.intra.etsmalterre.com/agents/trm`, `/automates/trm`, repo `admin-malterre`), no longer in
+> TRM's menu; the old URLs redirect. The API side below is unchanged (same mounts, same
+> TRM keys, read from TRM's store by the console's TRM sections), plus the console gate
+> (`exigerConsole`, ETM `lib/console-acces.ts`).
+
 TRM's own « Agents IA » menu since 2026-10-01: the same two screens as ETM's, over
 TRM's own agents and automates. Today TRM has **one agent**, « Planning atelier »
 (LIVA #1296, started from Atelier › Planning only — dossier `atelier-planning.md`), and **two automates**, the

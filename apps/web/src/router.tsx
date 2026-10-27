@@ -128,12 +128,10 @@ const QualiteAnalysePage = createPlaceholder('Analyse', 'Analyse qualité', BarC
 // Charges and Analyse financière widgets already read). Edit it in ETM.
 import { RapportFinance } from '@etm/pages/RapportFinance'
 
-// Agents IA
-// ETM's two screens, imported verbatim; `basePath` points them at TRM's mounts
-// of the same routers, which list only TRM's agents and automates (the pointage
-// report emails) and check TRM's permission store. Edit them in ETM.
-import { AgentsIa } from '@etm/pages/AgentsIa'
-import { Automates } from '@etm/pages/Automates'
+// Agents IA, Paramètres — in the Console Administration since 2026-10-27
+// (admin.intra.etsmalterre.com, repo admin-malterre): their old addresses lead
+// there, TRM's view of each section.
+import { ConsoleRedirect } from '@etm/components/layout/ConsoleRedirect'
 
 // Pointage
 // The office's side of the time clock — port of the WinDev Admin Pointage
@@ -145,18 +143,6 @@ import { PointageSemaines } from '@/pages/PointageSemaines'
 import { PointagePrevisionnel } from '@/pages/PointagePrevisionnel'
 import { PointagePaie } from '@/pages/PointagePaie'
 import { PointageSalaries } from '@/pages/PointageSalaries'
-
-// Settings
-// Utilisateurs — real screen (admin-only): the TRM staff list, Profil cards
-// (email / photo / signature, shared stores with ETM) and the Permissions tab
-// over TRM's own catalog (/api/permissions-trm). Écrans / notifications
-// toggles arrive with the features that need them.
-import { SettingsUtilisateurs } from '@/pages/SettingsUtilisateurs'
-// Outils — ETM's screen, handed TRM's endpoint (`/outils-trm/import-sage`, the
-// import router factory mounted on société 2) and company name. Edit it in ETM.
-// SettingsIndex reads THIS app's settingsItem (its `@/` imports resolve here).
-import { SettingsOutils } from '@etm/pages/SettingsOutils'
-import { SettingsIndex } from '@etm/pages/SettingsIndex'
 
 export const router = createBrowserRouter([
   {
@@ -224,18 +210,13 @@ export const router = createBrowserRouter([
       { path: 'pointage/paie', element: <PointagePaie /> },
       { path: 'pointage/salaries', element: <PointageSalaries /> },
 
-      // Agents IA
-      { path: 'agents-ia', element: <Navigate to="/agents-ia/automates" replace /> },
-      { path: 'agents-ia/agents', element: <AgentsIa basePath="/agents-ia-trm" /> },
-      { path: 'agents-ia/automates', element: <Automates basePath="/automates-trm" /> },
-
-      // Settings (admin-only sub-routes)
-      { path: 'settings', element: <SettingsIndex /> },
-      { path: 'settings/utilisateurs', element: <SettingsUtilisateurs /> },
-      {
-        path: 'settings/outils',
-        element: <SettingsOutils basePath="/outils-trm/import-sage" societeNom="Tricotage Malterre" />,
-      },
+      // Agents IA, Paramètres — the Console Administration (2026-10-27).
+      { path: 'agents-ia', element: <ConsoleRedirect to="/automates/trm" /> },
+      { path: 'agents-ia/agents', element: <ConsoleRedirect to="/agents/trm" /> },
+      { path: 'agents-ia/automates', element: <ConsoleRedirect to="/automates/trm" /> },
+      { path: 'settings', element: <ConsoleRedirect to="/utilisateurs/trm" /> },
+      { path: 'settings/utilisateurs', element: <ConsoleRedirect to="/utilisateurs/trm" /> },
+      { path: 'settings/outils', element: <ConsoleRedirect to="/outils/trm" /> },
     ],
   },
 ])

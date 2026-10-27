@@ -7,8 +7,6 @@ import {
   ShieldCheck,
   FileBarChart,
   Clock,
-  Bot,
-  Settings,
   Package,
 } from 'lucide-react'
 import { BobineIcon } from '@/components/icons/BobineIcon'
@@ -97,8 +95,7 @@ export function canOpenMenu(menuHref: string, opts: NavAccess): boolean {
 
 /** The main navigation as this viewer sees it: menus they hold the grant for,
  *  each carrying only the submenus they may open, and menus left with no
- *  submenu at all dropped entirely (same rule the Paramètres menu already
- *  follows when its only entry is admin-only). */
+ *  submenu at all dropped entirely. */
 export function visibleMainNavigation(opts: NavAccess): MainMenuItem[] {
   const out: MainMenuItem[] = []
   for (const item of mainNavigation) {
@@ -110,20 +107,12 @@ export function visibleMainNavigation(opts: NavAccess): MainMenuItem[] {
   return out
 }
 
-/** Paramètres as this viewer sees it, or null when nothing is left. Same
- *  rules as any other menu: the `screen_settings` grant, then its screens
- *  (Utilisateurs stays admin-only on top of that). */
-export function visibleSettingsItem(opts: NavAccess): MainMenuItem | null {
-  if (!canOpenMenu(settingsItem.href, opts)) return null
-  const submenus = visibleSubmenus(settingsItem.submenus, opts)
-  return submenus.length > 0 ? { ...settingsItem, submenus } : null
-}
-
-/** Every menu of the Écrans axis: the main navigation plus Paramètres, which
- *  the sidebar renders apart at the bottom. A function because `settingsItem`
- *  and `mainNavigation` are declared further down this file. */
+/** Every menu of the Écrans axis in this ERP: the main navigation. Paramètres
+ *  and Agents IA left for the Console Administration on 2026-10-27
+ *  (admin.intra…, repo admin-malterre), which draws TRM's tree from the API
+ *  manifest. Kept as a function for the shared Utilisateurs screen's default. */
 export function screenAccessMenus(): MainMenuItem[] {
-  return [...mainNavigation, settingsItem]
+  return [...mainNavigation]
 }
 
 /** Route of the first screen the viewer may open under a menu, or null. Used
@@ -165,22 +154,7 @@ export const dashboardItem: MainMenuItem = {
 /** Secondary dashboards live at `/tableau-de-bord/<id>`; the primary at `/`. */
 export const DASHBOARD_ROUTE_PREFIX = '/tableau-de-bord'
 
-// Settings - standalone item at bottom
-export const settingsItem: MainMenuItem = {
-  id: 'settings',
-  title: 'Paramètres',
-  icon: Settings,
-  href: '/settings',
-  submenus: [
-    { title: 'Utilisateurs', href: '/settings/utilisateurs', adminOnly: true },
-    // Import de la balance Sage — ETM's screen through `@etm`, TRM's books
-    // (API /outils-trm/import-sage). Given like any screen, in Écrans (menu
-    // Paramètres); the API checks the same grant. No action key.
-    { title: 'Outils', href: '/settings/outils' },
-  ],
-}
-
-// Main navigation items (between dashboard and settings).
+// Main navigation items (below the dashboard).
 // Order mirrors the legacy WinDev MPS main menu in Tricotage Malterre mode:
 // Clients, Fils, Tombé Métier, Production, Atelier, Qualité, Rapports.
 export const mainNavigation: MainMenuItem[] = [
@@ -300,20 +274,9 @@ export const mainNavigation: MainMenuItem[] = [
       { title: 'Salariés', href: '/pointage/salaries' },
     ],
   },
-  {
-    // Agents IA — ETM's two screens over TRM's own agents and automates
-    // (/api/agents-ia-trm, /api/automates-trm): the pointage report emails
-    // since 2026-10-01. Granted person by person (seed: false in ETM's
-    // screen-keys-trm.ts); piloting needs `edit_agents_ia`.
-    id: 'agents-ia',
-    title: 'Agents IA',
-    icon: Bot,
-    href: '/agents-ia',
-    submenus: [
-      { title: 'Agents', href: '/agents-ia/agents' },
-      { title: 'Automates', href: '/agents-ia/automates' },
-    ],
-  },
+  // Agents IA and Paramètres moved to the Console Administration
+  // (admin.intra.etsmalterre.com) on 2026-10-27; their old URLs redirect
+  // there (router.tsx, ConsoleRedirect).
 ]
 
 // Helper to find active menu based on current path
@@ -321,10 +284,6 @@ export function getActiveMenu(pathname: string): MainMenuItem | undefined {
   // Check dashboard — `/` plus every secondary dashboard of the current user
   if (pathname === dashboardItem.href || pathname.startsWith(DASHBOARD_ROUTE_PREFIX)) {
     return dashboardItem
-  }
-  // Check settings
-  if (pathname === settingsItem.href || pathname.startsWith(settingsItem.href + '/')) {
-    return settingsItem
   }
   // Check main navigation
   return mainNavigation.find(
@@ -376,8 +335,4 @@ export const routeTitles: Record<string, string> = {
   // Rapports
   '/rapports': 'Rapports',
   '/rapports/finance': 'Finance',
-  // Settings
-  '/settings': 'Paramètres',
-  '/settings/utilisateurs': 'Utilisateurs',
-  '/settings/outils': 'Outils',
 }
