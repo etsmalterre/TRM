@@ -415,3 +415,74 @@ export const enrolerAppareil = (code: string) =>
     method: 'POST',
     body: JSON.stringify({ code }),
   })
+
+// ── Tâches d'atelier (/api/atelier/taches, API lib/taches-atelier.ts) ──
+// General factory jobs (cobwebs, floors…). A task stays on the list; « Fait »
+// adds a dated réalisation with its team. Régleurs edit the list.
+
+export interface MembreEquipe {
+  id: number
+  prenom: string
+  nom: string
+}
+
+export interface RealisationTache {
+  id: number
+  fait_le_ms: number
+  declare_par: number
+  /** Until then the declarer may cancel it (a wrong tap). */
+  annulable_jusqua_ms: number
+  /** Declarer first, then the coéquipiers. */
+  equipe: MembreEquipe[]
+}
+
+export interface Tache {
+  id: number
+  libelle: string
+  description: string
+  /** Set by a régleur; null = no frequency, the tag stays grey. */
+  frequence_jours: number | null
+  nb_realisations: number
+  derniere_ms: number | null
+  /** Whole days since the last réalisation (server clock); null = never done. */
+  age_jours: number | null
+  /** Tag colour (API lib/taches-atelier.ts `niveauTache`): red from the
+   *  frequency, amber from frequency − 10 %, green below; null without one. */
+  niveau: 'rouge' | 'ambre' | 'vert' | null
+  derniere: RealisationTache | null
+}
+
+export interface TacheEdition {
+  IDbonnetier: number
+  libelle: string
+  description: string
+  frequence_jours: number | null
+}
+
+export const fetchTaches = () => apiFetch<Tache[]>('/atelier/taches')
+
+export const fetchEquipeTaches = () => apiFetch<Bonnetier[]>('/atelier/taches/equipe')
+
+export const fetchRealisationsTache = (id: number) =>
+  apiFetch<RealisationTache[]>(`/atelier/taches/${id}/realisations`)
+
+export const creerTache = (body: TacheEdition) =>
+  apiFetch<{ id: number }>('/atelier/taches', { method: 'POST', body: JSON.stringify(body) })
+
+export const modifierTache = (id: number, body: TacheEdition) =>
+  apiFetch<{ ok: true }>(`/atelier/taches/${id}`, { method: 'PUT', body: JSON.stringify(body) })
+
+export const supprimerTache = (id: number, IDbonnetier: number) =>
+  apiFetch<void>(`/atelier/taches/${id}`, { method: 'DELETE', body: JSON.stringify({ IDbonnetier }) })
+
+export const declarerTacheFaite = (id: number, body: { IDbonnetier: number; coequipiers: number[] }) =>
+  apiFetch<{ id: number; fait_le_ms: number }>(`/atelier/taches/${id}/realisations`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const annulerRealisation = (id: number, realisationId: number, IDbonnetier: number) =>
+  apiFetch<void>(`/atelier/taches/${id}/realisations/${realisationId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ IDbonnetier }),
+  })

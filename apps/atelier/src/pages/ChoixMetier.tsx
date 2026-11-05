@@ -39,8 +39,9 @@
 import { useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, AlertCircle, ChevronRight, Wrench, Pause, Play, ArrowRight } from 'lucide-react'
-import { fetchMachines, type Machine } from '@/lib/atelier-api'
+import { Loader2, AlertCircle, ChevronRight, Wrench, Pause, Play, ArrowRight, ListChecks } from 'lucide-react'
+import { fetchMachines, fetchTaches, type Machine } from '@/lib/atelier-api'
+import { TACHES_QUERY_KEY } from '@/pages/Taches'
 import { depuis } from '@/lib/depuis'
 import { PosteHeader } from '@/components/layout/PosteHeader'
 import { Segment } from '@/components/atelier/Segment'
@@ -86,6 +87,12 @@ export function ChoixMetier() {
   }, [data, regleur])
 
   const liste = voirActives ? actives : inactives
+
+  // Tâches d'atelier (pages/Taches.tsx): what is due, on the button below —
+  // red = overdue (to do now), amber = due soon. A plain total said nothing.
+  const { data: taches } = useQuery({ queryKey: TACHES_QUERY_KEY, queryFn: fetchTaches })
+  const tachesRouges = taches?.filter((t) => t.niveau === 'rouge').length ?? 0
+  const tachesAmbres = taches?.filter((t) => t.niveau === 'ambre').length ?? 0
 
   function ouvrir(m: Machine) {
     // The legacy buzzed on a métier; a light tick keeps the habit.
@@ -146,6 +153,40 @@ export function ChoixMetier() {
           <MetierTile key={m.IDmachine} m={m} regleur={regleur} onOpen={() => ouvrir(m)} />
         ))}
       </main>
+
+      {/* Tâches d'atelier — the general factory jobs for when few métiers run
+          (Vincent, 2026-11-05). Below the list, never between tiles: the
+          métier stays the first thing this screen is for. The counters say
+          what is due: red pill = overdue, amber = due soon, and the button
+          takes the alert tile's frame while anything is red (red = something
+          to do now). Nothing due = no counter. */}
+      <div className="flex-shrink-0 px-3 pb-2 pt-1">
+        <button
+          type="button"
+          onClick={() => {
+            vibrer('tick')
+            navigate('/taches')
+          }}
+          className={cn(
+            'w-full h-14 rounded-xl border bg-card shadow-sm px-4 flex items-center gap-3 active:bg-muted transition-colors',
+            tachesRouges > 0 ? 'border-destructive/50 bg-destructive/5' : 'border-border',
+          )}
+        >
+          <ListChecks className={cn('h-6 w-6', tachesRouges > 0 ? 'text-destructive' : 'text-primary')} />
+          <span className="flex-1 text-left text-lg font-semibold">Tâches</span>
+          {tachesRouges > 0 && (
+            <Pastille teinte="rouge" className="h-7 px-2.5 text-sm font-semibold" title="Tâches en retard">
+              {tachesRouges} à faire
+            </Pastille>
+          )}
+          {tachesAmbres > 0 && (
+            <Pastille teinte="ambre" className="h-7 px-2.5 text-sm font-semibold" title="Tâches bientôt dues">
+              {tachesAmbres}
+            </Pastille>
+          )}
+          <ChevronRight className="h-6 w-6 text-muted-foreground" />
+        </button>
+      </div>
 
       {/* The build's version, on a thin white strip of its own under the list.
           It used to float over the bottom-right corner and sat on top of the

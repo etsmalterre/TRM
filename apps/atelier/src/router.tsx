@@ -5,6 +5,7 @@ import { ReglageMachine } from '@/pages/ReglageMachine'
 import { Consigne } from '@/pages/Consigne'
 import { Historique } from '@/pages/Historique'
 import { FilsOf } from '@/pages/FilsOf'
+import { Taches } from '@/pages/Taches'
 
 // Six screens once you are identified. The picker is not a route — it is the
 // gate in main.tsx (§45.4), so there is no URL that reaches the app without an
@@ -20,5 +21,7 @@ export const router = createBrowserRouter([
   { path: '/metier/:machineId/reglage', element: <ReglageMachine /> },
   { path: '/metier/:machineId/historique', element: <Historique /> },
   { path: '/metier/:machineId/fils', element: <FilsOf /> },
+  // Tâches d'atelier: general factory jobs, not keyed by a métier.
+  { path: '/taches', element: <Taches /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ])
