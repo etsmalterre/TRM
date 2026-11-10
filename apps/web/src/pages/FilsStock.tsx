@@ -537,23 +537,23 @@ export function FilsStock() {
   const lotCount = filteredSorted.length
   const totalStock = filteredSorted.reduce((sum, r) => sum + (r.stock ?? 0), 0)
 
-  // « Imprimer » — the feuille d'inventaire (LIVA #1357): the lots on the
+  // « Pointage » — the « Pointage stock de fil » sheet (LIVA #1357): the lots on the
   // shelves (never an archived one) among what the screen shows. Unsearched,
   // the API prints every disponible lot itself; searched, it gets the ids and
   // the search, printed on the sheet so a partial count says it is partial.
-  const inventaire = useMemo(() => {
+  const pointage = useMemo(() => {
     const term = deferredSearch.trim()
     const narrowed = searchChips.length > 0 || term !== ''
     const lots = filteredSorted.filter((r) => !r.termine)
     if (lots.length === 0) return null
-    if (!narrowed) return `${API_URL}/stock/fil-trm/inventaire`
+    if (!narrowed) return `${API_URL}/stock/fil-trm/pointage`
     const labelOf = (k: SearchFieldKey | null) => SEARCH_FIELDS.find((f) => f.key === k)?.label
     const filtre = [
       ...searchChips.map((c) => (labelOf(c.field) ? `${labelOf(c.field)} : ${c.value}` : c.value)),
       ...(term ? [term] : []),
     ].join(' · ')
     const params = new URLSearchParams({ ids: lots.map((r) => r.IDstock_fil).join(','), filtre })
-    return `${API_URL}/stock/fil-trm/inventaire?${params}`
+    return `${API_URL}/stock/fil-trm/pointage?${params}`
   }, [filteredSorted, searchChips, deferredSearch])
 
   // Drawer dirty tracking — populated by the drawer via refs (§28 ref-bridge).
@@ -618,13 +618,13 @@ export function FilsStock() {
         <Button
           size="sm"
           variant="outline"
-          onClick={() => inventaire && window.open(inventaire, '_blank')}
-          disabled={!inventaire}
+          onClick={() => pointage && window.open(pointage, '_blank')}
+          disabled={!pointage}
           className="flex-shrink-0 order-2 sm:order-3"
-          title="Imprimer la feuille d'inventaire"
+          title="Pointage"
         >
           <Printer className="h-3.5 w-3.5 sm:mr-1" />
-          <span className="hidden sm:inline">Imprimer</span>
+          <span className="hidden sm:inline">Pointage</span>
         </Button>
 
         {canCreate && (
