@@ -64,12 +64,17 @@ le poste d'un métier sans OF n'est plus un état vide.
   OF** (porté à part) ; l'historique par métier n'existe pas dans le legacy.
 
 **Ce qui manque encore, dans l'ordre où ça compte :**
-- ⚠️ **Pas d'annulation**, alors que le legacy en a une (`IMG_Annuler` sur la dernière
-  action). Une mauvaise « Terminer OF » n'est donc pas rattrapable depuis le téléphone :
-  elle ferme la pièce, arrête l'OF et **le termine** (`terminerOf()` de
-  `lib/of-queue-trm.ts` — `est_termine = 1`, re-rang, activation du suivant s'il a
-  « Activation auto » : la même voie que le bouton de l'ERP). Jusqu'au 2026-09-07 elle
-  reproduisait l'`AutoActivation()` legacy, qui ne bascule qu'`est_actif` (LIVA #1128).
+- **« Supprimer ma dernière action »** (Vincent 2026-11-10, port d'`IMG_Annuler` de
+  `FEN_Action_Machine`, corbeille du bandeau « Dernière action » + confirmation) : **par métier**,
+  la dernière action du métier si elle est **la sienne**, un **Défaut ou un Nettoyage**, sur la
+  **pièce en cours** — **une seule fois** : la suppression note les plafonds d'ids de la pièce
+  (table PG `atelier_annulation`, migration `0073`), toute action alors présente reste à vie
+  (le legacy, lui, laissait remonter en chaîne). Règle pure `lib/annulation-atelier.ts` (API,
+  testée), `annulable_par` sur `derniere_action`, route `DELETE /atelier/of/:id/derniere-action`.
+  Un Nettoyage supprimé remet le poids de la pièce à 0 s'il n'en reste aucun. ⚠️ **Fin de pièce,
+  Terminer / Dernière pièce, Lancement, pause ne se suppriment jamais** : une mauvaise
+  « Terminer OF » ferme la pièce, arrête l'OF et **le termine** (`terminerOf()` — re-rang,
+  activation du suivant) ; elle se rattrape dans l'ERP (« Réactiver l'OF »).
 - **Un téléphone n'écrit que s'il est enrôlé** (2026-09-15, § « Enrôlement des
   téléphones » plus bas), et **l'enrôlement suffit** : le droit `saisie_atelier` a été
   retiré le même jour (décision de Vincent — seul un admin émet un code, personne n'enrôle
@@ -631,3 +636,60 @@ dans son propre cookie. Conception : plan §3.2–3.4 ; décision de Vincent du 
   (5176 est déjà dans le `CORS_ORIGIN` de l'API ; 5175 reste à l'ERP). `host: true` est
   activé pour qu'un vrai téléphone du parc puisse taper le serveur de dev sur le LAN.
 
+
+## Tâches (récurrentes 2026-11-05, ponctuelles 2026-11-10)
+
+Écran `/taches` (`pages/Taches.tsx`, feuilles partagées `components/atelier/TacheSheets.tsx`),
+bouton « Tâches » sous la liste des métiers. API `ETM/apps/api/src/routes/atelier-taches.ts`,
+règles pures et testées `lib/taches-atelier.ts`, tables PostgreSQL (migrations `0061`, `0062`,
+`0072`). Deux catégories :
+
+- **Récurrentes** : travaux généraux de l'atelier, permanents et collectifs. « Fait » ajoute une
+  réalisation datée avec son équipe, la tâche reste. Seul un régleur crée / modifie / supprime
+  (archive). Fréquence facultative : rouge dès F jours, ambre dès F − 10 %.
+- **Ponctuelles** (décision Vincent 2026-11-10) : une demande adressée à un **groupe**
+  (« bonnetiers » ou « régleurs »), jamais à une personne. Tout le monde en crée.
+  ⚠️ **Une demande d'un bonnetier aux régleurs arrive SANS échéance et rouge** : le premier
+  régleur la date (API 400 si le bonnetier en met une). Toutes les autres sont datées à la
+  création (aujourd'hui → 30 j). Neutre jusqu'à l'échéance, **rouge le lendemain**, et
+  ⚠️ **rouge seulement pour le groupe destinataire** — le créateur qui attend l'autre groupe la
+  voit neutre (règle rouge/ambre). ⚠️ **Un bonnetier qui a envoyé une demande aux régleurs ne
+  peut plus rien y faire** (Vincent 2026-11-10) : ni Fait, ni report, ni abandon, ni retouche
+  du libellé — sa carte (« Mes demandes ») n'est **pas cliquable** : date d'envoi et échéance en cours (`suiviSeul` côté écran, `actions`
+  vide côté API). L'onglet « Mes demandes » est **rangé sous « Pour les régleurs » / « Pour les
+  bonnetiers »** : la carte n'y porte plus que « Envoyée le … » et l'échéance (ni visage ni prénom). Un régleur garde la main sur ce qu'il a envoyé aux bonnetiers. Sorties : Fait (ferme), Repousser (nouvelle date + motif
+  obligatoire), Abandonner (motif obligatoire) ; jamais supprimée. ⚠️ **Celui qui fixe l'échéance
+  est le seul à la bouger** (Vincent 2026-11-10, `actionsPonctuelle`) : pour les bonnetiers, le
+  créateur seul repousse / abandonne, les autres n'ont que Fait ; pour les régleurs, ce sont les
+  régleurs (ils la datent). ⚠️ **Faite, elle disparaît de
+  toutes les listes à l'instant** (Vincent 2026-11-10 : une liste vide est l'objectif) ; seule une
+  demande **abandonnée** reste 7 jours dans « Mes demandes » de son créateur, avec sa raison.
+- ⚠️ **La liste dépend de qui regarde** : `GET /atelier/taches?moi=<IDbonnetier>` rend la couleur
+  et les `actions` permises (`actionsPonctuelle`) ; clé React Query `tachesQueryKey(moi)`, préfixe
+  `TACHES_QUERY_KEY` pour invalider.
+- **Trois onglets « Récurrentes · Ponctuelles · Mes demandes »** (Vincent 2026-11-10, composant
+  `Segment compact`, dans l'URL `?vue=recurrentes|ponctuelles|mes-demandes`, Récurrentes en premier
+  et par défaut ; « À faire » essayé et retiré : les récurrentes aussi sont à faire).
+  « Ponctuelles » = ce que mon groupe doit faire (rouge possible, point rouge sur l'onglet), rangé
+  **« Demandées par les régleurs » d'abord** (plus importantes), puis « par les bonnetiers »
+  (`cree_par_regleur` sur la liste).
+  « Mes demandes » = **tout ce que j'ai envoyé**, quel que soit le groupe, + mes demandes abandonnées de
+  la semaine, rangé sous « Pour les régleurs / Pour les bonnetiers », **jamais rouge** (attendre
+  n'est pas une action). **Pour un bonnetier, aucune carte de « Mes demandes » n'est cliquable** :
+  c'est un suivi (titre + pastille d'état en haut à droite, « Envoyée le … »), il agit depuis
+  « Ponctuelles » ; un régleur garde ses cartes cliquables. Une demande à son propre groupe est donc **aux deux endroits**, comme un
+  mail envoyé à une liste dont on fait partie. « Nouvelle tâche » : un bonnetier ne l'a pas sur
+  Récurrentes ; le groupe proposé suit l'onglet (Ponctuelles → le mien, Mes demandes → l'autre).
+- **Une carte = une seule cible** (Vincent 2026-11-10) : pas de bouton « Fait » sur la carte ; le
+  tap ouvre la fiche (`DetailSheet`) : pour une récurrente sa fréquence et son historique, pour une
+  ponctuelle **seulement son échéance** (ni groupe ni historique, retirés) ; puis Fait / actions,
+  « Modifier » si permis, pas d'« Annuler » sur la carte : après « Fait », un bandeau « Bravo, c'est fait ! » + « Annuler »
+  de 8 s (`BandeauFait`, sur Tâches et la liste des métiers) — l'API garde sa fenêtre de 10 min. Carte ponctuelle : « (visage) Créée par X
+  le … » — jamais le groupe, toujours le sien sur cet onglet.
+- **Le rouge s'impose** (`TachesRougesGate` sur la liste des métiers) : une feuille sans croix par
+  tâche rouge **que l'on peut bouger** (`doitTraiterRouge` : son créateur pour les bonnetiers, les
+  régleurs pour eux) ; les autres voient la carte rouge et peuvent la faire. ⚠️ « Plus tard » la masque 30 min pour cette personne (en mémoire,
+  rien n'est tracé) : **la saisie de production n'est jamais bloquée**.
+- Chaque datation, report et abandon = une ligne `tache_atelier_evenement` (qui, quand, ancienne
+  / nouvelle date, code + texte du motif). Aucun écran ne les lit (l'historique de la fiche ponctuelle a été retiré) : Vincent
+  les exploitera plus tard, en base.

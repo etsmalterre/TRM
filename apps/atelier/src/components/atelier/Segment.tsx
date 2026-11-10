@@ -6,6 +6,9 @@
 // `ton="destructive"` is the consigne's segment: the consigne is identified by
 // the red warning triangle everywhere it is named (2026-09-15), so its tab is
 // red when chosen and carries the red triangle when not.
+//
+// `compact` is for a bar of three (the Tâches tabs): smaller text, never
+// wrapping — « Mes demandes » broke onto two lines at phone width.
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -14,6 +17,7 @@ export function Segment({
   count,
   icone,
   ton,
+  compact,
   active,
   onClick,
 }: {
@@ -21,6 +25,7 @@ export function Segment({
   count?: number
   icone?: ReactNode
   ton?: 'destructive'
+  compact?: boolean
   active: boolean
   onClick: () => void
 }) {
@@ -30,7 +35,8 @@ export function Segment({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        'flex-1 h-11 rounded-md text-base font-medium transition-colors inline-flex items-center justify-center gap-1.5',
+        'flex-1 h-11 rounded-md font-medium transition-colors inline-flex items-center justify-center',
+        compact ? 'min-w-0 px-1 text-sm whitespace-nowrap gap-1' : 'text-base gap-1.5',
         ton === 'destructive'
           ? active
             ? 'bg-destructive text-destructive-foreground shadow-sm'
@@ -43,7 +49,7 @@ export function Segment({
       {icone}
       {label}
       {count !== undefined && (
-        <span className={cn('ml-1.5 text-sm tabular-nums', active ? 'text-accent-foreground/70' : 'text-muted-foreground/70')}>
+        <span className={cn(compact ? 'ml-0.5 text-xs tabular-nums' : 'ml-1.5 text-sm tabular-nums', active ? 'text-accent-foreground/70' : 'text-muted-foreground/70')}>
           {count}
         </span>
       )}

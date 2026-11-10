@@ -40,8 +40,10 @@ import { useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, AlertCircle, ChevronRight, Wrench, Pause, Play, ArrowRight, ListChecks } from 'lucide-react'
-import { fetchMachines, fetchTaches, type Machine } from '@/lib/atelier-api'
-import { TACHES_QUERY_KEY } from '@/pages/Taches'
+import { fetchMachines, type Machine } from '@/lib/atelier-api'
+import { useTaches } from '@/pages/Taches'
+import { TachesRougesGate } from '@/components/atelier/TachesRougesGate'
+import { BandeauFait } from '@/components/atelier/BandeauFait'
 import { depuis } from '@/lib/depuis'
 import { PosteHeader } from '@/components/layout/PosteHeader'
 import { Segment } from '@/components/atelier/Segment'
@@ -89,8 +91,9 @@ export function ChoixMetier() {
   const liste = voirActives ? actives : inactives
 
   // Tâches d'atelier (pages/Taches.tsx): what is due, on the button below —
-  // red = overdue (to do now), amber = due soon. A plain total said nothing.
-  const { data: taches } = useQuery({ queryKey: TACHES_QUERY_KEY, queryFn: fetchTaches })
+  // red = to do now (overdue récurrente; ponctuelle of my group undated or
+  // past its date), amber = due soon. A plain total said nothing.
+  const { data: taches } = useTaches()
   const tachesRouges = taches?.filter((t) => t.niveau === 'rouge').length ?? 0
   const tachesAmbres = taches?.filter((t) => t.niveau === 'ambre').length ?? 0
 
@@ -187,6 +190,10 @@ export function ChoixMetier() {
           <ChevronRight className="h-6 w-6 text-muted-foreground" />
         </button>
       </div>
+
+      {/* The red ponctuelles of this person, imposed (Vincent 2026-11-10). */}
+      <TachesRougesGate />
+      <BandeauFait />
 
       {/* The build's version, on a thin white strip of its own under the list.
           It used to float over the bottom-right corner and sat on top of the

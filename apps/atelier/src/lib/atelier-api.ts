@@ -167,6 +167,11 @@ export interface DerniereAction {
   detail: string
   date_ms: number | null
   IDbonnetier: number
+  /** Which row it is (API lib/annulation-atelier.ts). */
+  source: 'evenement' | 'defaut'
+  ref_id: number
+  /** Who may delete it right now — its author, once; null otherwise. */
+  annulable_par: number | null
 }
 
 export interface OfContexte {
@@ -407,6 +412,13 @@ export const fetchAppareil = async (): Promise<Appareil | null> => {
 
 /** Whether an admin has an enrolment code pending right now — a boolean,
  *  never the code. */
+/** « Supprimer ma dernière action » — the server re-checks the whole rule. */
+export const supprimerDerniereAction = (ofId: number, IDbonnetier: number) =>
+  apiFetch<{ ok: true }>(`/atelier/of/${ofId}/derniere-action`, {
+    method: 'DELETE',
+    body: JSON.stringify({ IDbonnetier }),
+  })
+
 export const fetchEnrolementEnAttente = () =>
   apiFetch<{ enAttente: boolean }>('/atelier/appareils/enrolement-en-attente')
 
@@ -417,8 +429,10 @@ export const enrolerAppareil = (code: string) =>
   })
 
 // ── Tâches d'atelier (/api/atelier/taches, API lib/taches-atelier.ts) ──
-// General factory jobs (cobwebs, floors…). A task stays on the list; « Fait »
-// adds a dated réalisation with its team. Régleurs edit the list.
+// Two categories. « Récurrente »: general factory jobs (cobwebs, floors…) that
+// stay on the list, « Fait » adds a dated réalisation with its team, régleurs
+// edit the list. « Ponctuelle » (Vincent 2026-11-10): a one-off request to a
+// GROUP (bonnetiers / régleurs) with a due date, closed by Fait or Abandonner.
 
 export interface MembreEquipe {
   id: number
@@ -436,20 +450,41 @@ export interface RealisationTache {
   equipe: MembreEquipe[]
 }
 
+export type GroupeTache = 'bonnetiers' | 'regleurs'
+export type ActionPonctuelle = 'fait' | 'echeance' | 'reporter' | 'abandonner' | 'modifier'
+
 export interface Tache {
   id: number
   libelle: string
   description: string
+  categorie: 'recurrente' | 'ponctuelle'
   /** Set by a régleur; null = no frequency, the tag stays grey. */
   frequence_jours: number | null
   nb_realisations: number
   derniere_ms: number | null
   /** Whole days since the last réalisation (server clock); null = never done. */
   age_jours: number | null
-  /** Tag colour (API lib/taches-atelier.ts `niveauTache`): red from the
-   *  frequency, amber from frequency − 10 %, green below; null without one. */
+  /** Tag colour (API lib/taches-atelier.ts). Récurrente (`niveauTache`): red
+   *  from the frequency, amber from frequency − 10 %, green below; null
+   *  without one. Ponctuelle (`niveauPonctuelle`, depends on who asks): red
+   *  when undated or past its date FOR ITS GROUP, null otherwise. */
   niveau: 'rouge' | 'ambre' | 'vert' | null
   derniere: RealisationTache | null
+  // Ponctuelle only (null / 0 / [] on a récurrente).
+  groupe: GroupeTache | null
+  /** ISO date « au plus tard le »; null = not dated yet (régleurs' to set). */
+  echeance: string | null
+  cree_par: MembreEquipe | null
+  /** The creator is a régleur (his requests are listed first). */
+  cree_par_regleur: boolean | null
+  cree_le_ms: number
+  cloture: 'faite' | 'abandonnee' | null
+  cloturee_le_ms: number | null
+  cloturee_par: MembreEquipe | null
+  motif_abandon: string | null
+  nb_reports: number
+  /** What the asking bonnetier may do on it (server rule `actionsPonctuelle`). */
+  actions: ActionPonctuelle[]
 }
 
 export interface TacheEdition {
@@ -457,9 +492,37 @@ export interface TacheEdition {
   libelle: string
   description: string
   frequence_jours: number | null
+  categorie?: 'recurrente' | 'ponctuelle'
+  groupe?: GroupeTache | null
+  echeance?: string | null
 }
 
-export const fetchTaches = () => apiFetch<Tache[]>('/atelier/taches')
+/** Mirror of the API's motif codes (lib/taches-atelier.ts). */
+export const MOTIFS_REPORT = {
+  temps: 'Pas eu le temps',
+  piece: 'En attente de matériel',
+  personne: 'En attente de quelqu’un',
+  autre: 'Autre',
+} as const
+export const MOTIFS_ABANDON = {
+  inutile: 'Plus besoin',
+  deja: 'Déjà réglé autrement',
+  impossible: 'Pas faisable',
+  autre: 'Autre',
+} as const
+
+/** `moi` = who looks: his group's ponctuelles and the ones he created come
+ *  with the standing tasks, coloured for him. */
+export const fetchTaches = (moi: number | null) =>
+  apiFetch<Tache[]>(moi ? `/atelier/taches?moi=${moi}` : '/atelier/taches')
+
+export const echeanceTache = (
+  id: number,
+  body: { IDbonnetier: number; echeance: string; motif_code: string | null; motif: string },
+) => apiFetch<{ ok: true }>(`/atelier/taches/${id}/echeance`, { method: 'POST', body: JSON.stringify(body) })
+
+export const abandonnerTache = (id: number, body: { IDbonnetier: number; motif_code: string; motif: string }) =>
+  apiFetch<{ ok: true }>(`/atelier/taches/${id}/abandon`, { method: 'POST', body: JSON.stringify(body) })
 
 export const fetchEquipeTaches = () => apiFetch<Bonnetier[]>('/atelier/taches/equipe')
 

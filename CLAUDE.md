@@ -117,7 +117,9 @@ depuis un téléphone enrôlé. API `ETM/apps/api/src/routes/atelier.ts`, réuti
 `lib/production-trm.ts`. Conception : `~/.claude/plans/atelier-malterre.md`.
 **Dossier complet : `claude_doc/atelier-pwa.md`** — à lire avant tout travail dessus.
 
-- ⚠️ **Pas d'annulation** (le legacy en a une).
+- **« Supprimer ma dernière action »** (2026-11-10) : par métier, la sienne, Défaut ou Nettoyage
+  de la pièce en cours, **une seule fois** (pas de chaîne, table `atelier_annulation`) ; jamais une
+  fin de pièce ni une clôture d'OF. Dossier § « Supprimer ma dernière action ».
 - **Les téléphones sont ENRÔLÉS (2026-09-15)** : un téléphone n'écrit que s'il porte son
   cookie `mps_appareil`, émis une fois contre un code à 6 chiffres (10 min, usage unique)
   généré dans Paramètres › Utilisateurs › **Appareils** ; store `data/appareils-atelier.json`
@@ -188,6 +190,11 @@ depuis un téléphone enrôlé. API `ETM/apps/api/src/routes/atelier.ts`, réuti
   est la spec **bonnetier** (instantané du 24/03/2026) et ⚠️ **`Android\gen\Compile\` est
   le build RÉGLEUR** (`Appli_Regleur`, 25/05/2026, avec `FEN_Reglage_Machine` et
   `FEN_Historique`) — les blocs `<COMPILE SI Appli_Regleur>` du build bonnetier sont vides.
+- **Tâches (`/taches`) : récurrentes + ponctuelles** (2026-11-10). Onglets Récurrentes ·
+  Ponctuelles · Mes demandes ; une ponctuelle vise un **groupe** (bonnetiers / régleurs), jamais
+  une personne. ⚠️ **Celui qui fixe l'échéance est le seul à la bouger** (règle API
+  `actionsPonctuelle`), le rouge n'est imposé (`TachesRougesGate`) qu'à lui, et **une tâche faite
+  quitte toutes les listes** (undo = bandeau 8 s). Dossier § « Tâches ».
 - **Côté régleur (2026-09-08)** : liste avec état / alerte (`?regleur=1`), fiche de réglage
   + « Lancer OF », consigne écrite depuis le téléphone, fil `message_of`. **Le rôle vient du
   téléphone enrôlé** (identité fixe, ci-dessus) depuis le 2026-09-15 — hors « Régleur login »

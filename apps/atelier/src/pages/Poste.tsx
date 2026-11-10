@@ -8,7 +8,7 @@
 // defaut_qualite and the ordre_fabrication timestamps, from an enrolled phone
 // (enrolment is the right to write). There is NO undo yet — the legacy has one
 // (IMG_Annuler on the last action) and this does not.
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -32,6 +32,7 @@ import { BonnetierPhoto } from '@/components/atelier/BonnetierPhoto'
 import { BoutonIcone } from '@/components/atelier/BoutonIcone'
 import { Lien } from '@/components/atelier/Lien'
 import { MetierAuRepos } from '@/components/atelier/MetierAuRepos'
+import { SupprimerDerniereAction } from '@/components/atelier/SupprimerDerniereAction'
 import { useIdentite } from '@/contexts/BonnetierContext'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -41,6 +42,8 @@ export function Poste() {
   const navigate = useNavigate()
   const { identite } = useIdentite()
   const idMachine = Number(machineId) || 0
+  // A refused « Supprimer ma dernière action », shown in the footer.
+  const [erreurSuppression, setErreurSuppression] = useState<string | null>(null)
 
   // The machine list is already in cache from the picker; this resolves the
   // active OF without a dedicated round trip and refetches on its own if the
@@ -223,6 +226,7 @@ export function Poste() {
           className="flex-shrink-0 bg-gradient-brand text-white shadow-[0_-6px_16px_-8px_rgba(0,0,0,0.35)]"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
+          {erreurSuppression && <p className="px-4 pt-2 text-sm text-red-200">{erreurSuppression}</p>}
           <div className="px-4 py-3 flex items-center gap-3">
             {of.derniere_action ? (
               <>
@@ -250,6 +254,14 @@ export function Poste() {
                   <div className="text-sm font-semibold">{depuis(of.derniere_action.date_ms)}</div>
                   <div className="text-[11px] text-white/60">{formatQuand(of.derniere_action.date_ms)}</div>
                 </div>
+                {identite && (
+                  <SupprimerDerniereAction
+                    ofId={of.IDordre_fabrication}
+                    action={of.derniere_action}
+                    moi={identite.id}
+                    onErreur={setErreurSuppression}
+                  />
+                )}
               </>
             ) : (
               <div className="min-w-0">
