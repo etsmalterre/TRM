@@ -154,3 +154,13 @@ Demandé par Vincent **à la place** d'un redimensionnement des colonnes à la s
 
 ⚠️ Écran dépendant de l'API de la réservation de fil (paire `feat/reservation-fil`) : le web
 TRM ne se déploie pas avant elle.
+
+### Feuille d'inventaire — « Imprimer » de la barre d'outils (LIVA #1357, 2026-11-10)
+
+Nicolas imprime le papier, pointe les lots dans les racks (colonne Note vide + case à cocher
+à droite), puis corrige l'ERP. PDF paysage `InventaireFilPdf.tsx` (API, cadre
+`MalterreDocument`, pied `companyTrm`), route `GET /api/stock/fil-trm/inventaire` —
+déclarée **avant** `/fil-trm/:id`. Toujours les lots **disponibles** (un archivé n'est pas
+en rayon) ; sans recherche l'API imprime tout, avec recherche le web passe `ids` + `filtre`
+(imprimé sur la feuille). Tri = ordre de tournée : emplacement (lot sans emplacement en
+dernier), niveau, fil, coloris, lot. Lecture seule, aucun droit.
