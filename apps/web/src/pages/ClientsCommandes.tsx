@@ -24,6 +24,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import { UnsavedChangesDialog } from '@/components/shared/UnsavedChangesDialog'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { UrgenceIcon, type UrgenceLigne } from '@etm/components/sst/UrgenceIcon'
 import { useUnsavedGuard } from '@/hooks/useUnsavedGuard'
 import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst'
 import {
@@ -108,6 +109,10 @@ interface CommandeListRow {
   earliest_delivery: string | null
   /** Lines with no délai yet — any one of them makes the commande red (LIVA #1123). */
   lignes_sans_delai: number
+  /** Mirror: ETS Malterre passed a line « en urgence » (MPS API lib/urgence-sst.ts), answered or not. */
+  urgente?: boolean
+  /** …and its answer is still owed: OURS to give — a délai, a shorter one, or « impossible ». */
+  urgence_a_repondre?: boolean
 }
 
 /** Left-list urgency on the DÉLAI (mps_designer §30, decided 2026-09-07 on
@@ -117,6 +122,8 @@ interface CommandeListRow {
  *  workflow state; the liseré carries the délai. */
 function commandeUrgency(row: CommandeListRow): 'late' | 'soon' | null {
   if (row.est_soldee === 1) return null
+  // An urgency ETS Malterre asked and we have not answered: to do now, whatever the délai.
+  if (row.urgence_a_repondre) return 'late'
   if (row.nb_lignes === 0 || row.lignes_sans_delai > 0 || !row.earliest_delivery) return 'late'
   return deliveryUrgency(row.earliest_delivery, 0)
 }
@@ -167,7 +174,15 @@ interface LigneCommande {
   /** The original délai ETM froze on the first reschedule, when it differs
    *  from the current date. YYYYMMDD. */
   date_delai_initiale: string | null
+  /** Mirror: the urgency ETS Malterre asked on this line (MPS API lib/urgence-sst.ts) — 'attente' /
+   *  'a_relancer' = our answer is owed (a délai, a shorter one, or « impossible »), 'repondue' =
+   *  answered, the line stays « urgente ». Null without one. */
+  urgence?: UrgenceLigne | null
 }
+
+const jjmmIso = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+/** The urgency still waits for OUR answer. */
+const urgenceARepondre = (u: UrgenceLigne | null | undefined): u is UrgenceLigne => !!u && u.etat !== 'repondue'
 
 interface AdresseLite {
   IDadresse: number
@@ -934,6 +949,9 @@ function CommandeList({
                 <PhasePill phase={row.phase} className="ml-auto" />
               </div>
               <p className="text-xs text-muted-foreground mt-1 truncate">{row.client_nom || '—'}</p>
+              {row.urgence_a_repondre && row.est_soldee !== 1 && (
+                <p className="text-xs font-medium text-red-600 mt-0.5 truncate">Urgence demandée : répondre</p>
+              )}
               {!!row.ref_client && (
                 <p className="text-[11px] text-muted-foreground/80 mt-0.5 truncate italic">{row.ref_client}</p>
               )}
@@ -952,6 +970,8 @@ function CommandeList({
                     {fmtNum(row.total_eur)} €
                   </span>
                 )}
+                {/* Passed « en urgence » by ETS Malterre: the bare siren, bottom-right corner. */}
+                {row.urgente && <UrgenceIcon className="h-4 w-4" title="Passée en urgence par Ets Malterre" />}
               </div>
             </div>
           )
@@ -1126,6 +1146,8 @@ function LignesSection({
   // Délai (LIVA #1123): the one line field a mirror accepts from TRM. Its
   // own dialog, outside edit mode — a mirror has no edit mode at all.
   const [delaiLine, setDelaiLine] = useState<LigneCommande | null>(null)
+  // « Impossible »: our « no » to an urgency ETS Malterre asked on a mirror line.
+  const [refusLine, setRefusLine] = useState<LigneCommande | null>(null)
   const canEditCommandes = useHasPermission('edit_commandes_client')
   const canSetDelai = canEditCommandes && !isEditing && commande.est_soldee !== 1
 
@@ -1148,6 +1170,15 @@ function LignesSection({
     onError: () => {
       setDeleteLineConfirmId(null)
       setLineError('Cette ligne ne peut pas être supprimée : un ordre de fabrication existe déjà.')
+    },
+  })
+
+  const refusUrgenceMut = useMutation({
+    mutationFn: (lineId: number) => apiFetch(`/commandes-trm/lignes/${lineId}/urgence/refus`, { method: 'POST', body: JSON.stringify({}) }),
+    onSuccess: () => { setRefusLine(null); onMutationSuccess() },
+    onError: (e: any) => {
+      setRefusLine(null)
+      setLineError(e?.body?.message ?? 'La réponse n’a pas pu être enregistrée.')
     },
   })
 
@@ -1214,6 +1245,7 @@ function LignesSection({
                 onEdit={() => startEditLine(l)}
                 onDelete={() => setDeleteLineConfirmId(l.IDligne_commande_client)}
                 onSetDelai={() => setDelaiLine(l)}
+                onRefusUrgence={() => setRefusLine(l)}
                 onOpenProgression={onOpenProgression}
               />
             ))
@@ -1278,6 +1310,19 @@ function LignesSection({
         isPending={deleteLineMut.isPending}
         onCancel={() => setDeleteLineConfirmId(null)}
         onConfirm={() => { if (deleteLineConfirmId !== null) deleteLineMut.mutate(deleteLineConfirmId) }}
+      />
+
+      <ConfirmDialog
+        open={refusLine !== null}
+        variant="default"
+        title="Urgence impossible"
+        description={refusLine?.urgence
+          ? `Ets Malterre souhaite cette ligne pour le ${refusLine.urgence.dateSouhaitee ? jjmmIso(refusLine.urgence.dateSouhaitee) : 'plus tôt'}. Répondre que ce n’est pas possible : ${refusLine.date_livraison ? `le délai du ${formatHfsqlDate(refusLine.date_livraison)} est maintenu` : 'le délai reste à donner'}. Ets Malterre le voit sur sa commande.`
+          : ''}
+        confirmLabel="Répondre impossible"
+        isPending={refusUrgenceMut.isPending}
+        onCancel={() => setRefusLine(null)}
+        onConfirm={() => { if (refusLine) refusUrgenceMut.mutate(refusLine.IDligne_commande_client) }}
       />
 
       <ConfirmDialog
@@ -1415,7 +1460,7 @@ function FinPrevueStat({ ligneId }: { ligneId: number }) {
 }
 
 function LineCard({
-  line, estSoldee, isEditing, linesLocked, isDrawerOpen, canSetDelai, onEdit, onDelete, onSetDelai, onOpenProgression,
+  line, estSoldee, isEditing, linesLocked, isDrawerOpen, canSetDelai, onEdit, onDelete, onSetDelai, onRefusUrgence, onOpenProgression,
 }: {
   line: LigneCommande
   estSoldee: number
@@ -1427,6 +1472,7 @@ function LineCard({
   onEdit: () => void
   onDelete: () => void
   onSetDelai: () => void
+  onRefusUrgence: () => void
   onOpenProgression: (lineId: number | null) => void
 }) {
   const { border, iconBg, iconColor } = lineCardColors(line)
@@ -1535,8 +1581,12 @@ function LineCard({
             edit mode, whenever the order is open. Without a date on a
             mirror, ETM is waiting: the yellow « Attente délai » is the cue
             to give one. Reschedules keep ETM's frozen original inline. */}
-        {(line.date_livraison || line.attente_delai || canSetDelai) && (() => {
+        {(line.date_livraison || line.attente_delai || canSetDelai || line.urgence) && (() => {
           const u = line.date_livraison ? deliveryUrgency(line.date_livraison, estSoldee) : null
+          // The urgency ETS Malterre asked on the line (MPS API lib/urgence-sst.ts): while our answer
+          // is owed it is OURS to give now — red, with the two gestures (a délai, or « impossible »).
+          const urgence = estSoldee === 1 ? null : line.urgence ?? null
+          const souhaite = urgence?.dateSouhaitee ? ` · souhaité le ${jjmmIso(urgence.dateSouhaitee)}` : ''
           return (
             <div className="ml-auto text-right">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Délai</p>
@@ -1569,6 +1619,33 @@ function LineCard({
                   </Button>
                 )}
               </div>
+              {urgence && (
+                <p className="mt-0.5 flex items-center justify-end gap-1 text-[11px] whitespace-nowrap">
+                  <UrgenceIcon />
+                  {urgenceARepondre(urgence) ? (
+                    <>
+                      <span className="font-medium text-red-600">
+                        Urgent{souhaite} : {line.date_livraison ? 'avancer le délai' : 'donner le délai'}
+                      </span>
+                      {canSetDelai && (
+                        <>
+                          <span className="text-muted-foreground">ou</span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onRefusUrgence() }}
+                            title="Répondre à Ets Malterre que ce n’est pas possible"
+                            className="font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground cursor-pointer"
+                          >
+                            impossible
+                          </button>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <span className="font-medium">Urgent{souhaite}</span>
+                  )}
+                </p>
+              )}
             </div>
           )
         })()}
@@ -2388,13 +2465,15 @@ function DelaiDialog({ line, onClose, onSuccess }: {
       onSuccess()
     },
     onError: (e: any) => {
+      // The API's own sentence when it has one (a délai brought earlier without an urgency…).
       setError(e?.message?.includes('commande_soldee')
         ? 'Commande soldée — rouvrez-la pour changer le délai.'
-        : 'Le délai n\'a pas pu être enregistré.')
+        : e?.body?.message ?? 'Le délai n\'a pas pu être enregistré.')
     },
   })
 
   const isMirror = (line?.IDligne_commande_ETM ?? 0) > 0
+  const urgence = urgenceARepondre(line?.urgence) ? line!.urgence! : null
   const open = line !== null
 
   return (
@@ -2425,6 +2504,16 @@ function DelaiDialog({ line, onClose, onSuccess }: {
               className={cn(inputClass, 'h-9')}
             />
           </div>
+          {urgence && (
+            <p className="text-[11px] flex items-start gap-1.5">
+              <UrgenceIcon className="mt-0.5" />
+              <span>
+                <span className="font-medium">Ets Malterre a passé cette ligne en urgence</span>
+                {urgence.dateSouhaitee ? ` et la souhaite pour le ${jjmmIso(urgence.dateSouhaitee)}` : ''}.
+                {' '}Donnez la date que vous pouvez tenir{line?.date_livraison ? ' : plus tôt que le délai actuel, c’est accepter l’urgence' : ''}.
+              </span>
+            </p>
+          )}
           {isMirror && (
             <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
               <Link2 className="h-3 w-3 flex-shrink-0 mt-0.5" />

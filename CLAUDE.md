@@ -410,6 +410,24 @@ Mirrors the legacy WinDev app in Tricotage Malterre mode (top → bottom):
 
 All other screens are `PagePlaceholder`s for now. Legacy references for each domain: `FEN_Gestion_des_OF.wdw`, `FEN_Machines.wdw`, `FEN_Rapport_de_production.wdw`, etc. in `C:\Mes Projets\TRMPROD\` and the main MPS WinDev project (`FI_Planning_Atelier.wdw`, `FEN_Desiderata.wdw` in TRM mode).
 
+### Urgence demandée par Ets Malterre (2026-11-16)
+
+Une commande de tricotage d'ETM arrive **sans date** : TRM donne son délai (sous 1 jour ouvré).
+La seule date qu'ETM demande est celle d'une **urgence** (« Passer en urgence » côté ETM, MPS API
+`lib/urgence-sst.ts`, ETM `claude_doc/doctrine_delais.md` §5 quinquies). Sur Clients › Commandes :
+
+- la commande miroir porte la **sirène** (`@etm/components/sst/UrgenceIcon`, ETM mps_designer §47 :
+  l'icône de l'urgence dans toutes les applis, jamais un autre glyphe) ;
+- tant que la réponse est due (`urgence_a_repondre` sur la liste, `urgence.etat` ≠ `repondue` sur la
+  ligne), la carte est **rouge** (« Urgence demandée : répondre ») : ici c'est à TRM d'agir ;
+- TRM répond par le **délai** (la fenêtre existante ; une date plus tôt que le délai déjà donné est
+  acceptée tant que l'urgence attend, refusée sinon) ou par **« impossible »**
+  (`POST /commandes-trm/lignes/:id/urgence/refus`, troisième écriture qu'un miroir accepte après
+  l'état et le délai). Répondue, la ligne reste « Urgent » jusqu'à sa livraison.
+
+`tailwind.config.js` lit `ETM_WEB_SRC` dans `.env.local` comme `vite.config.ts` : un fichier
+partagé qui n'existe encore que dans un worktree ETM jumelé est scanné lui aussi.
+
 ### Commandes clients data model (legacy, shared HFSQL)
 
 `commande_client` / `ligne_commande_client` scopés `IDsociete = 2` ; une ligne TRM est

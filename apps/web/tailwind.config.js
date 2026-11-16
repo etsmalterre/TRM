@@ -1,3 +1,20 @@
+import fs from 'node:fs'
+
+// Where the screens shared with ETM live. Same override as vite.config.ts: `ETM_WEB_SRC` in the
+// gitignored `.env.local` repoints at a paired NG worktree while a shared file has not landed on
+// ETM master yet — without it here, a file that only exists in that worktree was imported by
+// Vite but never scanned, so its classes were missing in dev. No `.env.local` (every build) =
+// the ETM main checkout.
+const etmSrc = (() => {
+  try {
+    const m = fs.readFileSync(new URL('./.env.local', import.meta.url), 'utf8').match(/^ETM_WEB_SRC=(.+)$/m)
+    return m ? m[1].trim() : null
+  } catch {
+    return null
+  }
+})() ?? '../../../ETM/apps/web/src'
+const etm = (fichier) => `${etmSrc}/${fichier}`
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ["class"],
@@ -7,38 +24,40 @@ export default {
     // Screens shared verbatim from ETM (imported via the @etm alias in
     // vite.config.ts). List each shared screen explicitly — globbing all of
     // ETM's pages would bloat the CSS with classes TRM never renders.
-    "../../../ETM/apps/web/src/pages/TombeMetierReferences.tsx",
+    etm("pages/TombeMetierReferences.tsx"),
     // Its Rectiligne mode (LIVA #1185), a sibling file it imports relatively.
-    "../../../ETM/apps/web/src/pages/tombe-metier/RectiligneReferences.tsx",
+    etm("pages/tombe-metier/RectiligneReferences.tsx"),
     // Spec tiles shared by both modes of Références (relative import too).
-    "../../../ETM/apps/web/src/pages/tombe-metier/spec-tiles.tsx",
+    etm("pages/tombe-metier/spec-tiles.tsx"),
     // The composition row Références and Échantillons share (relative import).
-    "../../../ETM/apps/web/src/pages/tombe-metier/composition-fil.tsx",
+    etm("pages/tombe-metier/composition-fil.tsx"),
     // Tombé Métier › Échantillons.
-    "../../../ETM/apps/web/src/pages/TombeMetierEchantillons.tsx",
-    "../../../ETM/apps/web/src/pages/FilsReferences.tsx",
-    "../../../ETM/apps/web/src/pages/FilsGestion.tsx",
-    "../../../ETM/apps/web/src/pages/RapportFinance.tsx",
+    etm("pages/TombeMetierEchantillons.tsx"),
+    etm("pages/FilsReferences.tsx"),
+    etm("pages/FilsGestion.tsx"),
+    etm("pages/RapportFinance.tsx"),
     // Paramètres › Outils (import de la balance Sage).
-    "../../../ETM/apps/web/src/pages/SettingsOutils.tsx",
+    etm("pages/SettingsOutils.tsx"),
     // Tableau de bord shell (the widgets themselves are TRM-local, under src/).
-    "../../../ETM/apps/web/src/pages/Dashboard.tsx",
-    "../../../ETM/apps/web/src/components/dashboard/WidgetFrame.tsx",
-    "../../../ETM/apps/web/src/components/dashboard/DashboardContextMenu.tsx",
+    etm("pages/Dashboard.tsx"),
+    etm("components/dashboard/WidgetFrame.tsx"),
+    etm("components/dashboard/DashboardContextMenu.tsx"),
     // Login / poste / password change / name picker (UserPickerGate pulls the
     // whole folder). Missing until 2026-09-30: the split login layout rendered
     // on TRM without its padding, sizes and gold rule.
-    "../../../ETM/apps/web/src/components/auth/*.tsx",
-    "../../../ETM/apps/web/src/components/layout/AppLogo.tsx",
-    "../../../ETM/apps/web/src/pages/SettingsIndex.tsx",
+    etm("components/auth/*.tsx"),
+    etm("components/layout/AppLogo.tsx"),
+    etm("pages/SettingsIndex.tsx"),
     // Paramètres › Utilisateurs — one screen for both apps, and its account panel.
-    "../../../ETM/apps/web/src/pages/SettingsUtilisateurs.tsx",
-    "../../../ETM/apps/web/src/components/comptes/*.tsx",
+    etm("pages/SettingsUtilisateurs.tsx"),
+    etm("components/comptes/*.tsx"),
     // Agents IA › Agents + Automates and the pieces they share.
-    "../../../ETM/apps/web/src/pages/AgentsIa.tsx",
-    "../../../ETM/apps/web/src/pages/Automates.tsx",
-    "../../../ETM/apps/web/src/components/agents-ia/commun.tsx",
-    "../../../ETM/apps/web/src/components/agents-ia/Triage.tsx",
+    etm("pages/AgentsIa.tsx"),
+    etm("pages/Automates.tsx"),
+    etm("components/agents-ia/commun.tsx"),
+    etm("components/agents-ia/Triage.tsx"),
+    // The urgency siren (ETM mps_designer §47), on Clients › Commandes.
+    etm("components/sst/UrgenceIcon.tsx"),
   ],
   theme: {
     container: {
