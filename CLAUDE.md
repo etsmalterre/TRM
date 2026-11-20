@@ -432,7 +432,11 @@ partagé qui n'existe encore que dans un worktree ETM jumelé est scanné lui au
 
 `commande_client` / `ligne_commande_client` scopés `IDsociete = 2` ; une ligne TRM est
 `TYPE = 1` en Kg (écru) ou **`TYPE = 4` en pièces (rectiligne : cols / bandes, `ref_rectiligne`,
-LIVA #1185 — pas d'OF, pas de pièce, pas d'expédition ; l'API refuse en 409 `ligne_rectiligne`)**. Suivi par la production : `ordre_fabrication.IDligne_commande_client` →
+LIVA #1185 — pas d'OF ni de pièce, les chemins « rouleaux » répondent 409 `ligne_rectiligne`)**.
+**Une ligne rectiligne se LIVRE par quantité** (LIVA #1381, 2026-11-20) : « Livrer » dans son
+tiroir crée un avis dont la ligne porte le compte (`ligne_expedition.quantite`, 0 sur toute
+ligne de rouleaux), et la facture part de cet avis — pas d'OF pour les cols (décision de
+Vincent). Dossier § « Livrer des cols / bandes ». Suivi par la production : `ordre_fabrication.IDligne_commande_client` →
 `stock_ecru.IDLigne_Commande_TRM` → `ligne_expedition` via `IDligne_expedition_TRM`.
 **Dossier complet : `claude_doc/commandes-clients.md`** (modèle, tarif, tiroir Progression,
 « Créer un OF », confirmation Imprimer / Email).

@@ -12,6 +12,10 @@
 // lines are. "Produit" is the weight the OFs actually dropped; the gauge and
 // the phase pill both read off it.
 //
+// A RECTILIGNE line (cols / bandes off the flat machine, in pieces) has no OF
+// and no roll: it is followed by what was DELIVERED, a count typed at « Livrer »
+// (LIVA #1381). Its drawer is the order's deliveries, its gauge reads « Livré ».
+//
 // ── Mirrored orders are read-only ──
 // 93 % of TRM orders mirror an ETM sous-traitant order (`is_mirror`); ETM owns
 // their header and lines and syncs them down, and there is no reverse sync. On
@@ -74,6 +78,7 @@ import { CreateOfDialog } from '@/components/of/CreateOfDialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { postEmail } from '@/lib/email'
 import { useHasPermission } from '@/contexts/PermissionsContext'
+import { LivrerDialog } from '@/components/commandes/LivrerDialog'
 
 // ── Types ──────────────────────────────────────────────
 /** One off-sheet yarn (MPS API lib/hors-ref-trm.ts). */
@@ -104,6 +109,8 @@ interface CommandeListRow {
    *  bandes, LIVA #1185) in pieces. */
   total_kgs: number
   total_pieces: number
+  /** Pieces of the rectiligne lines already delivered (LIVA #1381). */
+  pieces_livrees?: number
   produit: number
   nb_lignes: number
   earliest_delivery: string | null
@@ -166,7 +173,13 @@ interface LigneCommande {
   } | null
   nb_pieces: number
   produit: number
+  /** Kgs of shipped rolls — or, on a rectiligne line, the pieces delivered. */
   expedie: number
+  /** Rectiligne only (LIVA #1381): deliveries so far, what is left, and
+   *  whether everything ordered has left. */
+  nb_livraisons?: number
+  reste_a_livrer?: number
+  livree?: boolean
   IDligne_commande_ETM: number
   /** ETM is still waiting for TRM to announce a délai on the sst line behind
    *  this mirrored line (sstatut Attente_Delai). LIVA #1123. */
@@ -360,6 +373,16 @@ interface OrdresPayload {
 }
 
 interface ExpeditionRoll { id: number; numero: string | null; lot: string | null; poids: number; magasin: string }
+/** A counted line of an avis: cols / bandes delivered by quantity (LIVA #1381). */
+interface ExpeditionQuantite {
+  IDligne_expedition: number
+  IDligne_commande_client: number
+  ref_label: string
+  ref_designation: string
+  colori_reference: string
+  quantite: number
+  libelle: string
+}
 
 interface ExpeditionRow {
   id: number
@@ -371,6 +394,9 @@ interface ExpeditionRow {
   observation_bl: string | null
   poids: number
   rolls: ExpeditionRoll[]
+  /** Counted lines (cols / bandes) and their total — empty on a roll avis. */
+  quantites?: ExpeditionQuantite[]
+  quantite?: number
 }
 
 // ── Shared styling ─────────────────────────────────────
@@ -958,12 +984,12 @@ function CommandeList({
               <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground">
                 {row.date_commande && <span>{formatHfsqlDate(row.date_commande)}</span>}
                 <span className="ml-auto text-muted-foreground/70 tabular-nums">
-                  {/* A rectiligne order counts pieces and produces nothing
-                      trackable — no « produit / commandé » gauge for it. */}
+                  {/* Rolls read « produit / commandé » in Kgs; a rectiligne
+                      order counts pieces, « livrées / commandées ». */}
                   {row.total_kgs > 0 || row.total_pieces === 0
                     ? `${fmtNum(row.produit)} / ${fmtNum(row.total_kgs)} Kgs`
                     : null}
-                  {row.total_pieces > 0 && `${row.total_kgs > 0 ? ' · ' : ''}${fmtNum(row.total_pieces)} U`}
+                  {row.total_pieces > 0 && `${row.total_kgs > 0 ? ' · ' : ''}${fmtNum(row.pieces_livrees ?? 0)} / ${fmtNum(row.total_pieces)} U`}
                 </span>
                 {row.total_eur > 0 && (
                   <span className="px-1.5 py-0.5 rounded bg-accent/10 font-medium text-foreground tabular-nums">
@@ -1265,14 +1291,23 @@ function LignesSection({
 
         {drawerOpen && drawerLigne && (
           <div className="flex-1 min-h-0 flex flex-col mt-3 rounded-lg border border-border/60 overflow-hidden bg-zinc-50/80 animate-in slide-in-from-bottom-4 fade-in-0 duration-200">
-            <ProgressionDrawer
-              key={drawerLigne.IDligne_commande_client}
-              commandeId={commande.IDcommande_client}
-              ligne={drawerLigne}
-              clientNom={commande.client_nom}
-              soldee={commande.est_soldee === 1}
-              onClose={() => onOpenProgression(null)}
-            />
+            {drawerLigne.type === LINE_TYPE_RECTILIGNE ? (
+              <LivraisonDrawer
+                key={drawerLigne.IDligne_commande_client}
+                commande={commande}
+                ligne={drawerLigne}
+                onClose={() => onOpenProgression(null)}
+              />
+            ) : (
+              <ProgressionDrawer
+                key={drawerLigne.IDligne_commande_client}
+                commandeId={commande.IDcommande_client}
+                ligne={drawerLigne}
+                clientNom={commande.client_nom}
+                soldee={commande.est_soldee === 1}
+                onClose={() => onOpenProgression(null)}
+              />
+            )}
           </div>
         )}
 
@@ -1476,12 +1511,14 @@ function LineCard({
   onOpenProgression: (lineId: number | null) => void
 }) {
   const { border, iconBg, iconColor } = lineCardColors(line)
-  // A rectiligne line (cols / bandes) has no production to follow: no OF, no
-  // piece, no shipment (legacy parity) — so no Progression drawer, no gauge.
+  // A rectiligne line (cols / bandes) has no OF and no roll: it is followed by
+  // what was DELIVERED, a count (LIVA #1381). Its drawer lists the deliveries
+  // and its gauge reads « Livré », where a roll line reads « Produit ».
   const isRecti = line.type === LINE_TYPE_RECTILIGNE
-  const clickable = !isEditing && !isRecti
+  const clickable = !isEditing
   const target = Number(line.quantite) || 0
-  const pct = target > 0 ? Math.min(100, (line.produit / target) * 100) : 0
+  const fait = isRecti ? line.expedie : line.produit
+  const pct = target > 0 ? Math.min(100, (fait / target) * 100) : 0
 
   return (
     <div
@@ -1515,6 +1552,11 @@ function LineCard({
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {isRecti && !!line.livree && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-green-600">
+              <CheckCircle2 className="h-3.5 w-3.5" />Livrée
+            </span>
+          )}
           {isEditing && !linesLocked && (
             <div className="flex gap-0.5">
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onEdit() }}>
@@ -1532,6 +1574,13 @@ function LineCard({
           Commandé, Produit, Expédié), delivery date pinned right. */}
       <div className="mt-2 ml-9 flex flex-wrap items-end gap-x-6 gap-y-1.5">
         <LineStat label="Commandé" value={`${fmtNum(line.quantite, isRecti ? 0 : 1)} ${line.unite_label}`} />
+        {isRecti && (
+          <LineStat
+            label="Livré"
+            value={`${fmtNum(line.expedie)} ${line.unite_label}`}
+            valueClass={line.livree ? 'text-green-600' : undefined}
+          />
+        )}
         {!isRecti && (
           <>
             <LineStat
@@ -1658,9 +1707,9 @@ function LineCard({
         </div>
       )}
 
-      {/* Production gauge — what the machines dropped vs what was ordered.
-          None on a rectiligne line: nothing is produced through an OF. */}
-      {!isRecti && <div className="mt-2 ml-9 flex items-center gap-2">
+      {/* Gauge — what the machines dropped vs what was ordered; on a
+          rectiligne line, what was delivered vs what was ordered. */}
+      <div className="mt-2 ml-9 flex items-center gap-2">
         <div className="h-1.5 flex-1 rounded-full bg-zinc-200 overflow-hidden">
           <div
             className={cn('h-full rounded-full transition-all', pct >= 99.9 ? 'bg-green-500' : 'bg-accent')}
@@ -1668,10 +1717,19 @@ function LineCard({
           />
         </div>
         <span className="text-xs text-muted-foreground tabular-nums flex-shrink-0">
-          Produit {fmtNum(line.produit, 1)} / {fmtNum(line.quantite, 1)} {line.unite_label}
-          {line.nb_pieces > 0 ? ` · ${line.nb_pieces} pièce${line.nb_pieces > 1 ? 's' : ''}` : ''}
+          {isRecti ? (
+            <>
+              Livré {fmtNum(line.expedie)} / {fmtNum(line.quantite)} {line.unite_label}
+              {(line.nb_livraisons ?? 0) > 0 ? ` · ${line.nb_livraisons} livraison${(line.nb_livraisons ?? 0) > 1 ? 's' : ''}` : ''}
+            </>
+          ) : (
+            <>
+              Produit {fmtNum(line.produit, 1)} / {fmtNum(line.quantite, 1)} {line.unite_label}
+              {line.nb_pieces > 0 ? ` · ${line.nb_pieces} pièce${line.nb_pieces > 1 ? 's' : ''}` : ''}
+            </>
+          )}
         </span>
-      </div>}
+      </div>
     </div>
   )
 }
@@ -2285,17 +2343,122 @@ function ProgressionDrawer({
   )
 }
 
+/** An avis of cols / bandes only: it ships a count, it has no roll (LIVA #1381). */
+const avisCompte = (e: ExpeditionRow) => (e.quantites?.length ?? 0) > 0 && e.rolls.length === 0
+
+// ── Livraisons drawer (rectiligne lines, LIVA #1381) ────
+// A rectiligne line has nothing to affect, no yarn tab, no OF: its drawer is
+// the order's deliveries (the same Expédition panel as a roll line, with the
+// print and email of each avis) and one gesture, « Livrer », which opens the
+// quantity dialog for every rectiligne line of the order — a batch of cols
+// usually carries several of them.
+
+function LivraisonDrawer({ commande, ligne, onClose }: {
+  commande: CommandeDetail
+  ligne: LigneCommande
+  onClose: () => void
+}) {
+  const commandeId = commande.IDcommande_client
+  const queryClient = useQueryClient()
+  // Same key as « Expédier » on the rolls; a soldée order delivers nothing.
+  const canShip = useHasPermission('edit_expeditions') && commande.est_soldee !== 1
+  const [livrerOpen, setLivrerOpen] = useState(false)
+  // The avis « Livrer » just created: the panel opens on it, so the next
+  // click can be « Imprimer ».
+  const [avisId, setAvisId] = useState<number | null>(null)
+  const { data: expeditions, isLoading } = useQuery<{ expeditions: ExpeditionRow[] }>({
+    queryKey: ['commande-trm-expeditions', commandeId],
+    queryFn: () => apiFetch(`/commandes-trm/${commandeId}/expeditions`),
+  })
+  const lignesRecti = commande.lignes
+    .filter((l) => l.type === LINE_TYPE_RECTILIGNE)
+    .map((l) => ({
+      IDligne_commande_client: l.IDligne_commande_client,
+      ref_label: l.ref_label,
+      colori_reference: l.colori_reference,
+      ref_designation: l.ref_designation,
+      quantite: l.quantite,
+      expedie: l.expedie,
+      reste_a_livrer: l.reste_a_livrer ?? 0,
+      livree: !!l.livree,
+      unite_label: l.unite_label,
+    }))
+
+  return (
+    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-zinc-100/80">
+      <div className="flex-shrink-0 flex items-center border-b bg-zinc-200/50 p-1 gap-1">
+        <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-accent-foreground shadow-sm">
+          <Truck className="h-3.5 w-3.5" />
+          <span>Livraisons</span>
+        </span>
+        <div className="ml-auto flex items-center gap-2 pr-1">
+          <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+            {fmtNum(ligne.expedie)} / {fmtNum(ligne.quantite)} {ligne.unite_label}
+          </span>
+          <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7" title="Fermer">
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <ExpeditionTab
+        loading={isLoading}
+        expeditions={expeditions?.expeditions ?? []}
+        preferredId={avisId}
+        clientNom={commande.client_nom}
+        emptyLabel="Aucune livraison"
+      />
+
+      <div className="flex-shrink-0 px-3 py-2 border-t bg-zinc-200/50 flex items-center gap-4 text-[11px] text-muted-foreground tabular-nums">
+        <span>Commandé <span className="font-semibold text-foreground">{fmtNum(ligne.quantite)} {ligne.unite_label}</span></span>
+        <span>Livré <span className="font-semibold text-foreground">{fmtNum(ligne.expedie)} {ligne.unite_label}</span></span>
+        <span>
+          Reste{' '}
+          <span className={cn('font-semibold', ligne.livree ? 'text-green-600' : 'text-accent')}>
+            {fmtNum(ligne.reste_a_livrer ?? 0)} {ligne.unite_label}
+          </span>
+        </span>
+        {canShip && (
+          <Button size="sm" className="ml-auto h-7 text-[11px]" onClick={() => setLivrerOpen(true)}>
+            <Truck className="h-3.5 w-3.5 mr-1.5" />
+            Livrer
+          </Button>
+        )}
+      </div>
+
+      <LivrerDialog
+        open={livrerOpen}
+        commandeId={commandeId}
+        numero={commande.numero}
+        clientNom={commande.client_nom}
+        lignes={lignesRecti}
+        focusLineId={ligne.IDligne_commande_client}
+        onClose={() => setLivrerOpen(false)}
+        onDone={(id) => {
+          setLivrerOpen(false)
+          setAvisId(id)
+          // The lines' « Livré », the order's list card and the avis list all change.
+          queryClient.invalidateQueries({ queryKey: ['commandes-trm'] })
+          queryClient.invalidateQueries({ queryKey: ['commande-trm', commandeId] })
+          queryClient.invalidateQueries({ queryKey: ['commande-trm-expeditions', commandeId] })
+        }}
+      />
+    </div>
+  )
+}
+
 /** Expédition tab — the legacy two-table split: shipments on the left, the
  *  pieces of the selected shipment in the middle, its info panel on the right.
  *  Scoped to the whole commande, like the legacy window. The info panel prints
  *  and emails the selected avis (LIVA #1221) — the same endpoints and dialog as
  *  Clients › Expéditions, open to every reader like there. */
-function ExpeditionTab({ loading, expeditions, preferredId, clientNom }: {
+function ExpeditionTab({ loading, expeditions, preferredId, clientNom, emptyLabel = 'Aucune expédition' }: {
   loading: boolean
   expeditions: ExpeditionRow[]
-  /** The avis « Expédier » just created — selected once the refetch brings it. */
+  /** The avis « Expédier » / « Livrer » just created — selected once the refetch brings it. */
   preferredId: number | null
   clientNom: string
+  emptyLabel?: string
 }) {
   const [selectedId, setSelectedId] = useState<number | null>(preferredId)
   const [emailOpen, setEmailOpen] = useState(false)
@@ -2318,7 +2481,7 @@ function ExpeditionTab({ loading, expeditions, preferredId, clientNom }: {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
         <Truck className="h-8 w-8 mb-2 opacity-50" />
-        <p className="text-sm font-medium">Aucune expédition</p>
+        <p className="text-sm font-medium">{emptyLabel}</p>
       </div>
     )
   }
@@ -2339,12 +2502,43 @@ function ExpeditionTab({ loading, expeditions, preferredId, clientNom }: {
           columns={[
             { key: 'no', label: 'N°', align: 'left', render: (e) => <span className="font-medium tabular-nums">{e.id}</span> },
             { key: 'date', label: 'Date', align: 'left', render: (e) => (e.date ? formatHfsqlDate(e.date) : '—') },
-            { key: 'poids', label: 'Expédié', align: 'right', render: (e) => `${fmtNum(e.poids, 1)} Kg` },
+            {
+              key: 'poids', label: 'Expédié', align: 'right',
+              // An avis of cols / bandes ships a count, not a weight.
+              render: (e) => (avisCompte(e) ? `${fmtNum(e.quantite ?? 0)} U` : `${fmtNum(e.poids, 1)} Kg`),
+            },
           ]}
         />
       </div>
 
       <div className="flex-1 min-w-0 overflow-y-auto scrollbar-transparent">
+        {(selected?.quantites?.length ?? 0) > 0 && (
+          <div className={cn((selected?.rolls.length ?? 0) > 0 && 'mb-3')}>
+            <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">
+              Pièces livrées{selected ? ` — expédition ${selected.id}` : ''}
+            </h3>
+            <PanelTable<ExpeditionQuantite & { id: number }>
+              loading={false}
+              rows={(selected?.quantites ?? []).map((q) => ({ ...q, id: q.IDligne_expedition }))}
+              emptyLabel="Aucune pièce"
+              emptyIcon={Package}
+              columns={[
+                {
+                  key: 'ref', label: 'Référence', align: 'left',
+                  render: (q) => (
+                    <span className="font-medium">
+                      {q.ref_label || '—'}
+                      {q.colori_reference ? <span className="font-normal text-muted-foreground"> / {q.colori_reference}</span> : null}
+                    </span>
+                  ),
+                },
+                { key: 'des', label: 'Désignation', align: 'left', render: (q) => q.ref_designation || '—' },
+                { key: 'qte', label: 'Quantité', align: 'right', render: (q) => <span className="font-semibold tabular-nums">{q.libelle}</span> },
+              ]}
+            />
+          </div>
+        )}
+        {selected && avisCompte(selected) ? null : (<>
         <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">
           Pièces expédiées{selected ? ` — expédition ${selected.id}` : ''}
         </h3>
@@ -2360,6 +2554,7 @@ function ExpeditionTab({ loading, expeditions, preferredId, clientNom }: {
             { key: 'mag', label: 'Magasin', align: 'left', render: (r) => r.magasin },
           ]}
         />
+        </>)}
       </div>
 
       {selected && (
@@ -2390,7 +2585,9 @@ function ExpeditionTab({ loading, expeditions, preferredId, clientNom }: {
           <div className="p-3 rounded-lg border bg-card shadow-sm space-y-2">
             <KV label="Date" value={selected.date ? formatHfsqlDate(selected.date) : '—'} />
             <KV label="Transporteur" value={selected.transporteur || '—'} />
-            <KV label="Poids" value={`${fmtNum(selected.poids, 1)} Kg`} />
+            {avisCompte(selected)
+              ? <KV label="Quantité" value={`${fmtNum(selected.quantite ?? 0)} U`} />
+              : <KV label="Poids" value={`${fmtNum(selected.poids, 1)} Kg`} />}
             <KV label="Validée" value={selected.est_valide ? 'Oui' : 'Non'} />
             <KV label="Facturée" value={selected.est_facture ? 'Oui' : 'Non'} />
           </div>

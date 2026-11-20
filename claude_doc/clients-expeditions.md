@@ -87,6 +87,20 @@ recipients are Ets Malterre's own « envoi BL » contacts — often none, by des
   expédie ; les postes partagés (Visitage, Regleur, eloise) sont laissés en
   lecture seule, comme pour `edit_of`.
 
+**Cols / bandes: an avis can carry a COUNT instead of rolls** (LIVA #1381, 2026-11-20).
+A rectiligne order line (TYPE 4) has no roll; what an avis delivers of it is
+`ligne_expedition.quantite` (migration `0082`, 0 on every roll line), written by « Livrer »
+on Clients › Commandes (`POST /commandes-trm/:id/livrer`, one avis for the batch — dossier
+`commandes-clients.md` § « Livrer des cols / bandes »). On this screen the list reads « 83 U »,
+the card of such a line reads « 26 livrées sur cet avis · 26 / 26 livrées en tout », the
+footer « Cols et bandes livrés », and a click on the card (avis not invoiced, right
+`edit_expeditions`) opens `QuantiteDialog` → `PUT /expeditions-trm/:id/lignes/:lccId/quantite`
+(0 removes the line from the avis). The piece routes still refuse a rectiligne line (409
+`ligne_rectiligne`). The avis PDF prints one « Quantité livrée » row per counted article
+(`BlArticle.quantite`), totals them (« TOTAL AVIS · 83 pièces ») and drops the lots / métiers
+notice when the avis holds no roll. Nothing is handed over to ETM: there is no stock row.
+Shared readers: `quantitesLivreesParLigne()` / `quantitesParAvis()` in `expeditions-trm.ts`.
+
 Like ETM, the legacy **validé / dévalider** concept stays retired: an expedition
 is "non facturée" (editable) or "facturée" (`est_facture = 1`, or a definitive
 facture references one of its `ligne_expedition` rows) and then every write 409s.

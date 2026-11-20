@@ -5,7 +5,7 @@
 ## Commandes clients data model (legacy, shared HFSQL)
 
 - Le registre TRM, c'est `commande_client` / `ligne_commande_client` **scopés `IDsociete = 2`** — les mêmes tables que l'écran ETM, autre partition. Une ligne TRM est `TYPE = 1` (écru, en Kg — le tombé métier des machines circulaires) **ou `TYPE = 4` (rectiligne, en pièces — les cols et bandes de la machine plate)**.
-  - **Rectiligne (LIVA #1185, 2026-09-23)** : `IDreference` = `ref_rectiligne`, `IDcolori` = `coloris_rectiligne` — jamais l'écru, dont les ids se chevauchent (R006-38 s'affichait « LTP02 » quand l'API lisait le type 4 comme de l'écru). Les 175 lignes legacy sont toutes des miroirs de lignes sst type 4 ; le dialogue de ligne offre aussi Circulaire / Rectiligne sur une commande native (le `SEL_TypeRef` de `FEN_Gestion_d_une_référence_de_commande_client`), prix prérempli depuis la référence, pas de tarif suggéré (le modèle de coût est circulaire). **Le legacy ne suit rien après la commande** (0 OF, 0 pièce, 0 expédition sur 175 lignes) : la carte n'a ni Produit / Expédié ni jauge, pas de tiroir Progression, l'OF (`/of-trm` : absente du picker, 409 sur composition et création), la pièce et « Expédier » sont refusés en 409 `ligne_rectiligne` ; une ligne rectiligne ne bloque jamais le solde. Une commande dont toutes les lignes sont rectilignes est « En production » (jamais « À lancer » : il n'y a rien à lancer). La liste sépare `total_kgs` / `total_pieces`. Libellés partout via `resolveTrmLineLabels` (`commandes-trm.ts`). Dossier ETM : `screen_notes.md` § 4 et § 7.
+  - **Rectiligne (LIVA #1185, 2026-09-23)** : `IDreference` = `ref_rectiligne`, `IDcolori` = `coloris_rectiligne` — jamais l'écru, dont les ids se chevauchent (R006-38 s'affichait « LTP02 » quand l'API lisait le type 4 comme de l'écru). Les 175 lignes legacy sont toutes des miroirs de lignes sst type 4 ; le dialogue de ligne offre aussi Circulaire / Rectiligne sur une commande native (le `SEL_TypeRef` de `FEN_Gestion_d_une_référence_de_commande_client`), prix prérempli depuis la référence, pas de tarif suggéré (le modèle de coût est circulaire). **Le legacy ne suit rien après la commande** (0 OF, 0 pièce, 0 expédition sur 175 lignes) : pas d'OF (`/of-trm` : absente du picker, 409 sur composition et création) ni de pièce, les chemins « rouleaux » (Affectation, « Expédier ») répondent 409 `ligne_rectiligne` ; une ligne rectiligne ne bloque jamais le solde. **Depuis LIVA #1381 elle se LIVRE par quantité** — voir « Livrer des cols / bandes » plus bas : la carte porte « Livré » et sa jauge, le tiroir liste les livraisons. Une commande dont toutes les lignes sont rectilignes est « En production » (jamais « À lancer » : il n'y a rien à lancer). La liste sépare `total_kgs` / `total_pieces`. Libellés partout via `resolveTrmLineLabels` (`commandes-trm.ts`). Dossier ETM : `screen_notes.md` § 4 et § 7.
 - ⚠️ **Une commande dont `IDcommande_ETM > 0` est un miroir d'une commande sous-traitant ETM, et elle est en LECTURE SEULE ici.** ETM pilote son entête et ses lignes et les redescend ; il n'y a **pas** de synchro retour, donc une écriture côté TRM diverge en silence. C'est le cas courant, pas le cas limite : 93 % du registre. L'écran masque Modifier / l'édition des lignes, et l'API refuse en 409 (`commande_miroir_etm`). Seules les commandes natives (`IDcommande_ETM = 0`) sont éditables.
   - **Sauf l'état, qui est celui de TRM** (LIVA #1100, décision avec l'atelier le 2026-09-02) : « Solder » un miroir veut dire « le tricotage de cette commande est fini ». Le bouton du pied §29 est donc actif sur un miroir, mais **seulement quand tous ses OF sont terminés et tous ses rouleaux expédiés** — `GET /commandes-trm/:id` renvoie `cloture { possible, of_ouverts, rouleaux_non_expedies }` (null sur une commande native, qui garde son bascule libre), l'onglet Info nomme ce qui bloque (« 1 OF non terminé · 30 rouleaux non expédiés »), et `PUT /:id/etat` refuse en 409 `commande_non_terminee` avec les mêmes compteurs. Rouvrir est toujours libre. Un miroir sans aucun OF est soldable (ETM a annulé, TRM ferme). **Ça ne clôture PAS la commande sous-traitant ETM** : ETM la voit passer en phase « Soldée par TRM » (pastille sarcelle, `trm_soldee`) et la clôture lui-même après avoir vérifié réceptions et délais — deux sociétés qui se parlent, aucune n'écrit le drapeau de l'autre. Avant ça, un miroir n'était soldable **nulle part** (la clôture ETM n'écrit que `commande_sous_traitant`), donc chaque commande clôturée côté ETM depuis la mise en service restait « En cours » ici — c'est le ticket. `ETM/apps/api/src/scripts/probe-cloture-miroir-trm.ts` compte ces miroirs et dit lesquels Nicolas peut fermer d'un clic.
   - **Sauf le délai, qui est la réponse de TRM** (LIVA #1123, 2026-09-07) : la date de fin de fabrication d'une ligne. Le legacy la portait par ligne dans la boucle de `FI_Commande_TRMV2` (`ATT_delai`, à côté de Commandé / Expédié / Prix) et c'est ce que Nicolas donne quand il traite une commande : l'autre bout de l'« Attente délai » d'ETM. Sur la carte de ligne, la stat « Délai » porte un bouton horloge (droit `edit_commandes_client`, hors mode édition, commande non soldée — donc **sur un miroir aussi**, qui n'a pas de mode édition) qui ouvre un dialogue §18.A à un champ. `PUT /commandes-trm/lignes/:id/delai { date_livraison }` (`z.strict`, YYYYMMDD ou vide) écrit **les deux registres** : `ligne_commande_client.date_livraison` (ce que la carte et le PDF de confirmation montrent) et, sur un miroir, `ligne_commande_sous_traitant.date_livraison` par le back-pointer `IDligne_commande_ETM`, avec les **mêmes règles que le `PUT /lignes` d'ETM** — `date_delai` gèle la date d'origine au premier report (capture-once) et `Attente_Delai` passe `En_Cours` (`Non_Envoye` reste : le bon de commande n'est pas parti). Les règles vivent une seule fois dans `lib/sst-shared.ts` (`sstDelaiSets`, pure, testée) et les deux routes l'appellent. Le détail expose par ligne `attente_delai` (badge jaune « Attente délai » = ETM attend la date) et `date_delai_initiale` (rendue « (initial : …) » comme la carte ETM). Un échec du demi-écrit ETM ne cache rien : `sst_status: 'failed'` dans la réponse, message à l'écran, la date TRM reste posée. Route à part plutôt qu'un trou dans `refuseIfMirror` : la règle « le contenu est à ETM » tient, et chaque exception (état, délai) est nommée, gardée et documentée. Garde : `check-commandes-trm-delai.ts` (**écrit sur la base dev, localhost seulement, restaure tout**). Mesuré sur la prod : les deux registres portent la même date sur 2 311 des 2 545 lignes miroir, 646 lignes ont une date d'origine gelée.
@@ -206,6 +206,53 @@ composition qu'ils peuvent alimenter. Port du bouton legacy en bas à droite du 
   comme le flux legacy) : la création ne démarre rien, l'activation reste un acte distinct.
 - Un lot coché qui n'entre dans aucune position de la composition est **annoncé et ignoré**
   (le cas normal : la sélection couvre deux écrus différents).
+
+### Livrer des cols / bandes (LIVA #1381, 2026-11-20)
+
+Nicolas (ticket du 18/11/2026) : « expédier des pièces ou un lot de pièces quand j'ai une
+commande de bandes et de cols, histoire de solder en allant les lignes ». Jusqu'en septembre
+une commande de cols n'avait qu'une ligne, la solder suffisait ; les trois dernières en ont
+4, 14 et 7 (commande 2925, la capture du ticket). Décision de Vincent le 2026-11-20 :
+**des livraisons par quantité, pas d'ordres de fabrication** (4 à 11 k€ et 6 500 à 18 500
+pièces par an : reconstruire OF / pièces / TRS « en pièces » ne se justifie pas), et **la
+facture part de ces livraisons**.
+
+- **Une livraison = un avis d'expédition de la commande**, avec une `ligne_expedition` par
+  ligne livrée qui porte le compte : colonne **`ligne_expedition.quantite`** (migration PG
+  `0082`), à 0 sur toute ligne de rouleaux. Règles pures et testées :
+  `ETM/apps/api/src/lib/livraison-rectiligne.ts` (livré = Σ quantite, reste = commandé − livré,
+  ligne « livrée » quand tout est parti).
+- **Écran** : la carte d'une ligne rectiligne affiche Commandé · **Livré** · jauge
+  « Livré 49 / 149 U · 1 livraison » et une coche verte « Livrée » ; la liste de gauche lit
+  « 83 / 907 U ». Un clic ouvre le tiroir **Livraisons** (`LivraisonDrawer` : le même panneau
+  Expédition que les rouleaux, avec Imprimer / Envoyer de chaque avis, sans les onglets
+  Affectation / Fil / OF) ; son pied porte **« Livrer »**, qui ouvre
+  `components/commandes/LivrerDialog.tsx` : **toutes** les lignes rectilignes de la commande,
+  commandé / déjà livré / reste, une quantité par ligne (la ligne d'où l'on vient est
+  préremplie avec son reste, « Tout le reste » remplit les autres) → **un seul avis** pour le
+  lot. `POST /commandes-trm/:id/livrer { lignes: [{ IDligne_commande_client, quantite }] }`.
+- **Pas d'étape « affecter »** : il n'existe aucun stock de cols (`stock_rectiligne` n'a jamais
+  reçu une ligne) et rien n'est transféré à Ets Malterre — les cols arrivent dans le « stock de
+  divers » d'ETM, que TRM n'écrit pas.
+- ⚠️ **Livrer plus que le reste est permis** (un lot sort avec quelques pièces de plus) : le
+  dialogue le dit sous le champ (« 2 de plus que le reste »), l'API ne refuse pas. **Et la
+  commande reste soldable à tout moment** : une ligne livrée court ne bloque rien, le solde
+  reste l'acte qui ferme.
+- Mêmes règles qu'« Expédier » : droit **`edit_expeditions`**, permis sur un miroir, refusé sur
+  une commande soldée (409), sérialisé sur le même verrou ; un seul POST par ouverture du
+  dialogue (un second Entrée créerait un second avis).
+- **Corriger** : Clients › Expéditions, la carte d'une ligne rectiligne ouvre « Quantité
+  livrée » (`PUT /expeditions-trm/:id/lignes/:lccId/quantite`, 0 retire la ligne de l'avis) ;
+  supprimer l'avis annule la livraison. Tout est refusé une fois l'avis facturé.
+- **Suppression** : une ligne qui figure sur un avis ne se supprime plus (409 `ligne_expediee`
+  côté TRM, et côté ETM la ligne sst / la commande sst d'un miroir déjà livré : « Tricotage
+  Malterre a déjà livré des pièces dessus »).
+- Gardes : `check-livrer-trm.ts` (`API_BASE=http://localhost:808N/api` — **crée puis supprime
+  un avis sur la base de dev, jamais la prod** ; il ouvre sa propre session admin, l'ancien
+  cookie signé des scripts d'avant ne passe plus) et `check-rectiligne-lines.ts` (une ligne
+  d'avis de type 4 porte une quantité, une ligne de rouleaux jamais).
+- **Non fait, à décider** : ETM ne voit pas ces livraisons sur sa ligne sous-traitant (son
+  statut ne bouge toujours pas) et son stock de cols reste tenu à la main.
 
 ### Confirmation de commande (Imprimer · Envoyer par email)
 

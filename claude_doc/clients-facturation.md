@@ -28,3 +28,13 @@ Proforma generation reads the rolls through `stock_ecru.IDligne_expedition_TRM` 
 `IDligne_expedition_ETM`) — the same physical roll carries both over its life, so reading
 the wrong column invoices the wrong shipment's weight.
 
+**Cols / bandes are invoiced from their deliveries** (LIVA #1381, 2026-11-20). Until then
+TRM typed these invoices by hand (« Refacturation Cols R006 (3 fils) Taille 46 … 611 Pièce »,
+no link to an order nor a delivery). A rectiligne line delivered by count (`ligne_expedition.
+quantite`, dossier `commandes-clients.md` § « Livrer des cols / bandes ») now yields a
+proforma line like the rolls: quantity = the count of the avis, unit « Pièce », price = the
+order line's, designation `R006-38 blanc001` / `col 38x9 cm BIO` / `N/Commande … V/Commande …`
+/ `Avis : n`. TRM mount only (`scope.societe === 2` in `lineFor`). Checked on the dev copy:
+26 × 0,80 € = 20,80 € and 100 × 0,50 € = 50,00 € on order 2925; the avis is then locked like
+any invoiced one.
+

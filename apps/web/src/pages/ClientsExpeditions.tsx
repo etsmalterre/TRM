@@ -25,6 +25,9 @@
 //  - One printable document (the avis d'expédition), so the header keeps the
 //    plain §6.1 print button rather than a §42 doc menu.
 //  - The legacy "CSV TAD" export is deliberately not ported.
+//  - Cols / bandes (rectiligne lines, LIVA #1381) have no piece to pick: the
+//    avis carries a COUNT per line, typed at « Livrer » on Clients › Commandes
+//    and corrected here (a line card opens a one-field dialog, 0 removes it).
 
 import { useState, useMemo, useEffect, useCallback, useRef, type ComponentType } from 'react'
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -57,6 +60,7 @@ import {
   Receipt,
   Cog,
   AlertTriangle,
+  Spline,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -91,6 +95,8 @@ interface ExpeditionListRow {
   donation: number
   nb_pieces: number
   total_poids: number
+  /** Cols / bandes delivered by count on this avis (LIVA #1381); 0 on a roll avis. */
+  total_quantite?: number
 }
 
 interface AdresseLite {
@@ -123,7 +129,14 @@ interface ExpeditionLigne {
   nb_pieces_exp: number
   poids_exp: number
   nb_pieces_dispo: number
+  /** 'rectiligne' = cols / bandes: the avis carries a count, never rolls. */
+  kind?: 'ecru' | 'rectiligne'
+  /** Rectiligne: the count THIS avis delivers, and the line's total over every avis. */
+  quantite_exp?: number
+  quantite_livree?: number
 }
+
+const estRecti = (l: ExpeditionLigne) => l.kind === 'rectiligne'
 
 interface FactureRef {
   IDfacture: number
@@ -582,7 +595,10 @@ function ExpeditionListPanel({
                 {row.date && <span>{formatHfsqlDate(row.date)}</span>}
                 {row.commande_numero != null && <span>· Cmd {row.commande_numero}</span>}
                 <span className="ml-auto text-muted-foreground/80 tabular-nums">
-                  {row.nb_pieces} pce{row.nb_pieces > 1 ? 's' : ''} · {fmtNum(row.total_poids, 0)} kg
+                  {(row.total_quantite ?? 0) > 0 && row.nb_pieces === 0
+                    // An avis of cols / bandes ships a count, not a weight.
+                    ? `${fmtNum(row.total_quantite ?? 0)} U`
+                    : `${row.nb_pieces} pce${row.nb_pieces > 1 ? 's' : ''} · ${fmtNum(row.total_poids, 0)} kg`}
                 </span>
               </div>
             </div>
@@ -768,8 +784,12 @@ function LignesSection({
   onMutationSuccess: () => void
 }) {
   const lignes = expedition.lignes
-  const drawerOpen = pieceDrawerLcc !== null && !isEditing
-  const drawerLigne = drawerOpen ? lignes.find((l) => l.IDligne_commande_client === pieceDrawerLcc) ?? null : null
+  // A rectiligne line has no piece to pick: its card opens the quantity
+  // dialog instead of the piece drawer.
+  const [quantiteLigne, setQuantiteLigne] = useState<ExpeditionLigne | null>(null)
+  const drawerCible = pieceDrawerLcc !== null ? lignes.find((l) => l.IDligne_commande_client === pieceDrawerLcc) ?? null : null
+  const drawerOpen = pieceDrawerLcc !== null && !isEditing && !!drawerCible && !estRecti(drawerCible)
+  const drawerLigne = drawerOpen ? drawerCible : null
 
   // Legacy parity: an expedition only "owns" the commande lines that have a
   // ligne_expedition row on it (a big order ships line-by-line across many
@@ -785,8 +805,19 @@ function LignesSection({
 
   const totalPieces = onExpLines.reduce((s, l) => s + l.nb_pieces_exp, 0)
   const totalPoids = onExpLines.reduce((s, l) => s + l.poids_exp, 0)
+  const totalQuantite = onExpLines.reduce((s, l) => s + (l.quantite_exp ?? 0), 0)
+  const aDesRouleaux = onExpLines.some((l) => !estRecti(l))
 
-  const renderLine = (l: ExpeditionLigne) => (
+  const renderLine = (l: ExpeditionLigne) => (estRecti(l) ? (
+    <LineCard
+      key={l.IDligne_commande_client}
+      line={l}
+      isDrawerOpen={false}
+      // The count is corrected while the avis is not invoiced; nothing to open otherwise.
+      clickable={!isEditing && editable}
+      onClick={() => setQuantiteLigne(l)}
+    />
+  ) : (
     <LineCard
       key={l.IDligne_commande_client}
       line={l}
@@ -795,7 +826,7 @@ function LignesSection({
       clickable={!isEditing && (editable || l.nb_pieces_exp > 0)}
       onClick={() => onOpenPieceDrawer(pieceDrawerLcc === l.IDligne_commande_client ? null : l.IDligne_commande_client)}
     />
-  )
+  ))
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -828,18 +859,120 @@ function LignesSection({
       {onExpLines.length > 0 && (
         <div className="flex-shrink-0 mt-3 pt-3 border-t border-border/60">
           <div className="flex flex-col items-end gap-1 text-sm tabular-nums">
-            <div className="flex items-center gap-6">
-              <span className="text-muted-foreground text-xs uppercase tracking-wide">Pièces expédiées</span>
-              <span className="w-32 text-right font-medium">{totalPieces}</span>
-            </div>
-            <div className="flex items-center gap-6">
-              <span className="text-muted-foreground text-xs uppercase tracking-wide">Poids total</span>
-              <span className="w-32 text-right">{fmtNum(totalPoids, 1)} kg</span>
-            </div>
+            {/* Rolls and counted pieces (cols / bandes) are two different sums. */}
+            {(aDesRouleaux || totalQuantite === 0) && (
+              <>
+                <div className="flex items-center gap-6">
+                  <span className="text-muted-foreground text-xs uppercase tracking-wide">Pièces expédiées</span>
+                  <span className="w-32 text-right font-medium">{totalPieces}</span>
+                </div>
+                <div className="flex items-center gap-6">
+                  <span className="text-muted-foreground text-xs uppercase tracking-wide">Poids total</span>
+                  <span className="w-32 text-right">{fmtNum(totalPoids, 1)} kg</span>
+                </div>
+              </>
+            )}
+            {totalQuantite > 0 && (
+              <div className="flex items-center gap-6">
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">Cols et bandes livrés</span>
+                <span className="w-32 text-right font-medium">{fmtNum(totalQuantite)}</span>
+              </div>
+            )}
           </div>
         </div>
       )}
+
+      <QuantiteDialog
+        expeditionId={expedition.id}
+        ligne={quantiteLigne}
+        onClose={() => setQuantiteLigne(null)}
+        onSuccess={() => { setQuantiteLigne(null); onMutationSuccess() }}
+      />
     </div>
+  )
+}
+
+/** The count an avis delivers of a rectiligne line (cols / bandes, LIVA
+ *  #1381): corrects a delivery typed wrong, 0 takes the line off the avis.
+ *  §18.A at its smallest — one field. */
+function QuantiteDialog({ expeditionId, ligne, onClose, onSuccess }: {
+  expeditionId: number
+  ligne: ExpeditionLigne | null
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [value, setValue] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const lccId = ligne?.IDligne_commande_client ?? null
+  useEffect(() => {
+    setValue(ligne && (ligne.quantite_exp ?? 0) > 0 ? String(ligne.quantite_exp).replace('.', ',') : '')
+    setError(null)
+  }, [lccId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const quantite = (() => {
+    const v = Number(value.trim().replace(/\s/g, '').replace(',', '.'))
+    return Number.isFinite(v) && v >= 0 ? Math.round(v * 100) / 100 : NaN
+  })()
+  const saveMut = useMutation({
+    mutationFn: () => apiFetch(`/expeditions-trm/${expeditionId}/lignes/${lccId}/quantite`, {
+      method: 'PUT',
+      body: JSON.stringify({ quantite }),
+    }),
+    onSuccess,
+    onError: (e: Error & { status?: number; body?: { message?: string } }) => {
+      setError(e.body?.message ?? (e.status === 403
+        ? "Vous n'avez pas le droit de modifier une expédition."
+        : 'La quantité n’a pas pu être enregistrée.'))
+    },
+  })
+  // What the line has left once this avis is set aside — the natural ceiling.
+  const autres = ligne ? (ligne.quantite_livree ?? 0) - (ligne.quantite_exp ?? 0) : 0
+  const reste = ligne ? Math.max(0, Math.round((ligne.quantite - autres) * 100) / 100) : 0
+
+  return (
+    <Dialog open={ligne !== null} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-sm" onClose={onClose}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Truck className="h-5 w-5 text-accent" />
+            Quantité livrée
+          </DialogTitle>
+        </DialogHeader>
+        <form
+          className="mt-4 space-y-3"
+          onSubmit={(e) => { e.preventDefault(); if (!saveMut.isPending && !Number.isNaN(quantite)) saveMut.mutate() }}
+        >
+          {ligne && (
+            <p className="text-sm text-muted-foreground truncate">
+              {ligne.ref_label || '—'}{ligne.colori_reference ? ` / ${ligne.colori_reference}` : ''}
+              {' · '}commandé {fmtNum(ligne.quantite)}
+            </p>
+          )}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Pièces livrées sur cet avis</label>
+            <input
+              type="text" inputMode="decimal" value={value} autoFocus
+              onChange={(e) => setValue(e.target.value)}
+              className="w-full h-9 px-2.5 text-sm tabular-nums rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            {autres > 0 ? `${fmtNum(autres)} déjà livrées sur d’autres avis · ` : ''}reste {fmtNum(reste)} à livrer hors de cet avis.
+            {' '}0 retire la ligne de l’avis.
+          </p>
+          {error && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">{error}</div>
+          )}
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+            <Button type="submit" disabled={saveMut.isPending || Number.isNaN(quantite)}>
+              <Save className="h-3.5 w-3.5 mr-1.5" />
+              {saveMut.isPending ? 'Enregistrement...' : 'Enregistrer'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -851,7 +984,8 @@ function LineCard({
   clickable: boolean
   onClick: () => void
 }) {
-  const hasPieces = line.nb_pieces_exp > 0
+  const recti = estRecti(line)
+  const hasPieces = recti ? (line.quantite_exp ?? 0) > 0 : line.nb_pieces_exp > 0
   const border = hasPieces ? 'border-l-amber-400/60' : 'border-l-border'
   const iconBg = hasPieces ? 'bg-amber-400/10' : 'bg-muted'
   const iconColor = hasPieces ? 'text-amber-600' : 'text-muted-foreground'
@@ -868,7 +1002,9 @@ function LineCard({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <div className={cn('h-7 w-7 rounded-md flex items-center justify-center flex-shrink-0', iconBg)}>
-            <TmRollIcon className={cn('h-5 w-5', iconColor)} />
+            {recti
+              ? <Spline className={cn('h-3.5 w-3.5', iconColor)} />
+              : <TmRollIcon className={cn('h-5 w-5', iconColor)} />}
           </div>
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">{line.ref_label || '—'}</p>
@@ -880,11 +1016,23 @@ function LineCard({
           Commandé {fmtNum(line.quantite, 1)} {line.unite_label}
         </span>
       </div>
-      <div className="flex items-center gap-3 mt-2 ml-9 text-[11px] text-muted-foreground tabular-nums">
-        <span className="font-medium text-foreground">{line.nb_pieces_exp} pièce{line.nb_pieces_exp > 1 ? 's' : ''}</span>
-        {line.poids_exp > 0 && <span>· {fmtNum(line.poids_exp, 1)} kg</span>}
-        <span className="ml-auto text-muted-foreground/70">{line.nb_pieces_dispo} dispo.</span>
-      </div>
+      {recti ? (
+        // Cols / bandes: the count this avis delivers, against the line's total.
+        <div className="flex items-center gap-3 mt-2 ml-9 text-[11px] text-muted-foreground tabular-nums">
+          <span className="font-medium text-foreground">
+            {fmtNum(line.quantite_exp ?? 0)} livrée{(line.quantite_exp ?? 0) > 1 ? 's' : ''} sur cet avis
+          </span>
+          <span className="ml-auto text-muted-foreground/70">
+            {fmtNum(line.quantite_livree ?? 0)} / {fmtNum(line.quantite)} livrées en tout
+          </span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 mt-2 ml-9 text-[11px] text-muted-foreground tabular-nums">
+          <span className="font-medium text-foreground">{line.nb_pieces_exp} pièce{line.nb_pieces_exp > 1 ? 's' : ''}</span>
+          {line.poids_exp > 0 && <span>· {fmtNum(line.poids_exp, 1)} kg</span>}
+          <span className="ml-auto text-muted-foreground/70">{line.nb_pieces_dispo} dispo.</span>
+        </div>
+      )}
     </div>
   )
 }
