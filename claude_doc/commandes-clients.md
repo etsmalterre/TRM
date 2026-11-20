@@ -227,9 +227,12 @@ facture part de ces livraisons**.
   « 83 / 907 U ». Un clic ouvre le tiroir **Livraisons** (`LivraisonDrawer` : le même panneau
   Expédition que les rouleaux, avec Imprimer / Envoyer de chaque avis, sans les onglets
   Affectation / Fil / OF) ; son pied porte **« Livrer »**, qui ouvre
-  `components/commandes/LivrerDialog.tsx` : **toutes** les lignes rectilignes de la commande,
-  commandé / déjà livré / reste, une quantité par ligne (la ligne d'où l'on vient est
-  préremplie avec son reste, « Tout le reste » remplit les autres) → **un seul avis** pour le
+  `components/commandes/LivrerDialog.tsx` : **la ligne d'où l'on vient, et elle seule**
+  (commandé / déjà livré / reste, quantité préremplie avec le reste). ⚠️ La première version
+  listait d'emblée toutes les lignes rectilignes de la commande ; Vincent, le jour même :
+  ouvert depuis R006-38 / blanc001, le dialogue proposait « toute référence et tout coloris ».
+  Ne pas y revenir. Quand plusieurs références partent dans le même carton, « Livrer aussi
+  d'autres lignes (6) » déplie les autres (avec « Tout le reste ») → **un seul avis** pour le
   lot. `POST /commandes-trm/:id/livrer { lignes: [{ IDligne_commande_client, quantite }] }`.
 - **Pas d'étape « affecter »** : il n'existe aucun stock de cols (`stock_rectiligne` n'a jamais
   reçu une ligne) et rien n'est transféré à Ets Malterre — les cols arrivent dans le « stock de

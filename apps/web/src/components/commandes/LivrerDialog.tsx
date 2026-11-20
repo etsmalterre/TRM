@@ -1,17 +1,20 @@
 // « Livrer » des cols / bandes (LIVA #1381) — Clients › Commandes.
 //
 // A rectiligne line (machine plate: cols, bandes) has no roll to tick: what
-// leaves is a count. This dialog lists the order's rectiligne lines with what
-// is left of each, takes the quantities of the batch that is leaving, and
-// posts them as ONE avis d'expédition (POST /commandes-trm/:id/livrer) — the
-// same avis that is then printed, emailed and invoiced like the rolls'.
+// leaves is a count. The dialog opens on THE LINE IT WAS OPENED FROM, and only
+// that one (Vincent, 2026-11-20: opened from R006-38 / blanc001 it listed all
+// seven lines of the order, « toute référence et tout coloris »). When several
+// references leave in the same box, « Livrer aussi d'autres lignes » unfolds
+// the order's other rectiligne lines, so the batch still makes ONE avis
+// d'expédition (POST /commandes-trm/:id/livrer) — the same avis that is then
+// printed, emailed and invoiced like the rolls'.
 //
 // §18.A form dialog. Delivering more than what remains is allowed (a batch
 // comes out a few pieces over): the row says by how much, nothing is refused.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { CheckCircle2, Loader2, Truck } from 'lucide-react'
+import { CheckCircle2, Loader2, Plus, Truck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { apiFetch } from '@/lib/api'
@@ -41,7 +44,8 @@ export function LivrerDialog({
   clientNom: string
   /** The order's rectiligne lines, in order. */
   lignes: LigneRectiligne[]
-  /** The line the dialog was opened from: prefilled with what remains of it. */
+  /** The line the dialog was opened from: the only one shown at first,
+   *  prefilled with what remains of it. */
   focusLineId: number | null
   onClose: () => void
   /** Called with the avis just created. */
@@ -49,6 +53,8 @@ export function LivrerDialog({
 }) {
   const [saisies, setSaisies] = useState<Record<number, string>>({})
   const [error, setError] = useState<string | null>(null)
+  // The other rectiligne lines of the order, unfolded on demand.
+  const [toutes, setToutes] = useState(false)
   const focusRef = useRef<HTMLInputElement | null>(null)
   // One POST per opening: a second Enter while the first is in flight would
   // create a second avis (`isPending` flips a render too late to stop it).
@@ -58,6 +64,7 @@ export function LivrerDialog({
     if (!open) return
     envoye.current = false
     setError(null)
+    setToutes(false)
     const cible = lignes.find((l) => l.IDligne_commande_client === focusLineId)
     setSaisies(cible && cible.reste_a_livrer > 0
       ? { [cible.IDligne_commande_client]: String(cible.reste_a_livrer).replace('.', ',') }
@@ -66,8 +73,12 @@ export function LivrerDialog({
     return () => clearTimeout(t)
   }, [open, focusLineId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const resume = useMemo(() => resumerLivraison(lignes, saisies), [lignes, saisies])
-  const resteTotal = lignes.reduce((s, l) => s + l.reste_a_livrer, 0)
+  // Only the opener's line, unless the others were asked for (or it is unknown).
+  const cible = lignes.find((l) => l.IDligne_commande_client === focusLineId)
+  const visibles = toutes || !cible ? lignes : [cible]
+  const autres = lignes.length - visibles.length
+  const resume = useMemo(() => resumerLivraison(visibles, saisies), [visibles, saisies]) // eslint-disable-line react-hooks/exhaustive-deps
+  const resteTotal = visibles.reduce((s, l) => s + l.reste_a_livrer, 0)
 
   const livrerMut = useMutation({
     mutationFn: () => apiFetch<{ IDexpedition: number }>(`/commandes-trm/${commandeId}/livrer`, {
@@ -93,13 +104,13 @@ export function LivrerDialog({
   }
 
   // The first line still owed takes the focus when the opener is already delivered.
-  const focusId = lignes.find((l) => l.IDligne_commande_client === focusLineId && l.reste_a_livrer > 0)?.IDligne_commande_client
+  const focusId = cible?.IDligne_commande_client
     ?? lignes.find((l) => l.reste_a_livrer > 0)?.IDligne_commande_client
     ?? lignes[0]?.IDligne_commande_client
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="max-w-2xl" onClose={onClose}>
+      <DialogContent className={visibles.length > 1 ? 'max-w-2xl' : 'max-w-xl'} onClose={onClose}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Truck className="h-5 w-5 text-accent" />
@@ -108,7 +119,7 @@ export function LivrerDialog({
         </DialogHeader>
         <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); submit() }}>
           <p className="text-sm text-muted-foreground">
-            Commande n° {numero ?? '—'}{clientNom ? ` · ${clientNom}` : ''}. Saisissez ce qui part aujourd’hui : un avis d’expédition est créé pour ces pièces.
+            Commande n° {numero ?? '—'}{clientNom ? ` · ${clientNom}` : ''}. Saisissez ce qui part : un avis d’expédition est créé pour ces pièces.
           </p>
 
           <div className="rounded-lg border border-border/60 overflow-hidden">
@@ -124,7 +135,7 @@ export function LivrerDialog({
                   </tr>
                 </thead>
                 <tbody>
-                  {lignes.map((l) => {
+                  {visibles.map((l) => {
                     const id = l.IDligne_commande_client
                     const excess = resume.depassements.get(id)
                     return (
@@ -169,17 +180,29 @@ export function LivrerDialog({
           </div>
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {resteTotal > 0 && (
+            {/* One line shown: the way to the others, for a box holding several references. */}
+            {autres > 0 && (
               <Button
                 type="button" variant="ghost" size="sm"
                 className="h-7 text-xs text-accent hover:text-accent hover:bg-accent/10"
-                onClick={() => setSaisies(saisiesDuReste(lignes))}
+                onClick={() => setToutes(true)}
+                title="Plusieurs références partent ensemble : elles feront un seul avis d’expédition"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Livrer aussi d’autres lignes ({autres})
+              </Button>
+            )}
+            {visibles.length > 1 && resteTotal > 0 && (
+              <Button
+                type="button" variant="ghost" size="sm"
+                className="h-7 text-xs text-accent hover:text-accent hover:bg-accent/10"
+                onClick={() => setSaisies(saisiesDuReste(visibles))}
                 title="Remplir chaque ligne avec ce qui reste à livrer"
               >
                 Tout le reste
               </Button>
             )}
-            {Object.values(saisies).some((v) => v.trim() !== '') && (
+            {visibles.length > 1 && Object.values(saisies).some((v) => v.trim() !== '') && (
               <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSaisies({})}>
                 Vider
               </Button>
