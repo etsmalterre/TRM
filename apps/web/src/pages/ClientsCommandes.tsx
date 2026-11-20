@@ -2349,9 +2349,8 @@ const avisCompte = (e: ExpeditionRow) => (e.quantites?.length ?? 0) > 0 && e.rol
 // ── Livraisons drawer (rectiligne lines, LIVA #1381) ────
 // A rectiligne line has nothing to affect, no yarn tab, no OF: its drawer is
 // the order's deliveries (the same Expédition panel as a roll line, with the
-// print and email of each avis) and one gesture, « Livrer », which opens the
-// quantity dialog for every rectiligne line of the order — a batch of cols
-// usually carries several of them.
+// print and email of each avis) and one gesture, « Livrer », which asks how
+// many pieces of THIS line are leaving and makes an avis of them.
 
 function LivraisonDrawer({ commande, ligne, onClose }: {
   commande: CommandeDetail
@@ -2370,20 +2369,6 @@ function LivraisonDrawer({ commande, ligne, onClose }: {
     queryKey: ['commande-trm-expeditions', commandeId],
     queryFn: () => apiFetch(`/commandes-trm/${commandeId}/expeditions`),
   })
-  const lignesRecti = commande.lignes
-    .filter((l) => l.type === LINE_TYPE_RECTILIGNE)
-    .map((l) => ({
-      IDligne_commande_client: l.IDligne_commande_client,
-      ref_label: l.ref_label,
-      colori_reference: l.colori_reference,
-      ref_designation: l.ref_designation,
-      quantite: l.quantite,
-      expedie: l.expedie,
-      reste_a_livrer: l.reste_a_livrer ?? 0,
-      livree: !!l.livree,
-      unite_label: l.unite_label,
-    }))
-
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden bg-zinc-100/80">
       <div className="flex-shrink-0 flex items-center border-b bg-zinc-200/50 p-1 gap-1">
@@ -2429,10 +2414,14 @@ function LivraisonDrawer({ commande, ligne, onClose }: {
       <LivrerDialog
         open={livrerOpen}
         commandeId={commandeId}
-        numero={commande.numero}
-        clientNom={commande.client_nom}
-        lignes={lignesRecti}
-        focusLineId={ligne.IDligne_commande_client}
+        ligne={{
+          IDligne_commande_client: ligne.IDligne_commande_client,
+          ref_label: ligne.ref_label,
+          colori_reference: ligne.colori_reference,
+          ref_designation: ligne.ref_designation,
+          reste_a_livrer: ligne.reste_a_livrer ?? 0,
+          unite_label: ligne.unite_label,
+        }}
         onClose={() => setLivrerOpen(false)}
         onDone={(id) => {
           setLivrerOpen(false)

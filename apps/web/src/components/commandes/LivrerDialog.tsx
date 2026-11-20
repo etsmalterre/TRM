@@ -1,61 +1,45 @@
 // « Livrer » des cols / bandes (LIVA #1381) — Clients › Commandes.
 //
 // A rectiligne line (machine plate: cols, bandes) has no roll to tick: what
-// leaves is a count. The dialog opens on THE LINE IT WAS OPENED FROM, and only
-// that one (Vincent, 2026-11-20: opened from R006-38 / blanc001 it listed all
-// seven lines of the order, « toute référence et tout coloris »). When several
-// references leave in the same box, « Livrer aussi d'autres lignes » unfolds
-// the order's other rectiligne lines, so the batch still makes ONE avis
-// d'expédition (POST /commandes-trm/:id/livrer) — the same avis that is then
+// leaves is a count. One line, one question — how many are leaving — and the
+// answer becomes an avis d'expédition (POST /commandes-trm/:id/livrer), then
 // printed, emailed and invoiced like the rolls'.
 //
-// §18.A form dialog. Delivering more than what remains is allowed (a batch
-// comes out a few pieces over): the row says by how much, nothing is refused.
+// Kept this small on purpose (Vincent, 2026-11-20): a first version listed
+// every rectiligne line of the order, a second one hid them behind « Livrer
+// aussi d'autres lignes ». Both were removed — do not bring a table back here.
+// Delivering more than what remains is allowed (a batch comes out a few pieces
+// over): the dialog says so, nothing is refused.
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { CheckCircle2, Loader2, Plus, Truck } from 'lucide-react'
+import { Loader2, Truck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { apiFetch } from '@/lib/api'
 import { fmtNum } from '@/lib/format'
-import { cn } from '@/lib/utils'
-import { resumerLivraison, saisiesDuReste } from '@/lib/livraison-rectiligne'
+import { lireQuantite } from '@/lib/livraison-rectiligne'
 
 export interface LigneRectiligne {
   IDligne_commande_client: number
   ref_label: string | null
   colori_reference: string | null
   ref_designation: string | null
-  quantite: number
-  /** Pieces already delivered. */
-  expedie: number
   reste_a_livrer: number
-  livree: boolean
   unite_label: string
 }
 
-export function LivrerDialog({
-  open, commandeId, numero, clientNom, lignes, focusLineId, onClose, onDone,
-}: {
+export function LivrerDialog({ open, commandeId, ligne, onClose, onDone }: {
   open: boolean
   commandeId: number
-  numero: number | null
-  clientNom: string
-  /** The order's rectiligne lines, in order. */
-  lignes: LigneRectiligne[]
-  /** The line the dialog was opened from: the only one shown at first,
-   *  prefilled with what remains of it. */
-  focusLineId: number | null
+  ligne: LigneRectiligne
   onClose: () => void
   /** Called with the avis just created. */
   onDone: (IDexpedition: number) => void
 }) {
-  const [saisies, setSaisies] = useState<Record<number, string>>({})
+  const [saisie, setSaisie] = useState('')
   const [error, setError] = useState<string | null>(null)
-  // The other rectiligne lines of the order, unfolded on demand.
-  const [toutes, setToutes] = useState(false)
-  const focusRef = useRef<HTMLInputElement | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   // One POST per opening: a second Enter while the first is in flight would
   // create a second avis (`isPending` flips a render too late to stop it).
   const envoye = useRef(false)
@@ -64,26 +48,18 @@ export function LivrerDialog({
     if (!open) return
     envoye.current = false
     setError(null)
-    setToutes(false)
-    const cible = lignes.find((l) => l.IDligne_commande_client === focusLineId)
-    setSaisies(cible && cible.reste_a_livrer > 0
-      ? { [cible.IDligne_commande_client]: String(cible.reste_a_livrer).replace('.', ',') }
-      : {})
-    const t = setTimeout(() => { focusRef.current?.focus(); focusRef.current?.select() }, 50)
+    setSaisie(ligne.reste_a_livrer > 0 ? String(ligne.reste_a_livrer).replace('.', ',') : '')
+    const t = setTimeout(() => { inputRef.current?.focus(); inputRef.current?.select() }, 50)
     return () => clearTimeout(t)
-  }, [open, focusLineId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Only the opener's line, unless the others were asked for (or it is unknown).
-  const cible = lignes.find((l) => l.IDligne_commande_client === focusLineId)
-  const visibles = toutes || !cible ? lignes : [cible]
-  const autres = lignes.length - visibles.length
-  const resume = useMemo(() => resumerLivraison(visibles, saisies), [visibles, saisies]) // eslint-disable-line react-hooks/exhaustive-deps
-  const resteTotal = visibles.reduce((s, l) => s + l.reste_a_livrer, 0)
+  const quantite = lireQuantite(saisie)
+  const excess = Math.round((quantite - ligne.reste_a_livrer) * 100) / 100
 
   const livrerMut = useMutation({
     mutationFn: () => apiFetch<{ IDexpedition: number }>(`/commandes-trm/${commandeId}/livrer`, {
       method: 'POST',
-      body: JSON.stringify({ lignes: resume.lignes }),
+      body: JSON.stringify({ lignes: [{ IDligne_commande_client: ligne.IDligne_commande_client, quantite }] }),
     }),
     onSuccess: (res) => onDone(res.IDexpedition),
     onError: (e: Error & { status?: number; body?: { message?: string } }) => {
@@ -97,130 +73,48 @@ export function LivrerDialog({
   })
 
   const submit = () => {
-    if (resume.lignes.length === 0 || envoye.current) return
+    if (!(quantite > 0) || envoye.current) return
     envoye.current = true
     setError(null)
     livrerMut.mutate()
   }
 
-  // The first line still owed takes the focus when the opener is already delivered.
-  const focusId = cible?.IDligne_commande_client
-    ?? lignes.find((l) => l.reste_a_livrer > 0)?.IDligne_commande_client
-    ?? lignes[0]?.IDligne_commande_client
-
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className={visibles.length > 1 ? 'max-w-2xl' : 'max-w-xl'} onClose={onClose}>
+      <DialogContent className="max-w-sm" onClose={onClose}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Truck className="h-5 w-5 text-accent" />
-            Livrer des pièces
+            Livrer
           </DialogTitle>
         </DialogHeader>
         <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); submit() }}>
-          <p className="text-sm text-muted-foreground">
-            Commande n° {numero ?? '—'}{clientNom ? ` · ${clientNom}` : ''}. Saisissez ce qui part : un avis d’expédition est créé pour ces pièces.
+          <p className="text-sm text-muted-foreground truncate">
+            {ligne.ref_label || '—'}{ligne.colori_reference ? ` / ${ligne.colori_reference}` : ''}
+            {ligne.ref_designation ? ` · ${ligne.ref_designation}` : ''}
           </p>
-
-          <div className="rounded-lg border border-border/60 overflow-hidden">
-            <div className="max-h-[50dvh] overflow-y-auto scrollbar-transparent">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-zinc-200/60 backdrop-blur text-[10px] uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th className="text-left font-semibold px-3 py-2">Référence</th>
-                    <th className="text-right font-semibold px-2 py-2">Commandé</th>
-                    <th className="text-right font-semibold px-2 py-2">Déjà livré</th>
-                    <th className="text-right font-semibold px-2 py-2">Reste</th>
-                    <th className="text-right font-semibold px-3 py-2 w-32">À livrer</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibles.map((l) => {
-                    const id = l.IDligne_commande_client
-                    const excess = resume.depassements.get(id)
-                    return (
-                      <tr key={id} className="border-t border-border/60 align-top">
-                        <td className="px-3 py-2 min-w-0">
-                          <p className="font-medium truncate">
-                            {l.ref_label || '—'}
-                            {l.colori_reference ? <span className="text-muted-foreground"> / {l.colori_reference}</span> : null}
-                          </p>
-                          {!!l.ref_designation && <p className="text-[11px] text-muted-foreground truncate">{l.ref_designation}</p>}
-                        </td>
-                        <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{fmtNum(l.quantite)}</td>
-                        <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap text-muted-foreground">{fmtNum(l.expedie)}</td>
-                        <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
-                          {l.livree
-                            ? <span className="inline-flex items-center gap-1 text-green-600"><CheckCircle2 className="h-3.5 w-3.5" />Livrée</span>
-                            : <span className="font-semibold">{fmtNum(l.reste_a_livrer)}</span>}
-                        </td>
-                        <td className="px-3 py-1.5 text-right">
-                          <input
-                            ref={id === focusId ? focusRef : undefined}
-                            type="text"
-                            inputMode="decimal"
-                            value={saisies[id] ?? ''}
-                            onChange={(e) => setSaisies((prev) => ({ ...prev, [id]: e.target.value }))}
-                            placeholder="0"
-                            aria-label={`Quantité à livrer, ${l.ref_label ?? ''} ${l.colori_reference ?? ''}`}
-                            className="w-24 h-8 px-2.5 text-sm text-right tabular-nums rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring"
-                          />
-                          {excess !== undefined && (
-                            <p className="mt-0.5 text-[11px] text-muted-foreground italic whitespace-nowrap">
-                              {fmtNum(excess)} de plus que le reste
-                            </p>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground" htmlFor="livrer-quantite">Quantité à livrer</label>
+            <input
+              id="livrer-quantite"
+              ref={inputRef}
+              type="text"
+              inputMode="decimal"
+              value={saisie}
+              onChange={(e) => setSaisie(e.target.value)}
+              className="w-full h-9 px-2.5 text-sm tabular-nums rounded-md border border-input bg-white focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="text-[11px] text-muted-foreground tabular-nums">
+              Reste {fmtNum(ligne.reste_a_livrer)} {ligne.unite_label}
+              {excess > 0 ? ` · ${fmtNum(excess)} de plus que le reste` : ''}
+            </p>
           </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {/* One line shown: the way to the others, for a box holding several references. */}
-            {autres > 0 && (
-              <Button
-                type="button" variant="ghost" size="sm"
-                className="h-7 text-xs text-accent hover:text-accent hover:bg-accent/10"
-                onClick={() => setToutes(true)}
-                title="Plusieurs références partent ensemble : elles feront un seul avis d’expédition"
-              >
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Livrer aussi d’autres lignes ({autres})
-              </Button>
-            )}
-            {visibles.length > 1 && resteTotal > 0 && (
-              <Button
-                type="button" variant="ghost" size="sm"
-                className="h-7 text-xs text-accent hover:text-accent hover:bg-accent/10"
-                onClick={() => setSaisies(saisiesDuReste(visibles))}
-                title="Remplir chaque ligne avec ce qui reste à livrer"
-              >
-                Tout le reste
-              </Button>
-            )}
-            {visibles.length > 1 && Object.values(saisies).some((v) => v.trim() !== '') && (
-              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSaisies({})}>
-                Vider
-              </Button>
-            )}
-            <span className={cn('ml-auto tabular-nums', resume.total > 0 && 'text-foreground font-semibold')}>
-              {resume.total > 0
-                ? `${fmtNum(resume.total)} pièce${resume.total > 1 ? 's' : ''} sur ${resume.lignes.length} ligne${resume.lignes.length > 1 ? 's' : ''}`
-                : 'Aucune quantité saisie'}
-            </span>
-          </div>
-
           {error && (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">{error}</div>
           )}
-
           <DialogFooter className="mt-4">
             <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
-            <Button type="submit" disabled={resume.lignes.length === 0 || livrerMut.isPending}>
+            <Button type="submit" disabled={!(quantite > 0) || livrerMut.isPending}>
               {livrerMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Truck className="h-3.5 w-3.5 mr-1.5" />}
               Livrer
             </Button>
